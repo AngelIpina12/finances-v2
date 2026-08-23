@@ -2,7 +2,7 @@ import { generatePageTitle } from '@/src/shared/utils/metadata'
 import type { Metadata, Viewport } from 'next'
 
 export const metadata: Metadata = {
-    title: generatePageTitle("Welcome")
+    title: generatePageTitle("¡Bienvenido!")
 }
 
 export const viewport: Viewport = {

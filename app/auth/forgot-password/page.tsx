@@ -3,9 +3,9 @@ import { generatePageTitle } from '@/src/shared/utils/metadata'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-    title: generatePageTitle("Qué bueno verte")
+    title: generatePageTitle("¿Olvidaste tu contraseña?")
 }
 
-export default function LoginPage() {
-    return <AuthForm defaultMode="login" />
+export default function ForgotPasswordPage() {
+    return <AuthForm defaultMode="forgot-password" />
 }
