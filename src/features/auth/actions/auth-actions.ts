@@ -1,6 +1,6 @@
 "use server"
 
-import { SignUpFormData, SignUpSchema } from "../schemas/authSchema"
+import { LoginFormData, LoginSchema, SignUpFormData, SignUpSchema } from "../schemas/authSchema"
 import { authService } from "../services/AuthService"
 
 export async function signUpAction(input: SignUpFormData) {
@@ -13,5 +13,20 @@ export async function signUpAction(input: SignUpFormData) {
         }
     }
 
-    await authService.register(data.data)
+    const response = await authService.register(data.data)
+    return response
+}
+
+export async function signInAction(input: LoginFormData) {
+    const data = LoginSchema.safeParse(input)
+
+    if (!data.success) {
+        return {
+            error: 'Hubo un error',
+            success: ''
+        }
+    }
+
+    const response = await authService.login(data.data)
+    return response
 }

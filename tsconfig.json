@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@/components/*": ["./src/shared/components/*"]
+      "@/components/*": ["./src/shared/components/*"],
     }
   },
   "include": [

@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit, Geist } from "next/font/google";
 import "./globals.css";
-import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/src/components/providers/theme-provider";
+import { cn } from "@/lib/utils";
+import { Toaster } from "react-hot-toast";
 
 const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="es" suppressHydrationWarning>
       <body className={cn("min-h-full flex flex-col antialiased", outfit.variable, geist.variable)}>
         <ThemeProvider>{children}</ThemeProvider>
+        <Toaster position="top-right" />
       </body>
     </html>
   );

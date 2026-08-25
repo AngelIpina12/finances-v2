@@ -20,8 +20,9 @@ export const SignUpSchema = BaseAuthSchema.pick({
 
 export const LoginSchema = BaseAuthSchema.pick({
     email: true,
-    password: true,
-});
+}).extend({
+    password: z.string().trim().min(1, "La contraseña es obligatoria"),
+})
 
 export const ForgotPasswordSchema = BaseAuthSchema.pick({
     resetEmail: true,

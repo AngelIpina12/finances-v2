@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { redirect, useRouter } from 'next/navigation'
 import {
 	ArrowRight, BarChart3, Check,
 	Eye, EyeOff, LockKeyhole,
@@ -9,6 +9,9 @@ import {
 	Sun, Moon
 } from 'lucide-react'
 import Link from 'next/link'
+import { useForm } from 'react-hook-form'
+import toast from 'react-hot-toast'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
 	CardContent, CardDescription, CardHeader,
 	CardTitle
@@ -20,15 +23,13 @@ import {
 	FormError
 } from '@/components/forms'
 import { useTheme } from '../../../components/providers/theme-provider'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
 import {
 	ForgotPasswordSchema, LoginSchema, SignUpSchema,
 	AuthFormData, LoginFormData, SignUpFormData,
 	ForgotPasswordFormData
 } from '../schemas/authSchema'
 import { z } from 'zod'
-import { signUpAction } from '../actions/auth-actions'
+import { signInAction, signUpAction } from '../actions/auth-actions'
 
 type Mode = 'login' | 'register' | 'forgot-password'
 
@@ -49,19 +50,36 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 			? SignUpSchema
 			: LoginSchema
 
-	const { register, handleSubmit, formState: { errors } } = useForm<AuthFormData>({
+	const { register, handleSubmit, formState: { errors }, reset } = useForm<AuthFormData>({
 		resolver: zodResolver(schema) as any,
 		mode: 'all'
 	})
 
 	const handleLogin = async (data: LoginFormData) => {
 		console.log('Login:', data)
-		// router.push('/dashboard')
+		const { error, success } = await signInAction(data)
+
+		if (error) {
+			toast.error(error)
+		}
+		if (success) {
+			toast.success(success)
+			reset()
+			redirect('/dashboard')
+		}
 	}
 
 	const handleRegister = async (data: SignUpFormData) => {
 		console.log('Register:', data)
-		await signUpAction(data)
+		const { error, success } = await signUpAction(data)
+
+		if (error) {
+			toast.error(error)
+		}
+		if (success) {
+			toast.success(success)
+			reset()
+		}
 	}
 
 	const handleForgotPassword = async (data: ForgotPasswordFormData) => {
