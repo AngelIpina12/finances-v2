@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { redirect, useRouter } from 'next/navigation'
+import { redirect, useRouter, useSearchParams } from 'next/navigation'
 import {
 	ArrowRight, BarChart3, Check,
 	Eye, EyeOff, LockKeyhole,
@@ -9,7 +9,7 @@ import {
 	Sun, Moon
 } from 'lucide-react'
 import Link from 'next/link'
-import { useForm } from 'react-hook-form'
+import { Resolver, useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -26,12 +26,11 @@ import { useTheme } from '../../../components/providers/theme-provider'
 import {
 	ForgotPasswordSchema, LoginSchema, SignUpSchema,
 	AuthFormData, LoginFormData, SignUpFormData,
-	ForgotPasswordFormData
+	ForgotPasswordFormData, ResetPasswordFormData, ResetPasswordSchema
 } from '../schemas/authSchema'
-import { z } from 'zod'
-import { signInAction, signUpAction } from '../actions/auth-actions'
+import { forgotPasswordAction, resetPasswordAction, signInAction, signUpAction } from '../actions/auth-actions'
 
-type Mode = 'login' | 'register' | 'forgot-password'
+type Mode = 'login' | 'register' | 'forgot-password' | 'reset-password'
 
 interface AuthFormProps {
 	defaultMode?: Mode
@@ -43,15 +42,19 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 	const [submitted, setSubmitted] = useState(false)
 	const { theme, setTheme } = useTheme()
 	const router = useRouter()
+	const searchParams = useSearchParams()
 	const isRegister = mode === 'register'
+	const isResetPassword = mode === 'reset-password'
 	const schema = mode === 'forgot-password'
 		? ForgotPasswordSchema
-		: mode === 'register'
-			? SignUpSchema
-			: LoginSchema
+		: isResetPassword
+			? ResetPasswordSchema
+			: mode === 'register'
+				? SignUpSchema
+				: LoginSchema
 
 	const { register, handleSubmit, formState: { errors }, reset } = useForm<AuthFormData>({
-		resolver: zodResolver(schema) as any,
+		resolver: zodResolver(schema) as unknown as Resolver<AuthFormData>,
 		mode: 'all'
 	})
 
@@ -83,7 +86,30 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 	}
 
 	const handleForgotPassword = async (data: ForgotPasswordFormData) => {
-		console.log('Forgot password:', data.resetEmail)
+		const { error, success } = await forgotPasswordAction(data)
+
+		if (error) {
+			toast.error(error)
+		}
+		if (success) {
+			toast.success(success)
+		}
+	}
+
+	const handleResetPassword = async (data: ResetPasswordFormData) => {
+		const token = searchParams.get('token')
+		if (!token) redirect('/auth/forgot-password')
+
+		const { error, success } = await resetPasswordAction(data, token)
+
+		if (error) {
+			toast.error(error)
+		}
+		if (success) {
+			toast.success(success)
+			reset()
+			router.push('/auth/login')
+		}
 	}
 
 	const onSubmit = async (data: AuthFormData) => {
@@ -96,6 +122,8 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 				return await handleRegister(data)
 			case 'forgot-password':
 				return handleForgotPassword(data)
+			case 'reset-password':
+				return handleResetPassword(data)
 		}
 	}
 
@@ -184,7 +212,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 							<span className="font-sans font-semibold tracking-tight">Finances</span>
 						</div>
 						<p className="text-sm text-muted-foreground">
-							{mode === 'forgot-password' ? (
+							{mode === 'forgot-password' || isResetPassword ? (
 								<>
 									¿Recordaste tu contraseña?{' '}
 									<Link
@@ -222,25 +250,29 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 
 						<CardHeader className="gap-3 px-0">
 							<p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
-								{mode === 'forgot-password' ? 'Recupera tu cuenta' : 'Bienvenido a Finances'}
+								{mode === 'forgot-password' ? 'Recupera tu cuenta' : isResetPassword ? 'Nueva contraseña' : 'Bienvenido a Finances'}
 							</p>
 							<CardTitle
 								className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl"
 							>
 								{mode === 'forgot-password'
 									? '¿Olvidaste tu contraseña?'
-									: isRegister
-										? 'Empieza con claridad.'
-										: 'Qué bueno verte.'}
+									: isResetPassword
+										? 'Crea una nueva contraseña.'
+										: isRegister
+											? 'Empieza con claridad.'
+											: 'Qué bueno verte.'}
 							</CardTitle>
 							<CardDescription
 								className="text-sm leading-6"
 							>
 								{mode === 'forgot-password'
 									? 'No te preocupes, te enviaremos las instrucciones para restablecerla.'
-									: isRegister
-										? 'Crea tu espacio financiero privado en menos de un minuto.'
-										: 'Entra para retomar el control de tus finanzas.'}
+									: isResetPassword
+										? 'Elige una contraseña segura para volver a acceder a tu espacio.'
+										: isRegister
+											? 'Crea tu espacio financiero privado en menos de un minuto.'
+											: 'Entra para retomar el control de tus finanzas.'}
 							</CardDescription>
 						</CardHeader>
 
@@ -283,6 +315,28 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 											Volver a iniciar sesión
 										</Link>
 									</p>
+								</Form>
+							) : isResetPassword ? (
+								<Form onSubmit={handleSubmit(onSubmit)}>
+									<div className="flex flex-col gap-2">
+										<FormLabel htmlFor="new-password">Nueva contraseña</FormLabel>
+										<div className="relative">
+											<LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+											<FormInput id="new-password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" className="pl-11" {...register('password')} />
+											<button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+												{showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
+											</button>
+										</div>
+										{errors.password && <FormError>{errors.password.message}</FormError>}
+									</div>
+									<div className="flex flex-col gap-2">
+										<FormLabel htmlFor="confirm-password">Confirmar contraseña</FormLabel>
+										<FormInput id="confirm-password" type="password" placeholder="Repite tu nueva contraseña" {...register('confirmPassword')} />
+										{errors.confirmPassword && <FormError>{errors.confirmPassword.message}</FormError>}
+									</div>
+									<FormSubmit>
+										{submitted ? <><Check data-icon="inline-start" />Contraseña restablecida</> : <>Restablecer contraseña<ArrowRight data-icon="inline-end" /></>}
+									</FormSubmit>
 								</Form>
 							) : (
 								<>

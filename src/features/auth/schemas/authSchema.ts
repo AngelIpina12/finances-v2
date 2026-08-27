@@ -28,7 +28,16 @@ export const ForgotPasswordSchema = BaseAuthSchema.pick({
     resetEmail: true,
 });
 
+export const ResetPasswordSchema = BaseAuthSchema.pick({
+    password: true,
+    confirmPassword: true,
+}).refine((data) => data.password === data.confirmPassword, {
+    message: "Las contraseñas no coinciden",
+    path: ['confirmPassword']
+})
+
 export type AuthFormData = z.infer<typeof BaseAuthSchema>
 export type SignUpFormData = z.infer<typeof SignUpSchema>
 export type LoginFormData = z.infer<typeof LoginSchema>
 export type ForgotPasswordFormData = z.infer<typeof ForgotPasswordSchema>
+export type ResetPasswordFormData = z.infer<typeof ResetPasswordSchema>

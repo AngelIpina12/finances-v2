@@ -1,5 +1,5 @@
 import { auth } from "@/src/lib/auth";
-import { LoginFormData, SignUpFormData } from "../schemas/authSchema";
+import { ForgotPasswordFormData, LoginFormData, ResetPasswordFormData, SignUpFormData } from "../schemas/authSchema";
 import { authRepository, IAuthRepository } from './AuthRepository';
 import { headers } from "next/headers";
 import { APIError } from "better-auth";
@@ -78,6 +78,81 @@ class AuthService {
                         error: errorMessage,
                         success: ''
                     }
+                }
+            }
+        }
+
+        return {
+            error: '',
+            success: '',
+        }
+    }
+
+    async requestPasswordReset(credentials: ForgotPasswordFormData) {
+        const { resetEmail } = credentials
+        const requestHeaders = await headers()
+        const origin = requestHeaders.get('origin')
+
+        const user = await this.authRepository.userExists(resetEmail)
+
+        if (!user) {
+            return {
+                error: 'El usuario no existe.',
+                success: '',
+            }
+        }
+
+        try {
+            await auth.api.requestPasswordReset({
+                body: {
+                    email: resetEmail,
+                    ...(origin ? { redirectTo: `${origin}/auth/reset-password` } : {}),
+                },
+                headers: requestHeaders
+            })
+            return {
+                error: '',
+                success: 'Hemos enviado un email con instrucciones.'
+            }
+        } catch (error) {
+            if (error instanceof APIError) {
+
+                if (error.message) {
+                    return {
+                        error: error.message,
+                        success: ''
+                    }
+                }
+            }
+        }
+
+        return {
+            error: '',
+            success: '',
+        }
+    }
+
+    async resetPassword(credentials: ResetPasswordFormData, token: string) {
+        const { password } = credentials
+
+        try {
+            await auth.api.resetPassword({
+                body: {
+                    newPassword: password,
+                    token,
+                },
+                headers: await headers(),
+            })
+
+            return {
+                error: '',
+                success: 'Contraseña restablecida correctamente.',
+            }
+        } catch (error) {
+            if (error instanceof APIError) {
+                return {
+                    error: 'El enlace para restablecer la contraseña no es válido o expiró.',
+                    success: '',
                 }
             }
         }
