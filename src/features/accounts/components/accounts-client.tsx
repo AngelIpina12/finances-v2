@@ -21,20 +21,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { financialAccounts } from "@/src/db/schema";
 import { archiveFinancialAccount } from "../actions/financial-account-actions";
-import { type FinancialAccountInput } from "../schemas/financial-account.schema";
+import { FinancialAccountFormData } from "../schemas/financial-account.schema";
 import { AccountPlastic } from "./accounts-plastic";
 import { AccountForm } from "./accounts-form";
 import { formatMoney } from "../utils/format-account-money";
 import { ACCOUNT_TYPE_LABELS } from "../constants/account.constants";
 import { createFinancialAccountDraft, toFinancialAccountDraft } from "../utils/financial-account-draft";
+import { CardTitle } from "@/src/shared/components/ui/card";
 
 type FinancialAccount = typeof financialAccounts.$inferSelect;
-type Filter = "all" | FinancialAccountInput["type"];
+type Filter = "all" | FinancialAccountFormData["type"];
 
-export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
+interface Props {
+    accounts: FinancialAccount[]
+}
+
+export function AccountsClient({ accounts }: Props) {
     const [filter, setFilter] = useState<Filter>("all");
     const [hideBalances, setHideBalances] = useState(false);
-    const [draft, setDraft] = useState<FinancialAccountInput | null>(null);
+    const [accountToEdit, setAccountToEdit] = useState<FinancialAccount | "new" | null>(null);
     const [accountToArchive, setAccountToArchive] = useState<FinancialAccount | null>(null);
     const [isArchiving, startArchive] = useTransition();
 
@@ -74,12 +79,16 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
     return (
         <div className="space-y-7">
             <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-                <div>
-                    <p className="mb-2 text-sm font-medium text-primary">
-                        TU DINERO, EN UN SOLO LUGAR
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+                        Tu dinero, en un solo lugar
                     </p>
-                    <h1 className="text-3xl font-semibold tracking-tight">Mis cuentas</h1>
-                    <p className="mt-1 text-muted-foreground">
+                    <CardTitle
+                        className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl"
+                    >
+                        Mis cuentas
+                    </CardTitle>
+                    <p className="text-muted-foreground">
                         {accounts.length
                             ? `${accounts.length} cuentas activas · ${balanceSummary || "Sin saldos registrados"}`
                             : "Agrega una cuenta para comenzar a entender tu patrimonio."}
@@ -87,7 +96,7 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                 </div>
                 <Button
                     size="lg"
-                    onClick={() => setDraft(createFinancialAccountDraft())}
+                    onClick={() => setAccountToEdit("new")}
                 >
                     <Plus />
                     Agregar cuenta
@@ -140,7 +149,7 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                         </p>
                         <Button
                             className="mt-5"
-                            onClick={() => setDraft(createFinancialAccountDraft())}
+                            onClick={() => setAccountToEdit("new")}
                         >
                             <Plus />
                             Crear mi primera cuenta
@@ -183,7 +192,7 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                                         <Button
                                             size="icon-sm"
                                             variant="ghost"
-                                            onClick={() => setDraft(toFinancialAccountDraft(account))}
+                                            onClick={() => setAccountToEdit(account)}
                                             aria-label={`Editar ${account.name}`}
                                         >
                                             <Pencil />
@@ -205,8 +214,8 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                 </motion.section>
             )}
             <Dialog
-                open={draft !== null}
-                onOpenChange={(open) => !open && setDraft(null)}
+                open={accountToEdit !== null}
+                onOpenChange={(open) => !open && setAccountToEdit(null)}
             >
                 <DialogContent
                     className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-none overflow-y-auto p-6 sm:w-[min(92vw,72rem)] sm:max-w-none lg:p-8"
@@ -216,7 +225,7 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <DialogTitle>
-                                    {draft?.id ? "Editar cuenta" : "Nueva cuenta"}
+                                    {accountToEdit && accountToEdit !== "new" ? "Editar cuenta" : "Nueva cuenta"}
                                 </DialogTitle>
                                 <DialogDescription className="mt-1">
                                     Configura lo esencial. Podrás añadir movimientos y detalles
@@ -226,19 +235,21 @@ export function AccountsClient({ accounts }: { accounts: FinancialAccount[] }) {
                             <Button
                                 size="icon-sm"
                                 variant="ghost"
-                                onClick={() => setDraft(null)}
+                                onClick={() => setAccountToEdit(null)}
                             >
                                 <X />
                                 <span className="sr-only">Cerrar</span>
                             </Button>
                         </div>
                     </DialogHeader>
-                    {draft && (
+                    {accountToEdit && (
                         <AccountForm
-                            draft={draft}
-                            setDraft={setDraft}
-                            onSaved={() => setDraft(null)}
-                            onClose={() => setDraft(null)}
+                            initialValues={
+                                accountToEdit === "new"
+                                    ? createFinancialAccountDraft()
+                                    : toFinancialAccountDraft(accountToEdit)
+                            }
+                            onClose={() => setAccountToEdit(null)}
                         />
                     )}
                 </DialogContent>

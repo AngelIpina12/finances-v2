@@ -5,9 +5,10 @@ import FormSubmit from "./FormSubmit";
 import ActionLink from './ActionLink';
 import SegmentedControl from './SegmentedControl';
 import FormError from './FormError';
+import FormSelect from './FormSelect';
 
 export {
     Form, FormInput, FormLabel,
     FormSubmit, ActionLink, SegmentedControl,
-    FormError
+    FormError, FormSelect
 };

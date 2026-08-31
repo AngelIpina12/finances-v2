@@ -1,7 +1,7 @@
-import type { FinancialAccountInput } from "../schemas/financial-account.schema";
+import type { FinancialAccountFormData } from "../schemas/financial-account.schema";
 
 export const ACCOUNT_TYPE_LABELS: Record<
-    FinancialAccountInput["type"],
+    FinancialAccountFormData["type"],
     string
 > = {
     cash: "Efectivo",

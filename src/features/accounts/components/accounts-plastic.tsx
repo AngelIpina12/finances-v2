@@ -1,4 +1,4 @@
-import type { FinancialAccountInput } from "../schemas/financial-account.schema";
+import type { FinancialAccountFormData } from "../schemas/financial-account.schema";
 import {
     Banknote, Building2, CreditCard,
     Landmark, WalletCards,
@@ -19,11 +19,11 @@ const icons = {
 export type AccountPlasticViewModel = {
     name: string;
     institution?: string | null;
-    type: FinancialAccountInput["type"];
+    type: FinancialAccountFormData["type"];
     color?: string | null;
     lastFourDigits?: string | null;
     currentBalance: string | number;
-    currency: FinancialAccountInput["currency"];
+    currency: FinancialAccountFormData["currency"];
     owedAmount?: string | number | null;
 };
 
@@ -40,15 +40,13 @@ function darkenHexColor(color: string, amount = 0.56) {
     return `#${channel(0)}${channel(2)}${channel(4)}`;
 }
 
-export function AccountPlastic({
-    account,
-    hideBalance = false,
-    preview = false,
-}: {
+interface Props {
     account: AccountPlasticViewModel;
     hideBalance?: boolean;
     preview?: boolean;
-}) {
+}
+
+export function AccountPlastic({ account, hideBalance = false, preview = false }: Props) {
     const Icon = icons[account.type];
     const balance =
         account.type === "credit"

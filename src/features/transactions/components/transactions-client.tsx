@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { bootstrapDefaultCategories } from "../actions/transaction-actions";
 import { TransactionForm } from "./transaction-form";
+import { formatLocalDateTime } from "@/src/shared/utils/local-date-time";
 
 type FormData =
     React.ComponentProps<typeof TransactionForm> extends {
@@ -205,10 +206,7 @@ function TransactionsList({ transactions }: { transactions: TransactionItem[] })
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                     {item.categoryName || "Sin categoría"} · {item.accountName} ·{" "}
-                                    {new Intl.DateTimeFormat("es-MX", {
-                                        day: "numeric",
-                                        month: "short",
-                                    }).format(item.date)}
+                                    {formatLocalDateTime(item.date)}
                                 </p>
                             </div>
                             <p

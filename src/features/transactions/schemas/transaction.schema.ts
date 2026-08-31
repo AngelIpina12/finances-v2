@@ -1,16 +1,30 @@
 import { z } from "zod";
 
+export const transactionTypes = ["income", "expense"] as const;
+
 export const transactionFormSchema = z.object({
-  type: z.enum(["income", "expense"]),
-  accountId: z.string().uuid("Selecciona una cuenta válida."),
-  categoryId: z.string().uuid("Selecciona una categoría válida."),
-  amount: z.coerce
-    .number()
-    .positive("El monto debe ser mayor que cero.")
-    .finite(),
-  date: z.coerce.date(),
-  merchant: z.string().trim().max(120).optional().or(z.literal("")),
-  notes: z.string().trim().max(500).optional().or(z.literal("")),
+    type: z.enum(transactionTypes, {
+        error: "Selecciona si es un ingreso o un gasto.",
+    }),
+    accountId: z.uuid("Selecciona una cuenta válida."),
+    categoryId: z.uuid("Selecciona una categoría válida."),
+    amount: z.coerce
+        .number({ error: "Ingresa un monto válido." })
+        .finite("Ingresa un monto válido.")
+        .positive("El monto debe ser mayor que cero."),
+    date: z.coerce.date({ error: "Selecciona una fecha válida." }),
+    merchant: z
+        .string()
+        .trim()
+        .max(120, "El comercio o descripción no puede superar 120 caracteres.")
+        .optional()
+        .or(z.literal("")),
+    notes: z
+        .string()
+        .trim()
+        .max(500, "Las notas no pueden superar 500 caracteres.")
+        .optional()
+        .or(z.literal("")),
 });
 
-export type TransactionFormInput = z.infer<typeof transactionFormSchema>;
+export type TransactionFormData = z.infer<typeof transactionFormSchema>;

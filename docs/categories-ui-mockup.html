@@ -1,0 +1,169 @@
+<div id="finances-categories-mockup">
+  <style>
+    #finances-categories-mockup {
+      color-scheme: light dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: light-dark(#172033, #f2f5fb);
+    }
+    #finances-categories-mockup * { box-sizing: border-box; }
+    #finances-categories-mockup .fc-window {
+      position: relative;
+      min-height: 690px;
+      overflow: hidden;
+      border: 1px solid light-dark(#dfe4ec, #303846);
+      border-radius: 20px;
+      background: light-dark(#f7f8fb, #10141b);
+      box-shadow: 0 18px 55px light-dark(rgba(20, 31, 50, .12), rgba(0, 0, 0, .35));
+    }
+    #finances-categories-mockup .fc-chrome {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      height: 64px;
+      padding: 0 28px;
+      border-bottom: 1px solid light-dark(#e5e9f0, #292f3a);
+      background: light-dark(#ffffff, #171c24);
+    }
+    #finances-categories-mockup .fc-brand { font: 700 15px Georgia, serif; letter-spacing: -.02em; }
+    #finances-categories-mockup .fc-nav { display: flex; gap: 22px; color: light-dark(#667085, #99a4b5); font-size: 13px; }
+    #finances-categories-mockup .fc-nav strong { color: light-dark(#2563eb, #7ea6ff); font-weight: 650; }
+    #finances-categories-mockup .fc-main { padding: 34px; }
+    #finances-categories-mockup .fc-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+    #finances-categories-mockup .fc-kicker { margin: 0 0 8px; color: light-dark(#2563eb, #8aafff); font-size: 11px; font-weight: 750; letter-spacing: .2em; text-transform: uppercase; }
+    #finances-categories-mockup h1 { margin: 0; font: 700 40px/1 Georgia, serif; letter-spacing: -.04em; }
+    #finances-categories-mockup .fc-subtitle { margin: 10px 0 0; color: light-dark(#667085, #a6afbd); font-size: 14px; }
+    #finances-categories-mockup button { font: inherit; }
+    #finances-categories-mockup .fc-primary,
+    #finances-categories-mockup .fc-secondary {
+      height: 44px;
+      padding: 0 17px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #finances-categories-mockup .fc-primary { border: 0; background: light-dark(#2563eb, #5d8eff); color: #fff; }
+    #finances-categories-mockup .fc-secondary { border: 1px solid light-dark(#d8dee8, #38404d); background: light-dark(#fff, #1b212b); color: inherit; }
+    #finances-categories-mockup .fc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    #finances-categories-mockup .fc-group {
+      border: 1px solid light-dark(#dfe4ec, #303846);
+      border-radius: 16px;
+      background: light-dark(#fff, #171c24);
+      overflow: hidden;
+    }
+    #finances-categories-mockup .fc-group-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid light-dark(#e8ebf1, #292f3a); }
+    #finances-categories-mockup .fc-group-title { display: flex; align-items: center; gap: 10px; font-weight: 750; }
+    #finances-categories-mockup .fc-count { color: light-dark(#667085, #98a2b3); font-size: 12px; }
+    #finances-categories-mockup .fc-row { display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid light-dark(#edf0f4, #242a34); }
+    #finances-categories-mockup .fc-row:last-child { border-bottom: 0; }
+    #finances-categories-mockup .fc-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; font-size: 17px; }
+    #finances-categories-mockup .fc-row-name { font-size: 14px; font-weight: 700; }
+    #finances-categories-mockup .fc-row-meta { margin-top: 3px; color: light-dark(#7a8495, #919cab); font-size: 11px; }
+    #finances-categories-mockup .fc-more { border: 0; background: transparent; color: light-dark(#667085, #a6afbd); font-size: 22px; cursor: pointer; }
+    #finances-categories-mockup .fc-overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(8, 12, 20, .58); backdrop-filter: blur(3px); }
+    #finances-categories-mockup .fc-overlay[hidden] { display: none; }
+    #finances-categories-mockup .fc-dialog { width: min(100%, 500px); border: 1px solid light-dark(#dfe4ec, #343c48); border-radius: 18px; background: light-dark(#fff, #171c24); box-shadow: 0 28px 80px rgba(0,0,0,.28); }
+    #finances-categories-mockup .fc-dialog-head { display: flex; justify-content: space-between; gap: 18px; padding: 22px 24px 17px; }
+    #finances-categories-mockup .fc-dialog h2 { margin: 0; font: 700 24px Georgia, serif; letter-spacing: -.025em; }
+    #finances-categories-mockup .fc-dialog-copy { margin: 6px 0 0; color: light-dark(#667085, #9ca7b7); font-size: 13px; }
+    #finances-categories-mockup .fc-close { width: 34px; height: 34px; border: 0; border-radius: 9px; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
+    #finances-categories-mockup .fc-form { padding: 0 24px 24px; }
+    #finances-categories-mockup .fc-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 12px; background: light-dark(#eef1f6, #252c37); }
+    #finances-categories-mockup .fc-segment button { height: 38px; border: 0; border-radius: 9px; background: transparent; color: light-dark(#667085, #a8b1bf); cursor: pointer; }
+    #finances-categories-mockup .fc-segment button[aria-pressed="true"] { background: light-dark(#fff, #171c24); color: inherit; box-shadow: 0 1px 5px rgba(0,0,0,.1); font-weight: 700; }
+    #finances-categories-mockup .fc-field { margin-top: 17px; }
+    #finances-categories-mockup .fc-label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; }
+    #finances-categories-mockup .fc-input { width: 100%; height: 46px; padding: 0 14px; border: 1px solid light-dark(#d7dde7, #37404d); border-radius: 12px; background: light-dark(#fff, #131820); color: inherit; font: inherit; outline: none; }
+    #finances-categories-mockup .fc-input:focus { border-color: light-dark(#2563eb, #6c99ff); box-shadow: 0 0 0 3px light-dark(rgba(37,99,235,.12), rgba(93,142,255,.18)); }
+    #finances-categories-mockup .fc-color-label { display: flex; justify-content: space-between; align-items: center; }
+    #finances-categories-mockup .fc-colors { display: flex; flex-wrap: wrap; gap: 10px; }
+    #finances-categories-mockup .fc-swatch { width: 30px; height: 30px; border: 3px solid light-dark(#fff, #171c24); border-radius: 50%; box-shadow: 0 0 0 1px light-dark(#d6dce6, #3c4552); cursor: pointer; }
+    #finances-categories-mockup .fc-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px light-dark(#172033, #f2f5fb); }
+    #finances-categories-mockup .fc-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+    @media (max-width: 680px) {
+      #finances-categories-mockup .fc-chrome { padding: 0 18px; }
+      #finances-categories-mockup .fc-nav { display: none; }
+      #finances-categories-mockup .fc-main { padding: 22px 16px; }
+      #finances-categories-mockup .fc-header { align-items: flex-start; flex-direction: column; }
+      #finances-categories-mockup h1 { font-size: 34px; }
+      #finances-categories-mockup .fc-grid { grid-template-columns: 1fr; }
+      #finances-categories-mockup .fc-window { min-height: 820px; }
+    }
+  </style>
+
+  <section class="fc-window" aria-label="Propuesta de interfaz de categorías">
+    <nav class="fc-chrome" aria-label="Navegación principal">
+      <div class="fc-brand">FINANCES</div>
+      <div class="fc-nav"><span>Dashboard</span><span>Cuentas</span><span>Movimientos</span><strong>Categorías</strong></div>
+      <div aria-label="Perfil">JA</div>
+    </nav>
+    <main class="fc-main">
+      <header class="fc-header">
+        <div>
+          <p class="fc-kicker">Organiza tus movimientos</p>
+          <h1>Categorías</h1>
+          <p class="fc-subtitle">Clasifica tus ingresos y gastos para entender mejor tu dinero.</p>
+        </div>
+        <button class="fc-primary" type="button" data-open-category>＋ Nueva categoría</button>
+      </header>
+
+      <div class="fc-grid">
+        <section class="fc-group">
+          <div class="fc-group-head"><div class="fc-group-title"><span>↗</span> Gastos</div><span class="fc-count">5 categorías</span></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#fef2f2;color:#e11d48">⌂</span><div><div class="fc-row-name">Vivienda</div><div class="fc-row-meta">12 movimientos</div></div><button class="fc-more" aria-label="Acciones de Vivienda">⋯</button></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#fff7ed;color:#ea580c">●</span><div><div class="fc-row-name">Alimentación</div><div class="fc-row-meta">28 movimientos</div></div><button class="fc-more" aria-label="Acciones de Alimentación">⋯</button></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#eff6ff;color:#2563eb">◆</span><div><div class="fc-row-name">Transporte</div><div class="fc-row-meta">9 movimientos</div></div><button class="fc-more" aria-label="Acciones de Transporte">⋯</button></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#f5f3ff;color:#7c3aed">✦</span><div><div class="fc-row-name">Entretenimiento</div><div class="fc-row-meta">6 movimientos</div></div><button class="fc-more" aria-label="Acciones de Entretenimiento">⋯</button></div>
+        </section>
+
+        <section class="fc-group">
+          <div class="fc-group-head"><div class="fc-group-title"><span>↙</span> Ingresos</div><span class="fc-count">3 categorías</span></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#ecfdf3;color:#059669">$</span><div><div class="fc-row-name">Nómina</div><div class="fc-row-meta">Categoría predeterminada</div></div><button class="fc-more" aria-label="Acciones de Nómina">⋯</button></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#ecfeff;color:#0891b2">◇</span><div><div class="fc-row-name">Freelance</div><div class="fc-row-meta">4 movimientos</div></div><button class="fc-more" aria-label="Acciones de Freelance">⋯</button></div>
+          <div class="fc-row"><span class="fc-icon" style="background:#f0fdf4;color:#16a34a">↗</span><div><div class="fc-row-name">Inversiones</div><div class="fc-row-meta">2 movimientos</div></div><button class="fc-more" aria-label="Acciones de Inversiones">⋯</button></div>
+        </section>
+      </div>
+    </main>
+
+    <div class="fc-overlay" data-category-dialog role="dialog" aria-modal="true" aria-labelledby="fc-dialog-title">
+      <section class="fc-dialog">
+        <header class="fc-dialog-head">
+          <div><h2 id="fc-dialog-title">Nueva categoría</h2><p class="fc-dialog-copy">Crea una opción para clasificar tus movimientos.</p></div>
+          <button type="button" class="fc-close" data-close-category aria-label="Cerrar">×</button>
+        </header>
+        <form class="fc-form" onsubmit="return false">
+          <div class="fc-segment" aria-label="Tipo de categoría">
+            <button type="button" aria-pressed="true" data-category-type="expense">Gasto</button>
+            <button type="button" aria-pressed="false" data-category-type="income">Ingreso</button>
+          </div>
+          <div class="fc-field"><label class="fc-label" for="fc-category-name">Nombre</label><input class="fc-input" id="fc-category-name" placeholder="Ej. Mascotas" /></div>
+          <div class="fc-field"><label class="fc-label" for="fc-category-icon">Icono</label><select class="fc-input" id="fc-category-icon"><option>Carrito</option><option>Casa</option><option>Transporte</option><option>Salud</option><option>Entretenimiento</option></select></div>
+          <div class="fc-field"><div class="fc-color-label"><span class="fc-label">Color</span><small data-color-name>Azul</small></div><div class="fc-colors">
+            <button type="button" class="fc-swatch" style="background:#2563eb" aria-label="Azul" aria-pressed="true" data-color="Azul"></button>
+            <button type="button" class="fc-swatch" style="background:#7c3aed" aria-label="Violeta" aria-pressed="false" data-color="Violeta"></button>
+            <button type="button" class="fc-swatch" style="background:#db2777" aria-label="Rosa" aria-pressed="false" data-color="Rosa"></button>
+            <button type="button" class="fc-swatch" style="background:#ea580c" aria-label="Naranja" aria-pressed="false" data-color="Naranja"></button>
+            <button type="button" class="fc-swatch" style="background:#059669" aria-label="Verde" aria-pressed="false" data-color="Verde"></button>
+          </div></div>
+          <footer class="fc-actions"><button type="button" class="fc-secondary" data-close-category>Cancelar</button><button type="button" class="fc-primary">Crear categoría</button></footer>
+        </form>
+      </section>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const root = document.getElementById('finances-categories-mockup');
+      const dialog = root.querySelector('[data-category-dialog]');
+      root.querySelector('[data-open-category]').addEventListener('click', () => { dialog.hidden = false; });
+      root.querySelectorAll('[data-close-category]').forEach((button) => button.addEventListener('click', () => { dialog.hidden = true; }));
+      root.querySelectorAll('[data-category-type]').forEach((button) => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-category-type]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      }));
+      root.querySelectorAll('[data-color]').forEach((button) => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-color]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+        root.querySelector('[data-color-name]').textContent = button.dataset.color;
+      }));
+    })();
+  </script>
+</div>

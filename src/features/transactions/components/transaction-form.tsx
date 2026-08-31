@@ -1,12 +1,22 @@
 "use client";
 
+import { useMemo, useTransition } from "react";
 import {
-    useMemo, useState, useTransition
-} from "react";
-import { useRouter } from "next/navigation";
+    Controller, Resolver, useForm,
+    useWatch
+} from "react-hook-form";
 import toast from "react-hot-toast";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
+import {
+    Form, FormError, FormInput,
+    FormLabel, FormSelect, FormSubmit,
+    SegmentedControl,
+} from "@/src/shared/components/forms";
 import { createTransaction } from "../actions/transaction-actions";
+import { TransactionFormData, transactionFormSchema } from "../schemas/transaction.schema";
+import { createTransactionDraft } from "../utils/transaction-draft";
+import { fromLocalDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 
 type AccountOption = {
     id: string;
@@ -22,164 +32,170 @@ type CategoryOption = {
     color: string | null;
 };
 
-export function TransactionForm({ accounts, categories, onClose }: {
+interface Props {
     accounts: AccountOption[];
     categories: CategoryOption[];
     onClose: () => void;
-}) {
-    const router = useRouter();
+}
+
+export function TransactionForm({ accounts, categories, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
-    const [type, setType] = useState<"income" | "expense">("expense");
-    const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
-    const [categoryId, setCategoryId] = useState("");
-    const [amount, setAmount] = useState("");
-    const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-    const [merchant, setMerchant] = useState("");
-    const [notes, setNotes] = useState("");
+
+    const {
+        register, handleSubmit, formState: { errors },
+        control, setValue, clearErrors
+    } = useForm<TransactionFormData>({
+        resolver: zodResolver(transactionFormSchema) as Resolver<TransactionFormData>,
+        defaultValues: createTransactionDraft(accounts),
+        mode: "all",
+    });
+    const transactionType = useWatch({ control, name: "type" });
 
     const matchingCategories = useMemo(
-        () => categories.filter((category) => category.type === type),
-        [categories, type],
+        () => categories.filter((category) => category.type === transactionType),
+        [categories, transactionType],
     );
 
     function changeType(nextType: "income" | "expense") {
-        setType(nextType);
-        setCategoryId("");
+        setValue("type", nextType, { shouldDirty: true });
+        setValue("categoryId", "", { shouldDirty: true, shouldValidate: false, shouldTouch: false });
+        clearErrors("categoryId");
     }
 
-    function submit(event: React.FormEvent<HTMLFormElement>) {
-        event.preventDefault();
+    function onSubmit(data: TransactionFormData) {
         startTransition(async () => {
-            const result = await createTransaction({
-                type,
-                accountId,
-                categoryId,
-                amount: Number(amount),
-                date: new Date(`${date}T12:00:00`),
-                merchant,
-                notes,
-            });
+            const result = await createTransaction(data);
+
             if (!result.success) {
                 toast.error(result.message);
                 return;
             }
+
             toast.success(result.message);
-            router.refresh();
             onClose();
         });
     }
 
     return (
-        <form onSubmit={submit} className="space-y-5">
-            <div className="grid grid-cols-2 rounded-lg bg-muted p-1">
-                <button
-                    type="button"
-                    onClick={() => changeType("expense")}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition ${type === "expense" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-                >
-                    Gasto
-                </button>
-                <button
-                    type="button"
-                    onClick={() => changeType("income")}
-                    className={`rounded-md px-3 py-2 text-sm font-medium transition ${type === "income" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
-                >
-                    Ingreso
-                </button>
+        <Form onSubmit={handleSubmit(onSubmit)}>
+            <SegmentedControl
+                items={["expense", "income"] as const}
+                labels={{ expense: "Gasto", income: "Ingreso" }}
+                value={transactionType}
+                onChange={changeType}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                    <FormLabel htmlFor="accountId">Cuenta</FormLabel>
+                    <Controller
+                        name="accountId"
+                        control={control}
+                        render={({ field }) => (
+                            <FormSelect
+                                name={field.name}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                placeholder="Selecciona una cuenta"
+                                options={accounts.map((account) => ({
+                                    value: account.id,
+                                    label: `${account.name} · ${account.currency}`,
+                                }))}
+                            />
+                        )}
+                    />
+                    {errors.accountId && <FormError>{errors.accountId.message}</FormError>}
+                </div>
+                <div className="flex flex-col gap-2">
+                    <FormLabel htmlFor="categoryId">Categoría</FormLabel>
+                    <Controller
+                        name="categoryId"
+                        control={control}
+                        render={({ field }) => (
+                            <FormSelect
+                                name={field.name}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                placeholder="Selecciona una categoría"
+                                options={matchingCategories.map((category) => ({
+                                    value: category.id,
+                                    label: category.name,
+                                }))}
+                            />
+                        )}
+                    />
+                    {errors.categoryId && <FormError>{errors.categoryId.message}</FormError>}
+                </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2 text-sm font-medium">
-                    Cuenta
-                    <select
-                        required
-                        value={accountId}
-                        onChange={(event) => setAccountId(event.target.value)}
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-                    >
-                        <option value="" disabled>
-                            Selecciona una cuenta
-                        </option>
-                        {accounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                                {account.name} · {account.currency}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-                <label className="space-y-2 text-sm font-medium">
-                    Categoría
-                    <select
-                        required
-                        value={categoryId}
-                        onChange={(event) => setCategoryId(event.target.value)}
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-                    >
-                        <option value="" disabled>
-                            Selecciona una categoría
-                        </option>
-                        {matchingCategories.map((category) => (
-                            <option key={category.id} value={category.id}>
-                                {category.name}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2 text-sm font-medium">
-                    Monto
-                    <input
-                        required
+                <div className="flex flex-col gap-2">
+                    <FormLabel htmlFor="amount">Monto</FormLabel>
+                    <FormInput
+                        id="amount"
+                        type="number"
                         min="0.01"
                         step="0.01"
                         inputMode="decimal"
-                        value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
                         placeholder="0.00"
+                        {...register("amount")}
                     />
-                </label>
-                <label className="space-y-2 text-sm font-medium">
-                    Fecha
-                    <input
-                        required
-                        type="date"
-                        value={date}
-                        onChange={(event) => setDate(event.target.value)}
-                        className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
+                    {errors.amount && <FormError>{errors.amount.message}</FormError>}
+                </div>
+                <div className="flex flex-col gap-2">
+                    <FormLabel htmlFor="date">Fecha y hora</FormLabel>
+                    <FormInput
+                        id="date"
+                        type="datetime-local"
+                        {...register("date", {
+                            setValueAs: fromLocalDateTimeInputValue,
+                        })}
                     />
-                </label>
+                    {errors.date && <FormError>{errors.date.message}</FormError>}
+                </div>
             </div>
-            <label className="block space-y-2 text-sm font-medium">
-                Comercio o descripción{" "}
-                <span className="font-normal text-muted-foreground">(opcional)</span>
-                <input
-                    value={merchant}
-                    onChange={(event) => setMerchant(event.target.value)}
-                    className="h-10 w-full rounded-lg border bg-background px-3 text-sm"
-                    placeholder={type === "expense" ? "Ej. Supermercado" : "Ej. Nómina"}
+            <div className="flex flex-col gap-2">
+                <FormLabel htmlFor="merchant">
+                    Comercio o descripción
+                    <span className="font-normal text-muted-foreground">
+                        (opcional)
+                    </span>
+                </FormLabel>
+                <FormInput
+                    id="merchant"
+                    placeholder={transactionType === "expense" ? "Ej. Supermercado" : "Ej. Nómina"}
+                    {...register("merchant")}
                 />
-            </label>
-            <label className="block space-y-2 text-sm font-medium">
-                Notas{" "}
-                <span className="font-normal text-muted-foreground">(opcional)</span>
+                {errors.merchant && <FormError>{errors.merchant.message}</FormError>}
+            </div>
+            <div className="flex flex-col gap-2">
+                <FormLabel htmlFor="notes">
+                    Notas <span className="font-normal text-muted-foreground">(opcional)</span>
+                </FormLabel>
                 <textarea
-                    value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
-                    className="min-h-20 w-full rounded-lg border bg-background p-3 text-sm"
+                    id="notes"
+                    className="min-h-20 w-full rounded-xl border bg-card p-3 text-sm"
+                    {...register("notes")}
                 />
-            </label>
+                {errors.notes && <FormError>{errors.notes.message}</FormError>}
+            </div>
             <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={onClose}>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                    className="h-12 cursor-pointer"
+                >
                     Cancelar
                 </Button>
-                <Button
-                    type="submit"
-                    disabled={isPending || !accounts.length || !matchingCategories.length}
+                <FormSubmit
+                    disabled={
+                        isPending
+                        || !accounts.length
+                        || !matchingCategories.length
+                    }
                 >
                     {isPending ? "Guardando..." : "Guardar movimiento"}
-                </Button>
+                </FormSubmit>
             </div>
-        </form>
+        </Form>
     );
 }

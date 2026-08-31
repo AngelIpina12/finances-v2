@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { redirect, useRouter, useSearchParams } from 'next/navigation'
+import {
+	redirect, useRouter, useSearchParams
+} from 'next/navigation'
 import {
 	ArrowRight, BarChart3, Check,
 	Eye, EyeOff, LockKeyhole,
@@ -19,8 +21,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import {
 	Form, FormLabel, FormInput,
-	FormSubmit, SegmentedControl,
-	FormError
+	FormSubmit, SegmentedControl, FormError
 } from '@/components/forms'
 import { useTheme } from '../../../components/providers/theme-provider'
 import {
@@ -28,7 +29,10 @@ import {
 	AuthFormData, LoginFormData, SignUpFormData,
 	ForgotPasswordFormData, ResetPasswordFormData, ResetPasswordSchema
 } from '../schemas/authSchema'
-import { forgotPasswordAction, resetPasswordAction, signInAction, signUpAction } from '../actions/auth-actions'
+import {
+	forgotPasswordAction, resetPasswordAction, signInAction,
+	signUpAction
+} from '../actions/auth-actions'
 
 type Mode = 'login' | 'register' | 'forgot-password' | 'reset-password'
 
