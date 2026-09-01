@@ -25,7 +25,7 @@ export default function FormSelect({ options, value, onValueChange, placeholder,
             onValueChange={(nextValue) => onValueChange(nextValue ?? "")}
         >
             <SelectTrigger
-                className={clsx("data-[size=default]:h-12 w-full rounded-xl bg-card px-4", className)}
+                className={clsx("data-[size=default]:h-12 w-full rounded-xl bg-card px-4 cursor-pointer", className)}
             >
                 <SelectValue placeholder={placeholder}>
                     {(selectedValue) =>

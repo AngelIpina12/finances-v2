@@ -12,9 +12,11 @@ import {
     Dialog, DialogContent, DialogDescription,
     DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { bootstrapDefaultCategories } from "../actions/transaction-actions";
+import { bootstrapDefaultCategories } from "../../categories/actions/category-actions";
 import { TransactionForm } from "./transaction-form";
 import { formatLocalDateTime } from "@/src/shared/utils/local-date-time";
+import { motion } from 'framer-motion';
+import { CardTitle } from "@/src/shared/components/ui/card";
 
 type FormData =
     React.ComponentProps<typeof TransactionForm> extends {
@@ -68,21 +70,28 @@ export function TransactionsClient({ accounts, categories, transactions }: FormD
 
     return (
         <div className="space-y-7">
-            <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <p className="mb-2 text-sm font-medium text-primary">
-                        ACTIVIDAD FINANCIERA
+            <motion.header
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+            >
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+                        Actividad financiera
                     </p>
-                    <h1 className="text-3xl font-semibold tracking-tight">Movimientos</h1>
-                    <p className="mt-1 text-muted-foreground">
+                    <CardTitle className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
+                        Movimientos
+                    </CardTitle>
+                    <p className="text-muted-foreground">
                         Registra cada ingreso y gasto para mantener tus saldos al día.
                     </p>
                 </div>
-                <Button size="lg" onClick={() => setOpen(true)} disabled={!canCreate}>
+                <Button size="lg" onClick={() => setOpen(true)} disabled={!canCreate} className="cursor-pointer">
                     <Plus />
                     Nuevo movimiento
                 </Button>
-            </header>
+            </motion.header>
 
             {!accounts.length ? (
                 <EmptyState
@@ -114,6 +123,7 @@ export function TransactionsClient({ accounts, categories, transactions }: FormD
                             size="sm"
                             variant={typeFilter === "all" ? "default" : "outline"}
                             onClick={() => setTypeFilter("all")}
+                            className="cursor-pointer"
                         >
                             Todos
                         </Button>
@@ -121,6 +131,7 @@ export function TransactionsClient({ accounts, categories, transactions }: FormD
                             size="sm"
                             variant={typeFilter === "expense" ? "default" : "outline"}
                             onClick={() => setTypeFilter("expense")}
+                            className="cursor-pointer"
                         >
                             Gastos
                         </Button>
@@ -128,6 +139,7 @@ export function TransactionsClient({ accounts, categories, transactions }: FormD
                             size="sm"
                             variant={typeFilter === "income" ? "default" : "outline"}
                             onClick={() => setTypeFilter("income")}
+                            className="cursor-pointer"
                         >
                             Ingresos
                         </Button>
@@ -170,7 +182,11 @@ function EmptyState({ icon, title, description, action }: {
     action?: React.ReactNode;
 }) {
     return (
-        <section className="grid min-h-64 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center">
+        <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid min-h-90 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center"
+        >
             <div className="max-w-sm">
                 <span className="mx-auto block size-10 text-muted-foreground">
                     {icon}
@@ -179,13 +195,17 @@ function EmptyState({ icon, title, description, action }: {
                 <p className="mt-2 text-sm text-muted-foreground">{description}</p>
                 {action && <div className="mt-5">{action}</div>}
             </div>
-        </section>
+        </motion.section>
     );
 }
 
 function TransactionsList({ transactions }: { transactions: TransactionItem[] }) {
     return (
-        <section className="overflow-hidden rounded-2xl border bg-card">
+        <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="overflow-hidden rounded-2xl border bg-card"
+        >
             <div className="divide-y">
                 {transactions.map((item) => {
                     const income = item.type === "income";
@@ -219,6 +239,6 @@ function TransactionsList({ transactions }: { transactions: TransactionItem[] })
                     );
                 })}
             </div>
-        </section>
+        </motion.section>
     );
 }

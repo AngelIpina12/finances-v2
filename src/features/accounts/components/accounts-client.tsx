@@ -78,7 +78,12 @@ export function AccountsClient({ accounts }: Props) {
 
     return (
         <div className="space-y-7">
-            <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <motion.header
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+            >
                 <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
                         Tu dinero, en un solo lugar
@@ -97,16 +102,18 @@ export function AccountsClient({ accounts }: Props) {
                 <Button
                     size="lg"
                     onClick={() => setAccountToEdit("new")}
+                    className="cursor-pointer"
                 >
                     <Plus />
                     Agregar cuenta
                 </Button>
-            </header>
+            </motion.header>
             <div className="flex flex-wrap items-center gap-2">
                 <Button
                     size="sm"
                     variant={filter === "all" ? "default" : "outline"}
                     onClick={() => setFilter("all")}
+                    className="cursor-pointer"
                 >
                     Todas
                 </Button>
@@ -116,6 +123,7 @@ export function AccountsClient({ accounts }: Props) {
                         size="sm"
                         variant={filter === type ? "default" : "outline"}
                         onClick={() => setFilter(type)}
+                        className="cursor-pointer"
                     >
                         {ACCOUNT_TYPE_LABELS[type]}
                     </Button>
@@ -125,7 +133,7 @@ export function AccountsClient({ accounts }: Props) {
                         type="checkbox"
                         checked={hideBalances}
                         onChange={(event) => setHideBalances(event.target.checked)}
-                        className="size-4 accent-primary"
+                        className="size-4 accent-primary cursor-pointer"
                     />
                     Ocultar saldos
                 </label>
@@ -148,7 +156,7 @@ export function AccountsClient({ accounts }: Props) {
                             a organizar tus movimientos.
                         </p>
                         <Button
-                            className="mt-5"
+                            className="mt-5 cursor-pointer"
                             onClick={() => setAccountToEdit("new")}
                         >
                             <Plus />
@@ -194,6 +202,7 @@ export function AccountsClient({ accounts }: Props) {
                                             variant="ghost"
                                             onClick={() => setAccountToEdit(account)}
                                             aria-label={`Editar ${account.name}`}
+                                            className="cursor-pointer"
                                         >
                                             <Pencil />
                                         </Button>
@@ -203,6 +212,7 @@ export function AccountsClient({ accounts }: Props) {
                                             disabled={isArchiving}
                                             onClick={() => setAccountToArchive(account)}
                                             aria-label={`Archivar ${account.name}`}
+                                            className="cursor-pointer"
                                         >
                                             <Archive />
                                         </Button>
@@ -236,6 +246,7 @@ export function AccountsClient({ accounts }: Props) {
                                 size="icon-sm"
                                 variant="ghost"
                                 onClick={() => setAccountToEdit(null)}
+                                className="cursor-pointer"
                             >
                                 <X />
                                 <span className="sr-only">Cerrar</span>
@@ -271,13 +282,14 @@ export function AccountsClient({ accounts }: Props) {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isArchiving}>
+                        <AlertDialogCancel disabled={isArchiving} className="cursor-pointer">
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction
                             variant="destructive"
                             disabled={isArchiving}
                             onClick={archiveSelectedAccount}
+                            className="cursor-pointer"
                         >
                             {isArchiving ? "Archivando..." : "Archivar cuenta"}
                         </AlertDialogAction>

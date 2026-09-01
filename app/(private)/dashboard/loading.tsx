@@ -1,14 +1,11 @@
-function Skeleton({ className }: { className?: string }) {
-	return <div aria-hidden="true" className={`animate-pulse rounded-md bg-muted ${className ?? ""}`} />;
-}
+import { Skeleton } from "@/src/shared/components/ui/skeleton";
 
-function DashboardCard({
-	className,
-	children,
-}: {
+interface Props {
 	className?: string;
 	children: React.ReactNode;
-}) {
+}
+
+function DashboardCard({ className, children }: Props) {
 	return (
 		<section className={`rounded-xl border bg-card p-5 ${className ?? ""}`}>
 			{children}

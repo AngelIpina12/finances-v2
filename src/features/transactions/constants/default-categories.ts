@@ -1,15 +1,1 @@
-export const defaultCategories = [
-  { name: "Nómina", type: "income", color: "#059669", sortOrder: 10 },
-  { name: "Freelance", type: "income", color: "#2563eb", sortOrder: 20 },
-  { name: "Inversiones", type: "income", color: "#7c3aed", sortOrder: 30 },
-  { name: "Otros ingresos", type: "income", color: "#64748b", sortOrder: 40 },
-  { name: "Alimentos", type: "expense", color: "#ea580c", sortOrder: 10 },
-  { name: "Transporte", type: "expense", color: "#2563eb", sortOrder: 20 },
-  { name: "Vivienda", type: "expense", color: "#7c3aed", sortOrder: 30 },
-  { name: "Salud", type: "expense", color: "#db2777", sortOrder: 40 },
-  { name: "Entretenimiento", type: "expense", color: "#eab308", sortOrder: 50 },
-  { name: "Suscripciones", type: "expense", color: "#06b6d4", sortOrder: 60 },
-  { name: "Compras", type: "expense", color: "#f43f5e", sortOrder: 70 },
-  { name: "Educación", type: "expense", color: "#0ea5e9", sortOrder: 80 },
-  { name: "Otros gastos", type: "expense", color: "#64748b", sortOrder: 90 },
-] as const;
+export { defaultCategories } from "../../categories/constants/category.constants";

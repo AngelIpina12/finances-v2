@@ -10,7 +10,7 @@ export default function FormSubmit(props: Props) {
     return (
         <Button
             type="submit"
-            className={clsx("h-12 rounded-xl shadow-lg shadow-accent/20 cursor-pointer", className)}
+            className={clsx("shadow-lg shadow-accent/20 cursor-pointer", className)}
             {...rest}
         >
             {props.children}

@@ -204,7 +204,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 					<div className="mb-10 flex items-center justify-between lg:justify-end">
 						<button
 							onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-							className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+							className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
 							aria-label="Cambiar tema"
 						>
 							{theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
@@ -300,7 +300,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 										</div>
 										{errors.resetEmail && <FormError>{errors.resetEmail.message}</FormError>}
 									</div>
-									<FormSubmit>
+									<FormSubmit className="h-12 rounded-xl">
 										{submitted
 											? <>
 												<Check data-icon="inline-start" />
@@ -327,7 +327,12 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 										<div className="relative">
 											<LockKeyhole className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
 											<FormInput id="new-password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" className="pl-11" {...register('password')} />
-											<button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}>
+											<button
+												type="button"
+												onClick={() => setShowPassword(!showPassword)}
+												className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+												aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+											>
 												{showPassword ? <EyeOff className="size-4" aria-hidden="true" /> : <Eye className="size-4" aria-hidden="true" />}
 											</button>
 										</div>
@@ -338,7 +343,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 										<FormInput id="confirm-password" type="password" placeholder="Repite tu nueva contraseña" {...register('confirmPassword')} />
 										{errors.confirmPassword && <FormError>{errors.confirmPassword.message}</FormError>}
 									</div>
-									<FormSubmit>
+									<FormSubmit className="h-12 rounded-xl">
 										{submitted ? <><Check data-icon="inline-start" />Contraseña restablecida</> : <>Restablecer contraseña<ArrowRight data-icon="inline-end" /></>}
 									</FormSubmit>
 								</Form>
@@ -407,7 +412,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 												<button
 													type="button"
 													onClick={() => setShowPassword(!showPassword)}
-													className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground"
+													className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
 													aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
 												>
 													{showPassword
@@ -432,7 +437,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 										)}
 										{!isRegister
 											&& <div className="flex items-center gap-2">
-												<Checkbox id="remember" />
+												<Checkbox id="remember" className="cursor-pointer" />
 												<FormLabel
 													htmlFor="remember"
 													className="text-sm font-normal text-muted-foreground"
@@ -441,7 +446,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 												</FormLabel>
 											</div>
 										}
-										<FormSubmit>
+										<FormSubmit className="h-12 rounded-xl">
 											{submitted
 												? <>
 													<Check data-icon="inline-start" />
@@ -463,14 +468,14 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 										Al continuar, aceptas nuestros&nbsp;
 										<button
 											type="button"
-											className="underline underline-offset-2 hover:text-foreground"
+											className="underline underline-offset-2 hover:text-foreground cursor-pointer"
 										>
 											términos de uso
 										</button>
 										&nbsp;y&nbsp;
 										<button
 											type="button"
-											className="underline underline-offset-2 hover:text-foreground"
+											className="underline underline-offset-2 hover:text-foreground cursor-pointer"
 										>
 											política de privacidad
 										</button>

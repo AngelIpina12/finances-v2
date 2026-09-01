@@ -8,6 +8,7 @@ interface SegmentedControlProps<T extends string> {
     value: T
     onChange: (value: T) => void
     className?: string
+    disabled?: boolean
 }
 
 export default function SegmentedControl<T extends string>({
@@ -16,6 +17,7 @@ export default function SegmentedControl<T extends string>({
     value,
     onChange,
     className,
+    disabled = false,
 }: SegmentedControlProps<T>) {
     return (
         <div className={cn('mb-6 flex rounded-xl bg-muted p-1', className)}>
@@ -23,9 +25,10 @@ export default function SegmentedControl<T extends string>({
                 <button
                     key={item}
                     type="button"
+                    disabled={disabled}
                     onClick={() => onChange(item)}
                     className={cn(
-                        'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                        'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer',
                         value === item
                             ? 'bg-background text-foreground shadow-sm'
                             : 'text-muted-foreground hover:text-foreground'

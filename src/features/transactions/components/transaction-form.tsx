@@ -182,7 +182,7 @@ export function TransactionForm({ accounts, categories, onClose }: Props) {
                     type="button"
                     variant="outline"
                     onClick={onClose}
-                    className="h-12 cursor-pointer"
+                    className="cursor-pointer"
                 >
                     Cancelar
                 </Button>

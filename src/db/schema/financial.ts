@@ -4,6 +4,7 @@ import {
     pgTable, text, timestamp,
     uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { users } from "./auth";
 
 export const accountTypeEnum = pgEnum("account_type", [
@@ -34,8 +35,12 @@ export const categories = pgTable(
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
     },
     (table) => [
-        uniqueIndex("categories_user_type_name_idx").on(table.userId, table.type, table.name),
-        index("categories_user_sort_order_idx").on(table.userId, table.sortOrder),
+        uniqueIndex("categories_user_type_name_idx")
+            .on(table.userId, table.type, table.name)
+            .where(sql`${table.deletedAt} is null`),
+        index("categories_user_sort_order_idx")
+            .on(table.userId, table.type, table.sortOrder)
+            .where(sql`${table.deletedAt} is null`),
         foreignKey({
             columns: [table.parentId],
             foreignColumns: [table.id],
