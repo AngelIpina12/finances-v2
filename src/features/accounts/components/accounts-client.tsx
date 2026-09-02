@@ -85,7 +85,7 @@ export function AccountsClient({ accounts }: Props) {
                 className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
             >
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+                    <p className="font-label text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
                         Tu dinero, en un solo lugar
                     </p>
                     <CardTitle

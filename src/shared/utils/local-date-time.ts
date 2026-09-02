@@ -1,60 +1,93 @@
-const pad = (value: number) => String(value).padStart(2, "0");
+import {
+    addDays, addMonths, startOfMonth,
+    subMilliseconds, subMonths,
+} from "date-fns";
+import {
+    formatInTimeZone, fromZonedTime, toZonedTime,
+} from "date-fns-tz";
+import {
+    APP_LOCALE, APP_TIME_ZONE,
+} from "@/src/shared/constants/date-time";
 
-/**
- * Formats a Date for an <input type="datetime-local"> without converting it to UTC.
- */
-export function toLocalDateTimeInputValue(date = new Date()) {
-    return [
-        date.getFullYear(),
-        "-",
-        pad(date.getMonth() + 1),
-        "-",
-        pad(date.getDate()),
-        "T",
-        pad(date.getHours()),
-        ":",
-        pad(date.getMinutes()),
-    ].join("");
+export type AppMonthRange = {
+    start: Date;
+    end: Date;
+    previousStart: Date;
+};
+
+export function toAppDateTimeInputValue(date = new Date()) {
+    return formatInTimeZone(
+        date,
+        APP_TIME_ZONE,
+        "yyyy-MM-dd'T'HH:mm",
+    );
 }
 
-/**
- * Parses the value from an <input type="datetime-local"> in the browser's timezone.
- * The resulting Date is serialized as UTC when sent to the server.
- */
-export function fromLocalDateTimeInputValue(value: string) {
+export function fromAppDateTimeInputValue(value: string) {
     if (!value) return undefined;
 
-    const date = new Date(value);
+    const date = fromZonedTime(value, APP_TIME_ZONE);
     return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-/**
- * Formats a Date for an <input type="date"> using the local calendar day.
- * Keep this value as YYYY-MM-DD when the database column represents a date only.
- */
-export function toLocalDateInputValue(date = new Date()) {
-    return [
-        date.getFullYear(),
-        "-",
-        pad(date.getMonth() + 1),
-        "-",
-        pad(date.getDate()),
-    ].join("");
+export function toAppDateInputValue(date = new Date()) {
+    return formatInTimeZone(date, APP_TIME_ZONE, "yyyy-MM-dd");
 }
 
-/**
- * Displays a stored UTC timestamp in the user's local browser timezone.
- */
-export function formatLocalDateTime(
+export function formatAppDate(
     value: Date | string | number,
-    options: Intl.DateTimeFormatOptions = {},
-    locale = "es-MX",
+    options: Intl.DateTimeFormatOptions,
+    locale = APP_LOCALE,
 ) {
     return new Intl.DateTimeFormat(locale, {
+        ...options,
+        timeZone: APP_TIME_ZONE,
+    }).format(new Date(value));
+}
+
+export function formatAppDateTime(
+    value: Date | string | number,
+    options: Intl.DateTimeFormatOptions = {},
+    locale = APP_LOCALE,
+) {
+    return formatAppDate(value, {
         day: "numeric",
         month: "short",
         hour: "2-digit",
         minute: "2-digit",
         ...options,
-    }).format(new Date(value));
+    }, locale);
+}
+
+export function getAppHour(date = new Date()) {
+    return Number(formatInTimeZone(date, APP_TIME_ZONE, "H"));
+}
+
+export function getAppMonthRange(now = new Date()): AppMonthRange {
+    const zonedNow = toZonedTime(now, APP_TIME_ZONE);
+    const zonedStart = startOfMonth(zonedNow);
+
+    return {
+        start: fromZonedTime(zonedStart, APP_TIME_ZONE),
+        end: fromZonedTime(addMonths(zonedStart, 1), APP_TIME_ZONE),
+        previousStart: fromZonedTime(subMonths(zonedStart, 1), APP_TIME_ZONE),
+    };
+}
+
+export function getAppMonthEnd(now: Date, monthOffset: number) {
+    const zonedNow = toZonedTime(now, APP_TIME_ZONE);
+    const zonedNextMonthStart = startOfMonth(
+        addMonths(zonedNow, monthOffset + 1),
+    );
+
+    return subMilliseconds(
+        fromZonedTime(zonedNextMonthStart, APP_TIME_ZONE),
+        1,
+    );
+}
+
+export function addAppCalendarDays(date: Date, amount: number) {
+    const zonedDate = toZonedTime(date, APP_TIME_ZONE);
+
+    return fromZonedTime(addDays(zonedDate, amount), APP_TIME_ZONE);
 }

@@ -10,7 +10,12 @@ import type { DashboardData } from "../types/dashboard.types";
 const money = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 });
 
 export function NetWorthChart({ history }: { history: DashboardData["netWorthHistory"] }) {
-    const max = Math.max(...history.map((point) => point.value));
+    const values = history.map((point) => point.value);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const height = (value: number) => max === min
+        ? 55
+        : 15 + ((value - min) / (max - min)) * 85;
     return (
         <Card className="xl:col-span-8">
             <CardHeader>
@@ -25,7 +30,7 @@ export function NetWorthChart({ history }: { history: DashboardData["netWorthHis
                         >
                             <motion.div
                                 initial={{ height: 0 }}
-                                animate={{ height: `${(point.value / max) * 100}%` }}
+                                animate={{ height: `${height(point.value)}%` }}
                                 transition={{ delay: index * 0.08, duration: 0.45, ease: "easeOut" }}
                                 className="group relative rounded-t-md bg-primary/85 hover:bg-primary"
                             >

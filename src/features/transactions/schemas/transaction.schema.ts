@@ -3,6 +3,7 @@ import { z } from "zod";
 export const transactionTypes = ["income", "expense"] as const;
 
 export const transactionFormSchema = z.object({
+    id: z.uuid("El movimiento no es válido.").optional(),
     type: z.enum(transactionTypes, {
         error: "Selecciona si es un ingreso o un gasto.",
     }),
@@ -28,3 +29,5 @@ export const transactionFormSchema = z.object({
 });
 
 export type TransactionFormData = z.infer<typeof transactionFormSchema>;
+
+export const transactionIdSchema = z.uuid("El movimiento no es válido.");

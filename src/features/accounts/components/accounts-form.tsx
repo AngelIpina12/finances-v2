@@ -1,6 +1,6 @@
 import { useTransition } from "react";
 import {
-    Controller, Resolver, useForm
+    Controller, Resolver, useForm, useWatch
 } from "react-hook-form";
 import toast from "react-hot-toast";
 import {
@@ -29,13 +29,17 @@ export function AccountForm({ initialValues, onClose }: Props) {
 
     const {
         register, handleSubmit, formState: { errors },
-        control, setValue, watch
+        control, setValue
     } = useForm<FinancialAccountFormData>({
         resolver: zodResolver(financialAccountSchema) as Resolver<FinancialAccountFormData>,
         defaultValues: initialValues,
         mode: "all",
     });
-    const values = watch();
+    const watchedValues = useWatch({ control });
+    const values = {
+        ...initialValues,
+        ...watchedValues,
+    } as FinancialAccountFormData;
     const credit = values.type === "credit";
     const card = values.type === "credit" || values.type === "debit";
     const availableCredit =

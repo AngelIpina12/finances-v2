@@ -48,7 +48,7 @@ export async function saveFinancialAccount(input: FinancialAccountFormData) {
         } else {
             await createAccount.execute(session.user.id, data);
         }
-    } catch (error) {
+    } catch {
         return {
             success: false,
             message: "No fue posible guardar la cuenta. Inténtalo de nuevo.",

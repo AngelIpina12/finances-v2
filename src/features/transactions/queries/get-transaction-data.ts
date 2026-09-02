@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     categories, financialAccounts, transactions
@@ -36,11 +36,16 @@ export async function getTransactionFormData(userId: string) {
     return { accounts, categories: userCategories };
 }
 
-export async function getRecentTransactions(userId: string) {
+export async function getTransactions(userId: string) {
     return db
         .select({
             id: transactions.id,
+            accountId: transactions.accountId,
+            categoryId: transactions.categoryId,
+            transferGroupId: transactions.transferGroupId,
+            transferDirection: transactions.transferDirection,
             type: transactions.type,
+            status: transactions.status,
             amount: transactions.amount,
             currency: transactions.currency,
             date: transactions.date,
@@ -59,9 +64,11 @@ export async function getRecentTransactions(userId: string) {
         .where(
             and(
                 eq(transactions.userId, userId),
-                eq(transactions.status, "completed"),
+                inArray(transactions.status, ["completed", "cancelled"]),
             ),
         )
         .orderBy(desc(transactions.date), desc(transactions.createdAt))
-        .limit(50);
+        .limit(100);
 }
+
+export type TransactionListItem = Awaited<ReturnType<typeof getTransactions>>[number];

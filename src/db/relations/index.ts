@@ -1,6 +1,10 @@
 import { relations as drizzleRelations } from "drizzle-orm";
-import { accounts, sessions, users } from "../schema/auth";
-import { categories, financialAccounts, transactions } from "../schema/financial";
+import {
+    accounts, sessions, users
+} from "../schema/auth";
+import {
+    categories, financialAccounts, transactions
+} from "../schema/financial";
 
 export const usersRelations = drizzleRelations(users, ({ many }) => ({
     sessions: many(sessions),

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Dashboard } from "@/src/features/dashboard/components/dashboard";
-import { getDashboardData } from "@/src/features/dashboard/services/get-dashboard-data";
+import { getDashboardData } from "@/src/features/dashboard/queries/get-dashboard-data";
 import { requireAuth } from "@/src/lib/auth-server";
 import { generatePageTitle } from "@/src/shared/utils/metadata";
 

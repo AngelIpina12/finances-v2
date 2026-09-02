@@ -1,4 +1,6 @@
 export type TransactionType = "income" | "expense";
+export type LedgerTransactionType = TransactionType | "transfer";
+export type TransferDirection = "in" | "out";
 export type AccountType =
     | "cash"
     | "debit"
@@ -9,7 +11,7 @@ export type AccountType =
     | "loan";
 export type Currency = "MXN" | "USD" | "EUR" | "GBP";
 
-export type CreateTransactionCommand = {
+export type TransactionValues = {
     accountId: string;
     categoryId: string;
     type: TransactionType;
@@ -19,10 +21,35 @@ export type CreateTransactionCommand = {
     notes?: string;
 };
 
+export type CreateTransactionCommand = TransactionValues;
+
+export type UpdateTransactionCommand = TransactionValues & {
+    id: string;
+};
+
+export type CreateTransferCommand = {
+    sourceAccountId: string;
+    destinationAccountId: string;
+    amount: number;
+    date: Date;
+    description?: string;
+    notes?: string;
+};
+
 export type TransactionAccount = {
     id: string;
     type: AccountType;
     currency: Currency;
+};
+
+export type LedgerTransaction = {
+    id: string;
+    accountId: string;
+    categoryId: string | null;
+    transferGroupId: string | null;
+    transferDirection: TransferDirection | null;
+    type: LedgerTransactionType;
+    amount: number;
 };
 
 export interface TransactionRepository {
@@ -30,8 +57,24 @@ export interface TransactionRepository {
 }
 
 export interface TransactionScope {
-    findActiveAccount(userId: string, accountId: string): Promise<TransactionAccount | undefined>;
-    categoryBelongsToType(userId: string, categoryId: string, type: TransactionType): Promise<boolean>;
+    findAccount(
+        userId: string,
+        accountId: string,
+        options?: { activeOnly?: boolean },
+    ): Promise<TransactionAccount | undefined>;
+    findCompletedTransaction(
+        userId: string,
+        transactionId: string,
+    ): Promise<LedgerTransaction | undefined>;
+    findCompletedTransfer(
+        userId: string,
+        transferGroupId: string,
+    ): Promise<LedgerTransaction[]>;
+    categoryBelongsToType(
+        userId: string,
+        categoryId: string,
+        type: TransactionType,
+    ): Promise<boolean>;
     insertCompletedTransaction(input: {
         userId: string;
         accountId: string;
@@ -43,5 +86,24 @@ export interface TransactionScope {
         notes?: string;
         date: Date;
     }): Promise<void>;
-    applyBalanceDelta(account: TransactionAccount, userId: string, delta: number): Promise<boolean>;
+    insertCompletedTransfer(input: {
+        userId: string;
+        transferGroupId: string;
+        sourceAccount: TransactionAccount;
+        destinationAccount: TransactionAccount;
+        amount: number;
+        description?: string;
+        notes?: string;
+        date: Date;
+    }): Promise<void>;
+    updateCompletedTransaction(
+        userId: string,
+        input: UpdateTransactionCommand & { currency: Currency },
+    ): Promise<boolean>;
+    cancelTransactions(userId: string, transactionIds: string[]): Promise<number>;
+    applyBalanceDelta(
+        account: TransactionAccount,
+        userId: string,
+        delta: number,
+    ): Promise<boolean>;
 }

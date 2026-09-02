@@ -1,19 +1,18 @@
-import type {
-    CreateTransactionCommand,
-    TransactionRepository,
-} from "../../domain/transaction-repository";
-
-export class CreateTransactionError extends Error {}
+import { getBalanceDelta } from "../../domain/transaction-rules";
+import type { CreateTransactionCommand, TransactionRepository } from "../../domain/transaction-repository";
+import { TransactionError } from "../transaction-error";
 
 export class CreateTransactionUseCase {
-    constructor(private readonly transactions: TransactionRepository) {}
+    constructor(private readonly transactions: TransactionRepository) { }
 
     async execute(userId: string, command: CreateTransactionCommand) {
         await this.transactions.withinTransaction(async (scope) => {
-            const account = await scope.findActiveAccount(userId, command.accountId);
+            const account = await scope.findAccount(userId, command.accountId, {
+                activeOnly: true,
+            });
 
             if (!account) {
-                throw new CreateTransactionError("No puedes usar esa cuenta.");
+                throw new TransactionError("No puedes usar esa cuenta.");
             }
 
             const categoryMatchesType = await scope.categoryBelongsToType(
@@ -23,14 +22,10 @@ export class CreateTransactionUseCase {
             );
 
             if (!categoryMatchesType) {
-                throw new CreateTransactionError(
+                throw new TransactionError(
                     "La categoría no corresponde al tipo de movimiento.",
                 );
             }
-
-            const delta = account.type === "credit"
-                ? command.type === "expense" ? command.amount : -command.amount
-                : command.type === "income" ? command.amount : -command.amount;
 
             await scope.insertCompletedTransaction({
                 ...command,
@@ -38,10 +33,14 @@ export class CreateTransactionUseCase {
                 currency: account.currency,
             });
 
-            const updated = await scope.applyBalanceDelta(account, userId, delta);
+            const updated = await scope.applyBalanceDelta(
+                account,
+                userId,
+                getBalanceDelta(account, command.type, command.amount),
+            );
 
             if (!updated) {
-                throw new CreateTransactionError("No fue posible actualizar el saldo.");
+                throw new TransactionError("No fue posible actualizar el saldo.");
             }
         });
     }

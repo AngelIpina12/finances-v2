@@ -70,19 +70,23 @@ export function CategoryGroup({ title, type, categories, onEdit, onArchive }: Pr
                             </div>
                             <DropdownMenu>
                                 <DropdownMenuTrigger
-                                    render={<Button type="button" variant="ghost" size="icon-sm" />}
+                                    render={<Button type="button" variant="ghost" size="icon-sm" className="cursor-pointer" />}
                                 >
                                     <MoreHorizontal />
                                     <span className="sr-only">Acciones de {category.name}</span>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="min-w-36">
-                                    <DropdownMenuItem onClick={() => onEdit(category)}>
+                                    <DropdownMenuItem
+                                        onClick={() => onEdit(category)}
+                                        className="cursor-pointer"
+                                    >
                                         <Pencil />
                                         Editar
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
                                         variant="destructive"
                                         onClick={() => onArchive(category)}
+                                        className="cursor-pointer"
                                     >
                                         <Archive />
                                         Archivar

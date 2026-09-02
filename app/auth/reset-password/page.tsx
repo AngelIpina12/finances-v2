@@ -6,6 +6,13 @@ export const metadata: Metadata = {
     title: generatePageTitle("Reestablece tu contraseña")
 }
 
-export default function ResetPasswordPage() {
-    return <AuthForm defaultMode="reset-password" />
+export default async function ResetPasswordPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ token?: string | string[] }>;
+}) {
+    const tokenParam = (await searchParams).token;
+    const token = Array.isArray(tokenParam) ? tokenParam[0] : tokenParam;
+
+    return <AuthForm defaultMode="reset-password" resetToken={token} />
 }

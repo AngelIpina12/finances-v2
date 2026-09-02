@@ -1,3 +1,5 @@
+"use-client"
+
 import Link from "next/link";
 import { ArrowRight, CreditCard } from "lucide-react";
 import {
@@ -5,21 +7,26 @@ import {
     CardTitle
 } from "@/components/ui/card";
 import {
-    Table, TableBody, TableCaption,
-    TableCell, TableFooter, TableHead,
+    Table, TableBody,
+    TableCell, TableHead,
     TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { DashboardData } from "../types/dashboard.types";
 
 const money = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 });
-const percent = (value: number, total: number) => Math.min(100, Math.round((value / total) * 100));
+const percent = (value: number, total: number) => total > 0
+    ? Math.min(100, Math.round((value / total) * 100))
+    : 0;
 
 function Progress({ value, color = "bg-primary" }: { value: number; color?: string }) {
     return (
         <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
-                className={`h-full rounded-full ${color}`}
-                style={{ width: `${Math.min(value, 100)}%` }}
+                className={`h-full rounded-full ${color.startsWith("#") ? "" : color}`}
+                style={{
+                    width: `${Math.min(value, 100)}%`,
+                    backgroundColor: color.startsWith("#") ? color : undefined,
+                }}
             />
         </div>
     )
@@ -48,6 +55,11 @@ export function SpendingByCategory({ items }: { items: DashboardData["spendingBy
         <Card className="xl:col-span-4">
             <Heading>Gasto por categoría</Heading>
             <CardContent className="space-y-5">
+                {!items.length && (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                        Aún no hay gastos en este periodo.
+                    </p>
+                )}
                 {items.map((item) =>
                     <div
                         key={item.name}
@@ -142,6 +154,19 @@ export function UpcomingPayments({ items }: { items: DashboardData["upcomingPaym
 }
 
 export function AccountsSummary({ account }: { account: DashboardData["account"] }) {
+    if (!account) {
+        return (
+            <Card className="xl:col-span-7">
+                <Heading href="/accounts">Mis cuentas</Heading>
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                    Agrega una cuenta para ver aquí tu resumen financiero.
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const isCredit = account.type === "credit";
+
     return (
         <Card className="xl:col-span-7">
             <Heading href="/accounts">Mis cuentas</Heading>
@@ -163,30 +188,32 @@ export function AccountsSummary({ account }: { account: DashboardData["account"]
                     <div className="space-y-4">
                         <div>
                             <p className="text-sm text-muted-foreground">
-                                Deuda actual
+                                {isCredit ? "Deuda actual" : "Saldo actual"}
                             </p>
                             <p className="text-2xl font-semibold">
                                 {money.format(Math.abs(account.balance))}
                             </p>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <p className="text-muted-foreground">
-                                    Crédito disponible
-                                </p>
-                                <p className="font-medium">
-                                    {money.format(account.availableCredit)}
-                                </p>
+                        {isCredit && (
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <p className="text-muted-foreground">
+                                        Crédito disponible
+                                    </p>
+                                    <p className="font-medium">
+                                        {money.format(account.availableCredit)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground">
+                                        Límite de crédito
+                                    </p>
+                                    <p className="font-medium">
+                                        {money.format(account.creditLimit)}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-muted-foreground">
-                                    Límite de crédito
-                                </p>
-                                <p className="font-medium">
-                                    {money.format(account.creditLimit)}
-                                </p>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </CardContent>
@@ -223,33 +250,41 @@ export function RecentTransactions({ items }: { items: DashboardData["recentTran
         <Card className="xl:col-span-12">
             <Heading>Movimientos recientes</Heading>
             <CardContent className="overflow-x-auto">
-                <Table className="w-full min-w-150 text-left text-sm">
-                    <TableHeader className="border-b text-xs text-muted-foreground">
-                        <TableRow className="border-b last:border-0">
-                            <TableHead className="pb-3">Comercio</TableHead>
-                            <TableHead className="pb-3">Categoría</TableHead>
-                            <TableHead className="pb-3">Cuenta</TableHead>
-                            <TableHead className="pb-3">Fecha</TableHead>
-                            <TableHead className="pb-3 text-right">Monto</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {items.map((item) =>
-                            <TableRow key={`${item.merchant}-${item.date}`} className="border-b last:border-0">
-                                <TableCell className="py-3 font-medium">{item.merchant}</TableCell>
-                                <TableCell className="py-3 text-muted-foreground">{item.category}</TableCell>
-                                <TableCell className="py-3 text-muted-foreground">{item.account}</TableCell>
-                                <TableCell className="py-3 text-muted-foreground">{item.date}</TableCell>
-                                <TableCell className={`py-3 text-right font-medium ${item.amount > 0
-                                    ? "text-emerald-600 dark:text-emerald-400"
-                                    : ""}`}
-                                >
-                                    {item.amount > 0 ? "+" : "-"}{money.format(Math.abs(item.amount))}
-                                </TableCell>
+                {!items.length ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                        Tus movimientos recientes aparecerán aquí.
+                    </p>
+                ) : (
+                    <Table className="w-full min-w-150 text-left text-sm">
+                        <TableHeader className="border-b text-xs text-muted-foreground">
+                            <TableRow className="border-b last:border-0">
+                                <TableHead className="pb-3">Comercio</TableHead>
+                                <TableHead className="pb-3">Categoría</TableHead>
+                                <TableHead className="pb-3">Cuenta</TableHead>
+                                <TableHead className="pb-3">Fecha</TableHead>
+                                <TableHead className="pb-3 text-right">Monto</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {items.map((item) => (
+                                <TableRow key={`${item.merchant}-${item.date}`} className="border-b last:border-0">
+                                    <TableCell className="py-3 font-medium">{item.merchant}</TableCell>
+                                    <TableCell className="py-3 text-muted-foreground">{item.category}</TableCell>
+                                    <TableCell className="py-3 text-muted-foreground">{item.account}</TableCell>
+                                    <TableCell className="py-3 text-muted-foreground">{item.date}</TableCell>
+                                    <TableCell
+                                        className={`py-3 text-right font-medium ${item.amount > 0
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : ""}`}
+                                    >
+                                        {item.amount > 0 ? "+" : "-"}
+                                        {money.format(Math.abs(item.amount))}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
             </CardContent>
         </Card>
     )

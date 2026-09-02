@@ -1,11 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, Geist } from "next/font/google";
+import { DM_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/src/components/providers/theme-provider";
 import { cn } from "@/lib/utils";
 import { Toaster } from "react-hot-toast";
+import Script from "next/script";
+import { THEME_INITIALIZATION_SCRIPT } from "@/src/shared/constants/theme";
 
-const geist = Geist({ subsets: ['latin'], variable: '--font-sans' });
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+});
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -20,17 +25,31 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
+    { media: '(prefers-color-scheme: light)', color: '#f6f8fb' },
+    { media: '(prefers-color-scheme: dark)', color: '#151c28' },
   ],
 }
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" suppressHydrationWarning>
-      <body className={cn("min-h-full flex flex-col antialiased", outfit.variable, geist.variable)}>
+    <html
+      lang="es"
+      suppressHydrationWarning
+      className={cn(
+        outfit.variable,
+        dmSans.variable,
+      )}
+    >
+      <body
+        className="flex min-h-full flex-col font-sans antialiased"
+      >
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster position="top-right" />
+        <Script
+          id="theme-initialization"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: THEME_INITIALIZATION_SCRIPT }}
+        />
       </body>
     </html>
   );

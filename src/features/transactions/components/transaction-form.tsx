@@ -13,10 +13,10 @@ import {
     FormLabel, FormSelect, FormSubmit,
     SegmentedControl,
 } from "@/src/shared/components/forms";
-import { createTransaction } from "../actions/transaction-actions";
+import { saveTransaction } from "../actions/transaction-actions";
 import { TransactionFormData, transactionFormSchema } from "../schemas/transaction.schema";
 import { createTransactionDraft } from "../utils/transaction-draft";
-import { fromLocalDateTimeInputValue } from "@/src/shared/utils/local-date-time";
+import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 
 type AccountOption = {
     id: string;
@@ -35,10 +35,16 @@ type CategoryOption = {
 interface Props {
     accounts: AccountOption[];
     categories: CategoryOption[];
+    initialValues?: Partial<TransactionFormData>;
     onClose: () => void;
 }
 
-export function TransactionForm({ accounts, categories, onClose }: Props) {
+export function TransactionForm({
+    accounts,
+    categories,
+    initialValues,
+    onClose,
+}: Props) {
     const [isPending, startTransition] = useTransition();
 
     const {
@@ -46,7 +52,7 @@ export function TransactionForm({ accounts, categories, onClose }: Props) {
         control, setValue, clearErrors
     } = useForm<TransactionFormData>({
         resolver: zodResolver(transactionFormSchema) as Resolver<TransactionFormData>,
-        defaultValues: createTransactionDraft(accounts),
+        defaultValues: initialValues ?? createTransactionDraft(accounts),
         mode: "all",
     });
     const transactionType = useWatch({ control, name: "type" });
@@ -64,7 +70,7 @@ export function TransactionForm({ accounts, categories, onClose }: Props) {
 
     function onSubmit(data: TransactionFormData) {
         startTransition(async () => {
-            const result = await createTransaction(data);
+            const result = await saveTransaction(data);
 
             if (!result.success) {
                 toast.error(result.message);
@@ -146,7 +152,7 @@ export function TransactionForm({ accounts, categories, onClose }: Props) {
                         id="date"
                         type="datetime-local"
                         {...register("date", {
-                            setValueAs: fromLocalDateTimeInputValue,
+                            setValueAs: fromAppDateTimeInputValue,
                         })}
                     />
                     {errors.date && <FormError>{errors.date.message}</FormError>}
@@ -193,7 +199,11 @@ export function TransactionForm({ accounts, categories, onClose }: Props) {
                         || !matchingCategories.length
                     }
                 >
-                    {isPending ? "Guardando..." : "Guardar movimiento"}
+                    {isPending
+                        ? "Guardando..."
+                        : initialValues?.id
+                            ? "Guardar cambios"
+                            : "Guardar movimiento"}
                 </FormSubmit>
             </div>
         </Form>

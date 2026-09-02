@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-	redirect, useRouter, useSearchParams
+	redirect, useRouter
 } from 'next/navigation'
 import {
 	ArrowRight, BarChart3, Check,
@@ -38,15 +38,15 @@ type Mode = 'login' | 'register' | 'forgot-password' | 'reset-password'
 
 interface AuthFormProps {
 	defaultMode?: Mode
+	resetToken?: string
 }
 
-export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
+export function AuthForm({ defaultMode = 'login', resetToken }: AuthFormProps) {
 	const [mode, setMode] = useState<Mode>(defaultMode)
 	const [showPassword, setShowPassword] = useState(false)
 	const [submitted, setSubmitted] = useState(false)
-	const { theme, setTheme } = useTheme()
+	const { resolvedTheme, setTheme } = useTheme()
 	const router = useRouter()
-	const searchParams = useSearchParams()
 	const isRegister = mode === 'register'
 	const isResetPassword = mode === 'reset-password'
 	const schema = mode === 'forgot-password'
@@ -101,10 +101,9 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 	}
 
 	const handleResetPassword = async (data: ResetPasswordFormData) => {
-		const token = searchParams.get('token')
-		if (!token) redirect('/auth/forgot-password')
+		if (!resetToken) redirect('/auth/forgot-password')
 
-		const { error, success } = await resetPasswordAction(data, token)
+		const { error, success } = await resetPasswordAction(data, resetToken)
 
 		if (error) {
 			toast.error(error)
@@ -203,11 +202,11 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 				<section className="flex flex-1 flex-col bg-background px-5 py-8 sm:px-12 sm:py-12 lg:px-14 xl:px-20">
 					<div className="mb-10 flex items-center justify-between lg:justify-end">
 						<button
-							onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+							onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
 							className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
 							aria-label="Cambiar tema"
 						>
-							{theme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+							{resolvedTheme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
 						</button>
 						<div className="flex items-center gap-2 lg:hidden">
 							<span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
@@ -253,7 +252,7 @@ export function AuthForm({ defaultMode = 'login' }: AuthFormProps) {
 					<div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
 
 						<CardHeader className="gap-3 px-0">
-							<p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+							<p className="font-label text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
 								{mode === 'forgot-password' ? 'Recupera tu cuenta' : isResetPassword ? 'Nueva contraseña' : 'Bienvenido a Finances'}
 							</p>
 							<CardTitle

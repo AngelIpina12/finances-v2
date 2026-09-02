@@ -78,7 +78,7 @@ export function CategoriesClient({ categories }: Props) {
                 className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
             >
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+                    <p className="font-label text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
                         Organiza tus movimientos
                     </p>
                     <CardTitle className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
@@ -199,11 +199,12 @@ export function CategoriesClient({ categories }: Props) {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isArchiving}>Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel disabled={isArchiving} className="cursor-pointer">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             variant="destructive"
                             disabled={isArchiving}
                             onClick={archiveSelectedCategory}
+                            className="cursor-pointer"
                         >
                             {isArchiving ? "Archivando..." : "Archivar categoría"}
                         </AlertDialogAction>

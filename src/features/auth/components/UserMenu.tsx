@@ -3,7 +3,9 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { LogOut, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import {
+    useEffect, useRef, useState
+} from "react";
 import { signOut } from "@/src/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
@@ -61,7 +63,7 @@ export function UserMenu({ name, email }: UserMenuProps) {
                 aria-expanded={isOpen}
                 aria-haspopup="menu"
                 onClick={() => setIsOpen((open) => !open)}
-                className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
             >
                 <span className="grid size-7 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
                     {getInitials(name)}
