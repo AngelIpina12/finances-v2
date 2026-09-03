@@ -77,7 +77,7 @@ export interface RecurringRuleScope {
     ): Promise<RecurringRule | undefined>;
     setActive(userId: string, ruleId: string, isActive: boolean): Promise<RecurringRule | undefined>;
     archiveRule(userId: string, ruleId: string): Promise<boolean>;
-    findActiveRules(userId: string, ruleId?: string): Promise<RecurringRule[]>;
+    findActiveRules(userId?: string, ruleId?: string): Promise<RecurringRule[]>;
     insertGeneratedOccurrences(input: Array<{
         rule: RecurringRule;
         sequence: number;

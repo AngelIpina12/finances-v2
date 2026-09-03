@@ -70,7 +70,7 @@ La fase de ocurrencias manuales está implementada mediante la migración
 - frecuencia semimensual con dos días configurables, excepciones por fecha y
   calendario personalizado con fechas y montos individuales.
 
-Continúan pendientes la automatización, financiamientos, presupuestos y previsión.
+Continúan pendientes los financiamientos, presupuestos y previsión.
 
 ## 3. Límites del dominio
 
@@ -736,8 +736,12 @@ a las fechas que se generen posteriormente.
 
 ### Fase 4 — Automatización
 
-Crear endpoint protegido, conectar scheduler y validar concurrencia antes de
-habilitar autopost.
+Implementada la pieza de aplicación: `GET` y `POST`
+`/api/internal/recurring/generate`, protegida por `CRON_SECRET`, ejecuta el mismo
+generador idempotente para todas las reglas activas. La configuración concreta del
+scheduler pertenece al proveedor de despliegue y está documentada en
+`docs/recurring-automation.md`. No existe autopost: el cron nunca modifica saldos
+ni completa movimientos.
 
 ### Fase 5 — Financiamientos
 

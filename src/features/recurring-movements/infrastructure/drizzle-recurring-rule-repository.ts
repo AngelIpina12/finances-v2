@@ -207,12 +207,15 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
         return Boolean(rule);
     }
 
-    async findActiveRules(userId: string, ruleId?: string) {
+    async findActiveRules(userId?: string, ruleId?: string) {
         const conditions = [
-            eq(recurringRules.userId, userId),
             eq(recurringRules.isActive, true),
             isNull(recurringRules.deletedAt),
         ];
+
+        if (userId) {
+            conditions.push(eq(recurringRules.userId, userId));
+        }
 
         if (ruleId) {
             conditions.push(eq(recurringRules.id, ruleId));
