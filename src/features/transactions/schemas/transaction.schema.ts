@@ -26,6 +26,7 @@ export const transactionFormSchema = z.object({
         .max(500, "Las notas no pueden superar 500 caracteres.")
         .optional()
         .or(z.literal("")),
+    allowCreditOverLimit: z.boolean().optional(),
 });
 
 export type TransactionFormData = z.infer<typeof transactionFormSchema>;

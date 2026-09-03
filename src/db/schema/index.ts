@@ -4,6 +4,7 @@ import {
 } from "./auth";
 import {
     accountTypeEnum, categories, currencyCodeEnum, financialAccounts,
+    occurrenceSourceEnum, occurrenceStatusEnum, scheduledOccurrences,
     transactions, transactionStatusEnum, transactionTypeEnum, transferDirectionEnum
 } from "./financial";
 
@@ -11,5 +12,6 @@ export {
     accounts, sessions, users,
     verifications,
     accountTypeEnum, categories, currencyCodeEnum, financialAccounts,
+    occurrenceSourceEnum, occurrenceStatusEnum, scheduledOccurrences,
     transactions, transactionStatusEnum, transactionTypeEnum, transferDirectionEnum
 }

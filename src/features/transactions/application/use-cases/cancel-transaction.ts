@@ -3,7 +3,7 @@ import type { TransactionRepository } from "../../domain/transaction-repository"
 import { TransactionError } from "../transaction-error";
 
 export class CancelTransactionUseCase {
-    constructor(private readonly transactions: TransactionRepository) {}
+    constructor(private readonly transactions: TransactionRepository) { }
 
     async execute(userId: string, transactionId: string) {
         await this.transactions.withinTransaction(async (scope) => {
@@ -31,12 +31,7 @@ export class CancelTransactionUseCase {
                 const reverted = await scope.applyBalanceDelta(
                     account,
                     userId,
-                    -getBalanceDelta(
-                        account,
-                        movement.type,
-                        movement.amount,
-                        movement.transferDirection,
-                    ),
+                    -getBalanceDelta(account, movement.type, movement.amount, movement.transferDirection),
                 );
 
                 if (!reverted) {
@@ -44,13 +39,22 @@ export class CancelTransactionUseCase {
                 }
             }
 
-            const cancelled = await scope.cancelTransactions(
-                userId,
-                movements.map((movement) => movement.id),
-            );
+            const cancelled = await scope.cancelTransactions(userId, movements.map((movement) => movement.id));
 
             if (cancelled !== movements.length) {
                 throw new TransactionError("El movimiento cambió mientras se cancelaba.");
+            }
+
+            const occurrenceIds = movements.flatMap((movement) => (
+                movement.scheduledOccurrenceId
+                    ? [movement.scheduledOccurrenceId]
+                    : []
+            ));
+
+            const cancelledOccurrences = await scope.cancelScheduledOccurrences(userId, occurrenceIds);
+
+            if (cancelledOccurrences !== occurrenceIds.length) {
+                throw new TransactionError("No fue posible sincronizar el movimiento programado.");
             }
         });
     }

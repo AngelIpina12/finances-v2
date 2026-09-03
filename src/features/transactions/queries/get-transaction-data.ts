@@ -12,6 +12,9 @@ export async function getTransactionFormData(userId: string) {
                 name: financialAccounts.name,
                 type: financialAccounts.type,
                 currency: financialAccounts.currency,
+                creditLimit: financialAccounts.creditLimit,
+                owedAmount: financialAccounts.owedAmount,
+                availableCredit: financialAccounts.availableCredit,
             })
             .from(financialAccounts)
             .where(
@@ -33,7 +36,21 @@ export async function getTransactionFormData(userId: string) {
             .where(and(eq(categories.userId, userId), isNull(categories.deletedAt)))
             .orderBy(asc(categories.sortOrder), asc(categories.name)),
     ]);
-    return { accounts, categories: userCategories };
+    return {
+        accounts: accounts.map((account) => ({
+            ...account,
+            creditLimit: account.creditLimit === null
+                ? null
+                : Number(account.creditLimit),
+            owedAmount: account.owedAmount === null
+                ? null
+                : Number(account.owedAmount),
+            availableCredit: account.availableCredit === null
+                ? null
+                : Number(account.availableCredit),
+        })),
+        categories: userCategories,
+    };
 }
 
 export async function getTransactions(userId: string) {

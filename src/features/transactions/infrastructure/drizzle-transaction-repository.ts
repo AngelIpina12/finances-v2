@@ -1,17 +1,17 @@
 import {
     and, eq, inArray,
-    isNull, sql,
+    isNull,
 } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    categories, financialAccounts, transactions,
+    categories, financialAccounts, scheduledOccurrences,
+    transactions,
 } from "@/src/db/schema";
 import type {
     LedgerTransaction, TransactionAccount, TransactionRepository,
     TransactionScope,
 } from "../domain/transaction-repository";
-
-type DatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import { applyAccountBalanceDelta, type DatabaseTransaction } from "./apply-account-balance-delta";
 
 class DrizzleTransactionScope implements TransactionScope {
     constructor(private readonly tx: DatabaseTransaction) { }
@@ -32,13 +32,25 @@ class DrizzleTransactionScope implements TransactionScope {
                 id: financialAccounts.id,
                 type: financialAccounts.type,
                 currency: financialAccounts.currency,
+                creditLimit: financialAccounts.creditLimit,
+                owedAmount: financialAccounts.owedAmount,
             })
             .from(financialAccounts)
             .where(and(...conditions))
             .limit(1)
             .for("update");
 
-        return account as TransactionAccount | undefined;
+        return account
+            ? {
+                ...account,
+                creditLimit: account.creditLimit === null
+                    ? null
+                    : Number(account.creditLimit),
+                owedAmount: account.owedAmount === null
+                    ? null
+                    : Number(account.owedAmount),
+            } as TransactionAccount
+            : undefined;
     }
 
     async findCompletedTransaction(userId: string, transactionId: string) {
@@ -47,6 +59,7 @@ class DrizzleTransactionScope implements TransactionScope {
                 id: transactions.id,
                 accountId: transactions.accountId,
                 categoryId: transactions.categoryId,
+                scheduledOccurrenceId: transactions.scheduledOccurrenceId,
                 transferGroupId: transactions.transferGroupId,
                 transferDirection: transactions.transferDirection,
                 type: transactions.type,
@@ -74,6 +87,7 @@ class DrizzleTransactionScope implements TransactionScope {
                 id: transactions.id,
                 accountId: transactions.accountId,
                 categoryId: transactions.categoryId,
+                scheduledOccurrenceId: transactions.scheduledOccurrenceId,
                 transferGroupId: transactions.transferGroupId,
                 transferDirection: transactions.transferDirection,
                 type: transactions.type,
@@ -196,30 +210,28 @@ class DrizzleTransactionScope implements TransactionScope {
         return cancelled.length;
     }
 
-    async applyBalanceDelta(account: TransactionAccount, userId: string, delta: number) {
-        const values = account.type === "credit"
-            ? {
-                currentBalance: sql`${financialAccounts.currentBalance} + ${delta}`,
-                owedAmount: sql`coalesce(${financialAccounts.owedAmount}, 0) + ${delta}`,
-                availableCredit: sql`greatest(0, coalesce(${financialAccounts.creditLimit}, 0) - (coalesce(${financialAccounts.owedAmount}, 0) + ${delta}))`,
-            }
-            : {
-                currentBalance: sql`${financialAccounts.currentBalance} + ${delta}`,
-            };
+    async cancelScheduledOccurrences(userId: string, occurrenceIds: string[]) {
+        if (!occurrenceIds.length) {
+            return 0;
+        }
 
-        const [updatedAccount] = await this.tx
-            .update(financialAccounts)
-            .set(values)
+        const cancelled = await this.tx
+            .update(scheduledOccurrences)
+            .set({ status: "cancelled" })
             .where(
                 and(
-                    eq(financialAccounts.id, account.id),
-                    eq(financialAccounts.userId, userId),
-                    isNull(financialAccounts.deletedAt),
+                    eq(scheduledOccurrences.userId, userId),
+                    inArray(scheduledOccurrences.id, occurrenceIds),
+                    eq(scheduledOccurrences.status, "completed"),
                 ),
             )
-            .returning({ id: financialAccounts.id });
+            .returning({ id: scheduledOccurrences.id });
 
-        return Boolean(updatedAccount);
+        return cancelled.length;
+    }
+
+    async applyBalanceDelta(account: TransactionAccount, userId: string, delta: number) {
+        return applyAccountBalanceDelta(this.tx, account, userId, delta);
     }
 }
 

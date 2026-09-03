@@ -1,4 +1,6 @@
-import { getBalanceDelta } from "../../domain/transaction-rules";
+import {
+    getBalanceDelta, requiresCreditOverLimitApproval,
+} from "../../domain/transaction-rules";
 import type { CreateTransactionCommand, TransactionRepository } from "../../domain/transaction-repository";
 import { TransactionError } from "../transaction-error";
 
@@ -27,6 +29,21 @@ export class CreateTransactionUseCase {
                 );
             }
 
+            const balanceDelta = getBalanceDelta(
+                account,
+                command.type,
+                command.amount,
+            );
+
+            if (
+                requiresCreditOverLimitApproval(account, balanceDelta)
+                && !command.allowCreditOverLimit
+            ) {
+                throw new TransactionError(
+                    "El movimiento excede el límite de crédito. Confirma que deseas registrarlo de todos modos.",
+                );
+            }
+
             await scope.insertCompletedTransaction({
                 ...command,
                 userId,
@@ -36,7 +53,7 @@ export class CreateTransactionUseCase {
             const updated = await scope.applyBalanceDelta(
                 account,
                 userId,
-                getBalanceDelta(account, command.type, command.amount),
+                balanceDelta,
             );
 
             if (!updated) {

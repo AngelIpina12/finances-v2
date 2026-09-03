@@ -19,6 +19,7 @@ export type TransactionValues = {
     date: Date;
     merchant?: string;
     notes?: string;
+    allowCreditOverLimit?: boolean;
 };
 
 export type CreateTransactionCommand = TransactionValues;
@@ -40,12 +41,15 @@ export type TransactionAccount = {
     id: string;
     type: AccountType;
     currency: Currency;
+    creditLimit: number | null;
+    owedAmount: number | null;
 };
 
 export type LedgerTransaction = {
     id: string;
     accountId: string;
     categoryId: string | null;
+    scheduledOccurrenceId: string | null;
     transferGroupId: string | null;
     transferDirection: TransferDirection | null;
     type: LedgerTransactionType;
@@ -101,6 +105,7 @@ export interface TransactionScope {
         input: UpdateTransactionCommand & { currency: Currency },
     ): Promise<boolean>;
     cancelTransactions(userId: string, transactionIds: string[]): Promise<number>;
+    cancelScheduledOccurrences(userId: string, occurrenceIds: string[]): Promise<number>;
     applyBalanceDelta(
         account: TransactionAccount,
         userId: string,

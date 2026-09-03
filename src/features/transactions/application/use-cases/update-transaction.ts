@@ -1,4 +1,7 @@
-import { getBalanceDelta, isEditableTransactionType } from "../../domain/transaction-rules";
+import {
+    getBalanceDelta, isEditableTransactionType,
+    requiresCreditOverLimitApproval,
+} from "../../domain/transaction-rules";
 import type { TransactionRepository, UpdateTransactionCommand } from "../../domain/transaction-repository";
 import { TransactionError } from "../transaction-error";
 
@@ -34,15 +37,37 @@ export class UpdateTransactionUseCase {
                 );
             }
 
+            const originalBalanceDelta = getBalanceDelta(
+                originalAccount,
+                original.type,
+                original.amount,
+            );
+            const nextBalanceDelta = getBalanceDelta(
+                nextAccount,
+                command.type,
+                command.amount,
+            );
+            const projectedDebtDelta = nextBalanceDelta
+                - (originalAccount.id === nextAccount.id ? originalBalanceDelta : 0);
+
+            if (
+                requiresCreditOverLimitApproval(nextAccount, projectedDebtDelta)
+                && !command.allowCreditOverLimit
+            ) {
+                throw new TransactionError(
+                    "El cambio excede el límite de crédito. Confirma que deseas guardarlo de todos modos.",
+                );
+            }
+
             const reverted = await scope.applyBalanceDelta(
                 originalAccount,
                 userId,
-                -getBalanceDelta(originalAccount, original.type, original.amount),
+                -originalBalanceDelta,
             );
             const applied = await scope.applyBalanceDelta(
                 nextAccount,
                 userId,
-                getBalanceDelta(nextAccount, command.type, command.amount),
+                nextBalanceDelta,
             );
 
             if (!reverted || !applied) {

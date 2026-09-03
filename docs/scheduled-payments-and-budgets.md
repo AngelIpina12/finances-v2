@@ -1,141 +1,171 @@
-# Plan técnico: pagos programados, recurrencias y presupuestos
+# Plan técnico: movimientos programados, recurrencias, financiamientos y presupuestos
 
 ## 1. Propósito
 
-Este documento define el siguiente incremento funcional de Finance Tracker v2 una
-vez terminados:
+Este documento define los incrementos siguientes de Finance Tracker v2 después de
+cuentas, categorías, transacciones, transferencias y dashboard real.
 
-- autenticación con Better Auth;
-- CRUD de cuentas financieras;
-- categorías de ingreso y gasto;
-- ciclo de vida de transacciones;
-- transferencias atómicas;
-- dashboard conectado a datos reales.
+El diseño separa cuatro conceptos:
 
-El incremento se divide en dos módulos relacionados, pero desplegables por separado:
-
-1. pagos programados y recurrentes;
-2. presupuestos por categoría.
-
-El orden recomendado es implementar primero recurrencias. El dashboard ya obtiene
-`upcomingPayments` desde transacciones con estado `scheduled`, pero actualmente no
-existe un flujo completo que cree y administre esas transacciones. Los presupuestos
-pueden construirse después sobre gastos completados y categorías ya confiables.
-
-## 2. Fuentes y estado actual
-
-La propuesta parte de tres fuentes:
-
-- el DBML original, que incluía `recurring_payments`,
-  `recurring_payment_occurrences`, `budgets`, `budget_allocations` y
-  `budget_periods`;
-- la especificación funcional del dashboard;
-- el esquema Drizzle que está implementado actualmente.
-
-El esquema real usa `financial_accounts`, no `accounts`, y los identificadores de
-Better Auth son `text`. Las nuevas referencias a `users.id` deben conservar ese
-tipo. No se modificará la tabla `users` de Better Auth para agregar moneda, locale o
-zona horaria.
-
-La tabla `transactions` ya proporciona la base necesaria:
-
-- `status` admite `pending`, `completed`, `scheduled` y `cancelled`;
-- `date` puede representar la fecha prevista o efectiva según el estado;
-- el ledger sólo debe alterar saldos con transacciones `completed`;
-- las transferencias quedan excluidas de ingresos, gastos y presupuestos.
-
-## 3. Decisiones principales
-
-### 3.1 Separar regla, ocurrencia y movimiento
-
-Son tres conceptos diferentes:
+1. movimientos programados y reglas recurrentes;
+2. planes de financiamiento y cuotas;
+3. presupuestos;
+4. previsión financiera.
 
 ```text
 Regla recurrente
-  Netflix, cada mes, día 12, $299
+  Define qué, cuánto y cuándo se espera un ingreso o gasto
         ↓ genera
 Ocurrencia
-  Netflix, 12 de septiembre, programada
-        ↓ al confirmarse
+  Evento concreto con fecha y monto editables
+        ↓ al completarse
 Transacción
-  Gasto completado que modifica el saldo
+  Movimiento real que modifica el saldo
+
+Plan de financiamiento → obligación completa y calendario de cuotas
+Presupuesto            → cuánto se permite gastar
+Previsión              → cuánto dinero probablemente habrá en el futuro
 ```
 
-- `recurring_payments` describe cómo se repite un pago.
-- `recurring_payment_occurrences` representa cada vencimiento concreto.
-- `transactions` conserva el movimiento contable y su efecto en el saldo.
+## 2. Estado actual y compatibilidad
 
-Una transacción programada de una sola ocasión no necesita una regla recurrente;
-puede existir como una ocurrencia independiente. Para mantener una única fuente de
-“Próximos pagos”, se recomienda que tanto los pagos únicos como los recurrentes
-tengan una ocurrencia.
+El DBML original incluía `recurring_payments`,
+`recurring_payment_occurrences`, `budgets`, `budget_allocations` y
+`budget_periods`. Este plan conserva sus objetivos, pero ajusta el modelo a los
+casos de salarios, fechas variables y financiamientos con pago final.
 
-### 3.2 No afectar saldos antes de completar el pago
+- El esquema real usa `financial_accounts`, no `accounts`.
+- Los IDs de Better Auth son `text`; las referencias a `users.id` deben coincidir.
+- No se agregarán preferencias financieras directamente a `users`.
+- `transactions.type` ya admite `income`, `expense` y `transfer`.
+- El ledger existente seguirá siendo el único responsable de modificar saldos.
+- La zona central es `America/Mexico_City`.
 
-Crear una regla, generar una ocurrencia o programar un pago no altera
-`currentBalance`, `owedAmount` ni `availableCredit`.
+El dashboard actualmente obtiene próximos pagos desde transacciones `scheduled`.
+Esa lectura migrará a ocurrencias programadas de ingresos, gastos y cuotas.
 
-El saldo cambia únicamente cuando el usuario confirma una ocurrencia o cuando una
-automatización autorizada la ejecuta. Esa operación debe:
+### Estado de implementación
 
-1. comprobar que la ocurrencia sigue `scheduled`;
-2. crear o completar la transacción;
-3. aplicar el delta al saldo mediante el ledger existente;
-4. enlazar la transacción con la ocurrencia;
-5. marcar la ocurrencia como `completed`;
-6. ejecutarse en una sola transacción SQL.
+La fase de ocurrencias manuales está implementada mediante la migración
+`drizzle/0004_cultured_sentinels.sql`:
 
-La condición sobre el estado evita cobrar dos veces por doble clic, reintento del
-cliente o ejecución repetida de un job.
+- tabla `scheduled_occurrences` e índices por usuario, estado y fecha;
+- FK única `transactions.scheduled_occurrence_id`;
+- creación manual de ingresos y gastos programados;
+- acciones atómicas para completar, omitir y cancelar;
+- actualización de saldos mediante el ledger existente;
+- sincronización al cancelar posteriormente la transacción generada;
+- pantalla `/scheduled`, filtros, resumen, modal y estados animados;
+- integración de próximos movimientos con el dashboard.
+- aviso no bloqueante al programar un gasto que hoy excedería el crédito;
+- confirmación explícita y validación de servidor al completar o registrar un
+  gasto por encima del límite, conservando el exceso visible en la tarjeta.
 
-### 3.3 Generación idempotente
+Continúan pendientes las reglas recurrentes, salarios avanzados, calendarios custom,
+automatización, financiamientos, presupuestos y previsión.
 
-Debe existir una restricción única sobre:
+## 3. Límites del dominio
+
+### Movimiento recurrente
+
+Un ingreso o gasto que sigue una regla: salario, renta, suscripción o servicio.
+
+### Ocurrencia
+
+Una ejecución concreta. Conserva snapshots de fecha, monto, cuenta, categoría y
+descripción. Puede editarse, omitirse, cancelarse o completarse sin reescribir la
+regla completa.
+
+### Plan de financiamiento
+
+Una obligación con principal y calendario de cuotas, posiblemente con un pago final
+diferente. No es una recurrencia ordinaria.
+
+### Presupuesto
+
+Un límite de gasto comparado contra transacciones reales completadas.
+
+### Previsión financiera
+
+Una proyección construida con saldos, movimientos futuros, cuotas y estimaciones. No
+es equivalente a un presupuesto.
+
+## 4. Decisiones principales
+
+### 4.1 Reglas de ingreso y gasto
+
+Se reemplaza `recurring_payments` por `recurring_rules`, porque una regla puede
+generar `income` o `expense`. Su categoría debe coincidir con ese tipo.
+
+Las transferencias recurrentes se posponen: necesitan dos cuentas, dos movimientos
+y una operación atómica propia.
+
+### 4.2 Separar calendario, terminación y monto
 
 ```text
-(recurring_payment_id, scheduled_date)
+frequency        Cuándo ocurre
+end_mode         Cuándo termina
+amount_strategy  Cómo se calcula el importe
 ```
 
-Así, ejecutar dos veces el generador para la misma fecha no crea dos ocurrencias.
-La idempotencia debe estar garantizada por PostgreSQL, no sólo por una comprobación
-en TypeScript.
+Esto evita que un único enum mezcle suscripción, plazo, frecuencia y cálculo.
 
-### 3.4 Presupuestos calculados desde el ledger
+### 4.3 El futuro no afecta el saldo
 
-El gasto de un presupuesto se calcula desde `transactions`; no se incrementa desde
-el cliente ni desde el formulario del presupuesto. Sólo participan movimientos que:
+Crear una regla, ocurrencia o cuota no altera `currentBalance`, `owedAmount` ni
+`availableCredit`.
 
-- pertenecen al usuario;
-- tienen `type = expense`;
-- tienen `status = completed`;
-- caen dentro del periodo;
-- pertenecen a alguna categoría asignada al presupuesto.
+Completar una ocurrencia debe, dentro de una transacción SQL:
 
-Las transferencias, pagos de tarjetas y movimientos cancelados no cuentan como
-gasto nuevo. La compra hecha con la tarjeta ya fue el gasto; pagar la tarjeta es una
-transferencia.
+1. comprobar que continúa programada;
+2. crear la transacción real;
+3. aplicar el ledger existente;
+4. enlazar transacción y ocurrencia;
+5. marcar la ocurrencia como completada.
 
-## 4. Modelo de datos propuesto
+### 4.4 Idempotencia
 
-### 4.1 Enums
+Las ocurrencias generadas usan:
 
 ```text
-recurring_payment_type
-  indefinite
-  by_term
-  subscription
+UNIQUE (recurring_rule_id, sequence)
+```
 
-recurrence_frequency
+`sequence` no cambia si se mueve la fecha. Es una identidad más estable que
+`scheduled_at` y evita duplicados durante reintentos.
+
+## 5. Enums propuestos
+
+```text
+schedule_frequency
   daily
   weekly
+  biweekly
+  semimonthly
   monthly
   yearly
+  custom
+
+recurrence_end_mode
+  never
+  on_date
+  after_occurrences
+
+recurrence_amount_strategy
+  fixed
+  period_total
+  custom_per_occurrence
 
 occurrence_status
   scheduled
   completed
   skipped
   cancelled
+
+occurrence_source
+  manual
+  recurring_rule
+  financing_installment
 
 budget_period
   weekly
@@ -148,44 +178,48 @@ rollover_type
   disabled
   carry_remaining
   carry_deficit
+
+financing_status
+  active
+  completed
+  cancelled
 ```
 
-Se cambia `cycle_type.custom` del DBML original por una combinación de
-`frequency + interval`. Por ejemplo, “cada 2 semanas” se guarda como `weekly` con
-`interval = 2`. Una regla arbitraria estilo cron queda fuera del MVP porque complica
-validación, edición y fechas límite.
+`biweekly` significa cada 14 días y normalmente produce 26 pagos al año.
+`semimonthly` significa dos veces por mes y produce 24. La UI debe llamarlos “Cada
+14 días” y “Dos veces al mes” para evitar la ambigüedad de “quincenal”.
 
-Se recomienda un enum propio para las ocurrencias. Reutilizar
-`transaction_status` haría que `pending` tuviera un significado ambiguo y no
-permitiría distinguir una ocurrencia omitida de una cancelada.
-
-### 4.2 `recurring_payments`
+## 6. `recurring_rules`
 
 | Campo | Tipo | Regla |
 | --- | --- | --- |
-| `id` | `uuid` | PK, generado por defecto |
-| `user_id` | `text` | FK a Better Auth, `not null`, cascade |
-| `account_id` | `uuid` | FK a `financial_accounts`, restrict |
-| `category_id` | `uuid` | FK a `categories`, set null |
-| `payment_type` | enum | Indefinido, plazo o suscripción |
-| `frequency` | enum | Frecuencia base |
+| `id` | `uuid` | PK |
+| `user_id` | `text` | FK a Better Auth |
+| `account_id` | `uuid` | FK a `financial_accounts` |
+| `category_id` | `uuid` | FK a `categories`, nullable |
+| `transaction_type` | enum existente | Sólo ingreso o gasto |
+| `frequency` | `schedule_frequency` | Frecuencia o custom |
 | `interval` | `integer` | Mayor o igual a 1 |
+| `end_mode` | `recurrence_end_mode` | Modo de terminación |
+| `occurrence_limit` | `integer` | Para `after_occurrences` |
+| `amount_strategy` | enum | Estrategia de importe |
+| `default_amount` | `numeric(15,2)` | Monto normal |
+| `period_total` | `numeric(15,2)` | Total mensual distribuible |
+| `fifth_occurrence_amount` | `numeric(15,2)` | Quinto monto opcional |
 | `name` | `text` | Nombre visible |
 | `description` | `text` | Opcional |
-| `amount` | `numeric(15,2)` | Mayor que cero |
-| `currency` | `currency_code` | Debe coincidir con la cuenta en el MVP |
-| `starts_at` | `timestamptz` | Primera fecha de vigencia |
-| `ends_at` | `timestamptz` | Requerida para `by_term`, opcional en otros casos |
-| `next_occurrence_at` | `timestamptz` | Próxima fecha pendiente de generar |
-| `last_generated_at` | `timestamptz` | Auditoría del generador |
-| `remaining_balance` | `numeric(15,2)` | Sólo si existe deuda/plazo conocido |
-| `auto_post` | `boolean` | Si la ocurrencia se completa automáticamente |
-| `is_active` | `boolean` | Permite pausar sin perder historial |
+| `currency` | enum existente | Igual a la cuenta en el MVP |
+| `starts_at` | `timestamptz` | Inicio |
+| `ends_at` | `timestamptz` | Requerido para `on_date` |
+| `next_occurrence_at` | `timestamptz` | Próxima por generar |
+| `last_generated_at` | `timestamptz` | Auditoría |
+| `auto_post` | `boolean` | Ejecución automática |
+| `is_active` | `boolean` | Permite pausar |
 | `deleted_at` | `timestamptz` | Archivado lógico |
 | `created_at` | `timestamptz` | Auditoría |
 | `updated_at` | `timestamptz` | Auditoría |
 
-Índices recomendados:
+Índices:
 
 ```text
 (user_id, is_active, next_occurrence_at)
@@ -195,539 +229,577 @@ permitiría distinguir una ocurrencia omitida de una cancelada.
 
 Reglas de integridad:
 
-- la cuenta y categoría deben pertenecer al mismo usuario;
-- la categoría debe ser de tipo `expense`;
-- la categoría puede ser nula, pero la UI debe advertir que el gasto no participará
-  en presupuestos por categoría;
+- cuenta y categoría pertenecen al usuario;
+- la categoría coincide con `transaction_type`;
 - `ends_at >= starts_at`;
-- `next_occurrence_at` debe estar dentro de la vigencia;
-- archivar una cuenta con reglas activas debe pedir primero reasignarlas o pausarlas.
+- `interval >= 1`;
+- `occurrence_limit > 0` cuando corresponde;
+- una regla custom no calcula `next_occurrence_at`;
+- archivar una cuenta exige pausar o reasignar sus reglas activas.
 
-### 4.3 `recurring_payment_occurrences`
+## 7. Salarios y estrategias de monto
+
+### `fixed`
+
+Cada ocurrencia usa el mismo importe:
+
+```text
+Salario semanal: $5,000
+Mes con 4 pagos: $20,000
+Mes con 5 pagos: $25,000
+```
+
+### `period_total`
+
+Un total mensual se distribuye entre los pagos del mes:
+
+```text
+Total mensual: $20,000
+4 viernes → $5,000 por pago
+5 viernes → $4,000 por pago
+```
+
+El residuo de centavos se agrega a la última ocurrencia para conservar exactamente
+el total. En el primer alcance se habilita para reglas semanales y cada 14 días con
+distribución mensual.
+
+### `custom_per_occurrence`
+
+Existe un monto normal, pero cada ocurrencia puede reemplazarlo. También permite:
+
+```text
+Pagos 1 a 4 → $5,000
+Pago 5      → $2,500
+```
+
+El preset de salario debe preguntar:
+
+```text
+Mes con quinta fecha semanal
+  Mantener monto normal
+  Distribuir total mensual
+  Usar un monto diferente
+```
+
+Una ocurrencia completada conserva su monto histórico y no se recalcula.
+
+## 8. Calendarios variables
+
+Una regla `semimonthly` guarda dos días, por ejemplo el día 15 y el último día del
+mes. “Último día” se conserva como regla semántica, no como 28, 30 o 31 fijo.
+
+Para fechas mensuales variables existen dos modalidades.
+
+### Regla con excepciones
+
+```text
+Enero   → día 20
+Febrero → día 22, excepción
+Marzo   → día 21, excepción
+Abril   → día 20
+```
+
+Mover febrero no desplaza marzo.
+
+### Calendario completamente custom
+
+El usuario proporciona todas las fechas conocidas. La regla usa
+`frequency = custom`, crea esas ocurrencias y no calcula fechas adicionales. Cada
+ocurrencia puede tener su propio monto.
+
+## 9. `scheduled_occurrences`
 
 | Campo | Tipo | Regla |
 | --- | --- | --- |
 | `id` | `uuid` | PK |
-| `user_id` | `text` | Facilita aislamiento e índices por usuario |
-| `recurring_payment_id` | `uuid` | Nullable para un pago único |
-| `account_id` | `uuid` | Snapshot del destino |
+| `user_id` | `text` | Aislamiento por usuario |
+| `source` | `occurrence_source` | Origen |
+| `recurring_rule_id` | `uuid` | Nullable |
+| `financing_installment_id` | `uuid` | Nullable y único |
+| `sequence` | `integer` | Posición dentro de la fuente |
+| `account_id` | `uuid` | Snapshot de cuenta |
 | `category_id` | `uuid` | Snapshot opcional |
+| `transaction_type` | enum existente | Tipo previsto |
 | `name` | `text` | Snapshot visible |
-| `amount` | `numeric(15,2)` | Snapshot del monto |
-| `currency` | `currency_code` | Snapshot de moneda |
-| `scheduled_at` | `timestamptz` | Fecha de vencimiento |
-| `executed_at` | `timestamptz` | Fecha real de ejecución |
-| `status` | enum | Programada, completada, omitida o cancelada |
-| `transaction_id` | `uuid` | FK única y nullable a `transactions` |
+| `amount` | `numeric(15,2)` | Snapshot de monto |
+| `currency` | enum existente | Snapshot de moneda |
+| `original_scheduled_at` | `timestamptz` | Fecha originalmente calculada |
+| `scheduled_at` | `timestamptz` | Fecha efectiva editable |
+| `executed_at` | `timestamptz` | Ejecución real |
+| `status` | `occurrence_status` | Estado |
 | `created_at` | `timestamptz` | Auditoría |
 | `updated_at` | `timestamptz` | Auditoría |
 
-Guardar snapshots permite que una ocurrencia ya generada conserve su importe,
-cuenta y nombre aunque después cambie la regla. Editar la regla afecta sólo las
-ocurrencias futuras que todavía no se hayan generado. La edición masiva de
-ocurrencias existentes debe ser una acción separada y explícita.
-
-Restricciones e índices:
+Restricciones:
 
 ```text
-UNIQUE (recurring_payment_id, scheduled_at)
-UNIQUE (transaction_id) WHERE transaction_id IS NOT NULL
+UNIQUE (recurring_rule_id, sequence)
+UNIQUE (financing_installment_id)
 INDEX  (user_id, status, scheduled_at)
-INDEX  (recurring_payment_id, scheduled_at)
+INDEX  (recurring_rule_id, scheduled_at)
 ```
 
-### 4.4 Cambios en `transactions`
+Para `source = manual`, las referencias de origen son nulas. Para las demás fuentes
+debe existir exactamente la referencia correspondiente.
+
+Al editar una regla se pregunta:
+
+```text
+Sólo esta ocurrencia
+Esta y las siguientes no completadas
+Sólo la regla para ocurrencias aún no generadas
+```
+
+Las ocurrencias completadas nunca cambian indirectamente.
+
+## 10. Cambios en `transactions`
 
 Agregar:
 
 ```text
-recurring_payment_id uuid null
-recurring_occurrence_id uuid null
+recurring_rule_id uuid null
+scheduled_occurrence_id uuid null
+financing_plan_id uuid null
 ```
 
-La referencia directa a la regla facilita reportes como “costo mensual de
-suscripciones”. La referencia a la ocurrencia aporta trazabilidad e idempotencia.
-`recurring_occurrence_id` debe ser único cuando no sea nulo.
+`scheduled_occurrence_id` debe ser único cuando no sea nulo. Estas referencias dan
+trazabilidad, reportes e idempotencia.
 
-El campo `date` mantiene esta semántica:
+La relación se guarda únicamente desde `transactions` hacia
+`scheduled_occurrences`; la ocurrencia no mantiene una FK inversa. Así se evita una
+referencia circular y una segunda fuente de verdad.
 
-- en una transacción `scheduled`, es la fecha prevista;
-- en una transacción `completed`, es la fecha financiera efectiva elegida al
-  confirmar.
+No se crean años de transacciones anticipadamente. El futuro vive en
+`scheduled_occurrences`; la transacción aparece al completar el evento.
 
-No se recomienda llenar meses o años de filas `transactions` por adelantado. Las
-ocurrencias futuras pertenecen a `recurring_payment_occurrences`; el movimiento se
-crea al completar la ocurrencia.
+## 11. Planes de financiamiento
 
-### 4.5 `budgets`
+Una compra con 20 pagos de $760 y uno final de $9,800 representa:
+
+```text
+20 × $760 = $15,200
+Pago final = $9,800
+Total      = $25,000
+```
+
+Si la tarjeta reconoce o retiene la obligación completa desde la compra:
+
+1. se registra un gasto de $25,000 una sola vez;
+2. la deuda aumenta $25,000;
+3. el crédito disponible disminuye $25,000;
+4. las cuotas no vuelven a registrarse como gastos;
+5. cada pago es una transferencia hacia la tarjeta;
+6. cada transferencia reduce deuda y restaura crédito disponible.
+
+### `financing_plans`
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `id` | `uuid` | PK |
+| `user_id` | `text` | FK a Better Auth |
+| `credit_account_id` | `uuid` | Cuenta de crédito |
+| `purchase_transaction_id` | `uuid` | Gasto original, único |
+| `name` | `text` | Nombre visible |
+| `total_amount` | `numeric(15,2)` | Obligación total |
+| `regular_installment_count` | `integer` | Cantidad de pagos normales |
+| `regular_installment_amount` | `numeric(15,2)` | Monto normal |
+| `balloon_amount` | `numeric(15,2)` | Pago final, puede ser cero |
+| `currency` | enum existente | Moneda de la cuenta |
+| `starts_at` | `timestamptz` | Inicio |
+| `status` | `financing_status` | Estado |
+| `created_at` | `timestamptz` | Auditoría |
+| `updated_at` | `timestamptz` | Auditoría |
+
+Debe cumplirse:
+
+```text
+regular_installment_count × regular_installment_amount + balloon_amount
+= total_amount
+```
+
+Intereses, seguros y comisiones se modelan explícitamente; no se altera el principal
+silenciosamente para hacer coincidir la suma.
+
+### `financing_installments`
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `id` | `uuid` | PK |
+| `financing_plan_id` | `uuid` | FK, cascade |
+| `sequence` | `integer` | 1 a N |
+| `scheduled_at` | `timestamptz` | Fecha esperada |
+| `amount` | `numeric(15,2)` | Monto de cuota |
+| `is_balloon` | `boolean` | Identifica pago final |
+| `paid_at` | `timestamptz` | Fecha real |
+| `created_at` | `timestamptz` | Auditoría |
+
+Debe existir `UNIQUE (financing_plan_id, sequence)`.
+
+La relación con la agenda se conserva únicamente mediante
+`scheduled_occurrences.financing_installment_id`. No se agrega una FK inversa para
+evitar referencias circulares y dos fuentes de verdad.
+
+Al completar una cuota, el usuario selecciona la cuenta de origen y se crea una
+transferencia atómica hacia la tarjeta.
+
+Si una institución diferencia deuda contabilizada y crédito solamente retenido,
+posteriormente pueden agregarse `pending_balance` y `reserved_credit`. No deben
+mezclarse con `owed_amount` sin definir su semántica.
+
+## 12. Presupuestos
+
+### `budgets`
 
 | Campo | Tipo | Regla |
 | --- | --- | --- |
 | `id` | `uuid` | PK |
 | `user_id` | `text` | FK a Better Auth |
 | `name` | `text` | Nombre visible |
-| `amount` | `numeric(15,2)` | Límite total mayor que cero |
-| `currency` | `currency_code` | Moneda del presupuesto |
-| `period` | enum | Periodicidad |
-| `rollover` | enum | Tratamiento del remanente |
+| `amount` | `numeric(15,2)` | Límite mayor que cero |
+| `currency` | enum existente | Moneda |
+| `period` | `budget_period` | Periodicidad |
+| `rollover` | `rollover_type` | Tratamiento del remanente |
 | `is_reusable` | `boolean` | Genera periodos siguientes |
-| `color` | `text` | Color de presentación validado |
-| `warning_threshold` | `integer` | Porcentaje, valor inicial 80 |
-| `starts_at` | `timestamptz` | Inicio de vigencia |
-| `ends_at` | `timestamptz` | Opcional salvo periodo custom |
-| `is_active` | `boolean` | Pausa o finalización |
+| `color` | `text` | Color validado |
+| `warning_threshold` | `integer` | Inicialmente 80% |
+| `starts_at` | `timestamptz` | Inicio |
+| `ends_at` | `timestamptz` | Opcional salvo custom |
+| `is_active` | `boolean` | Estado |
 | `deleted_at` | `timestamptz` | Archivado lógico |
 | `created_at` | `timestamptz` | Auditoría |
 | `updated_at` | `timestamptz` | Auditoría |
 
-Para el MVP, todos los presupuestos son de gasto. Se elimina `type` porque permitir
-presupuestos de ingreso mezcla este módulo con metas o previsiones. También se
-elimina `is_global`: un presupuesto sin asignaciones puede representar el gasto
-global, evitando dos fuentes de verdad.
+Los presupuestos del MVP son exclusivamente de gasto. Sin asignaciones representan
+gasto global; con asignaciones representan categorías seleccionadas.
 
-### 4.6 `budget_allocations`
+### `budget_allocations`
 
 | Campo | Tipo | Regla |
 | --- | --- | --- |
 | `id` | `uuid` | PK |
-| `budget_id` | `uuid` | FK a `budgets`, cascade |
-| `category_id` | `uuid` | FK a `categories`, restrict |
-| `amount` | `numeric(15,2)` | Monto asignado, `not null` y mayor que cero |
+| `budget_id` | `uuid` | FK, cascade |
+| `category_id` | `uuid` | FK, restrict |
+| `amount` | `numeric(15,2)` | Asignación mayor que cero |
 | `created_at` | `timestamptz` | Auditoría |
 | `updated_at` | `timestamptz` | Auditoría |
 
-Debe existir `UNIQUE (budget_id, category_id)`. La suma de asignaciones no puede
-superar `budgets.amount`. Si todas las asignaciones tienen monto, la UI debe mostrar
-también cuánto queda sin asignar.
+Debe existir `UNIQUE (budget_id, category_id)` y la suma de asignaciones no puede
+superar el presupuesto. Las categorías archivadas conservan su historia.
 
-Una categoría archivada conserva su relación para reportes históricos. No debe
-borrarse físicamente ni cambiarse automáticamente por otra.
-
-### 4.7 `budget_periods`
+### `budget_periods`
 
 | Campo | Tipo | Regla |
 | --- | --- | --- |
 | `id` | `uuid` | PK |
-| `budget_id` | `uuid` | FK a `budgets`, cascade |
+| `budget_id` | `uuid` | FK, cascade |
 | `period_start` | `timestamptz` | Inicio inclusivo |
 | `period_end` | `timestamptz` | Fin exclusivo |
 | `allocated_amount` | `numeric(15,2)` | Snapshot del límite |
-| `rollover_amount` | `numeric(15,2)` | Ajuste proveniente del periodo anterior |
+| `rollover_amount` | `numeric(15,2)` | Ajuste anterior |
 | `created_at` | `timestamptz` | Auditoría |
 
 Debe existir `UNIQUE (budget_id, period_start, period_end)`.
 
-No se recomienda persistir `spent_amount`, `remaining_amount` ni
-`total_available`, como proponía el DBML original. Son valores derivados y pueden
-quedar desincronizados al editar o cancelar transacciones. Deben calcularse en una
-query:
+No se persisten valores derivados:
 
 ```text
 available = allocated_amount + rollover_amount
 spent     = SUM(gastos completados del periodo)
 remaining = available - spent
-usage     = spent / available * 100
+usage     = spent / available × 100
 ```
 
-### 4.8 Tablas pospuestas
+Sólo cuentan gastos completados del periodo, moneda y categorías correspondientes.
+Transferencias, pagos de tarjeta y cancelados no crean gasto nuevo.
 
-No crear todavía:
+## 13. Presupuesto frente a previsión
 
-- `budget_credit_cards`;
-- `budget_category_credit_allocations`;
-- `notifications`.
-
-Los gastos con tarjeta ya pueden atribuirse a categorías desde `transactions`. Las
-tablas específicas de tarjetas duplicarían asignaciones sin resolver un caso de uso
-del MVP. Las notificaciones deben añadirse cuando exista un canal real de entrega y
-preferencias del usuario; primero basta con alertas dentro de la interfaz.
-
-## 5. Zona horaria y fechas
-
-Todos los instantes se guardan como `timestamptz` y PostgreSQL los normaliza. Como
-la tabla `users` de Better Auth no contiene zona horaria, el MVP debe usar una
-constante de aplicación, inicialmente `America/Mexico_City`, para interpretar reglas
-como “el día 1 a las 09:00”.
-
-Más adelante puede crearse `user_preferences` con `timezone`, `locale` y moneda de
-reporte. Esa configuración no debe agregarse a la tabla administrada por Better
-Auth.
-
-Reglas de calendario:
-
-- un pago mensual solicitado para el día 29, 30 o 31 cae en el último día válido de
-  los meses más cortos;
-- los rangos presupuestarios usan inicio inclusivo y fin exclusivo;
-- las fechas de UI se convierten desde/hacia la zona horaria de la aplicación;
-- el motor debe calcular la siguiente fecha desde la fecha programada anterior, no
-  desde la hora en que se ejecutó el job, para evitar desplazamientos acumulativos.
-
-## 6. Casos de uso
-
-### 6.1 Pagos programados y recurrentes
+El presupuesto responde “¿cuánto me permito gastar?”. La previsión responde “¿cuánto
+dinero probablemente tendré?”.
 
 ```text
-createOneTimeScheduledPayment
-createRecurringPayment
-updateRecurringPayment
-pauseRecurringPayment
-resumeRecurringPayment
-archiveRecurringPayment
-generateDueOccurrences
-completeOccurrence
-skipOccurrence
-cancelOccurrence
+Saldo actual             $30,000
+Ingresos programados    +$40,000
+Gastos programados      -$18,000
+Cuotas futuras           -$3,040
+Gasto variable estimado  -$9,000
+Saldo proyectado          $39,960
 ```
 
-`generateDueOccurrences` debe recibir una ventana temporal y generar sólo lo
-necesario. Una ventana sugerida es desde hoy hasta 45 días, compatible con el widget
-actual del dashboard.
-
-`completeOccurrence` es una operación financiera y debe reutilizar las reglas del
-ledger, no duplicar fórmulas de cuentas de crédito.
-
-### 6.2 Presupuestos
+La primera previsión será un read model sin tabla propia:
 
 ```text
-createBudget
-updateBudget
-archiveBudget
-ensureCurrentBudgetPeriod
-getBudgetOverview
-getBudgetDetail
+saldo actual
++ ingresos programados
+- gastos programados
+- transferencias futuras
+- estimación opcional basada en presupuestos
+= saldo proyectado
 ```
 
-Crear o editar un presupuesto debe validar propiedad de todas las categorías dentro
-de la misma transacción SQL.
+Después pueden persistirse escenarios conservador, base y optimista. Nunca se
+presentará una previsión como saldo garantizado.
 
-## 7. Automatización
+## 14. Fechas y monedas
 
-La generación recurrente no debe ejecutarse durante el render de una página. Debe
-existir un adaptador invocable por un scheduler externo:
+Todos los instantes usan `timestamptz` y `America/Mexico_City`.
+
+- Los días 29, 30 o 31 caen en el último día válido de meses cortos.
+- “Último día” se conserva como regla semántica.
+- Los rangos usan inicio inclusivo y fin exclusivo.
+- La fecha siguiente parte de la programada anterior, no de la hora del job.
+- Mover una ocurrencia no desplaza las demás sin petición explícita.
+
+Reglas y financiamientos usan la moneda de su cuenta. Un presupuesto sólo suma su
+moneda durante el MVP. La previsión multimoneda espera una política estable de tasas
+y moneda de reporte.
+
+## 15. Casos de uso
+
+```text
+Programación
+  createOneTimeScheduledMovement
+  createRecurringRule
+  updateRecurringRule
+  pauseRecurringRule
+  resumeRecurringRule
+  archiveRecurringRule
+  generateDueOccurrences
+  updateOccurrence
+  completeOccurrence
+  skipOccurrence
+  cancelOccurrence
+
+Financiamientos
+  createFinancingPlan
+  updateFinancingPlan
+  cancelFinancingPlan
+  generateFinancingInstallments
+  completeFinancingInstallment
+
+Presupuestos y previsión
+  createBudget
+  updateBudget
+  archiveBudget
+  ensureCurrentBudgetPeriod
+  getBudgetOverview
+  getBudgetDetail
+  getCashFlowForecast
+  getProjectedAccountBalances
+```
+
+Toda operación que crea transacciones o toca saldos reutiliza el ledger.
+
+## 16. Automatización
+
+La generación no se ejecuta durante el render:
 
 ```text
 Scheduler
   → endpoint interno protegido
     → generateDueOccurrences(now, horizon)
       → caso de uso
-        → repositorio Drizzle
-          → PostgreSQL + restricciones únicas
+        → PostgreSQL + restricciones únicas
 ```
 
-Para el primer incremento puede existir un botón de desarrollo o una acción manual
-“Generar próximos pagos”. Después se conecta el mismo caso de uso a un cron. El
-endpoint debe validar un secreto propio del scheduler; no debe depender de una
-sesión de navegador.
+La ventana inicial es de 45 días. Primero puede existir una acción manual y después
+conectar el mismo caso de uso a un cron. `auto_post` inicia en `false` y sólo se
+habilita después de probar concurrencia, reintentos e idempotencia.
 
-`auto_post = false` será el valor inicial recomendado. Con `true`, un proceso
-separado completa ocurrencias vencidas usando exactamente el mismo caso de uso
-idempotente que la confirmación manual.
-
-## 8. Arquitectura de frontend y backend
-
-Mantener la organización actual por feature:
+## 17. Arquitectura y rutas
 
 ```text
-src/features/recurring-payments/
+src/features/recurring-movements/
 ├── actions/
-│   └── recurring-payment-actions.ts
-├── application/
-│   ├── recurring-payment-error.ts
-│   └── use-cases/
-│       ├── create-recurring-payment.ts
-│       ├── generate-due-occurrences.ts
-│       └── complete-occurrence.ts
+├── application/use-cases/
 ├── components/
-│   ├── recurring-payments-client.tsx
-│   ├── recurring-payment-form.tsx
-│   ├── recurring-payment-card.tsx
-│   ├── occurrence-list.tsx
-│   └── occurrence-actions.tsx
 ├── domain/
 │   ├── recurrence-calculator.ts
-│   └── recurring-payment-repository.ts
+│   ├── amount-strategy.ts
+│   └── recurring-rule-repository.ts
 ├── infrastructure/
-│   └── drizzle-recurring-payment-repository.ts
 ├── queries/
-│   └── get-recurring-payment-data.ts
 ├── schemas/
-│   └── recurring-payment.schema.ts
 └── utils/
-    └── recurring-payment-draft.ts
 
+src/features/financing/
 src/features/budgets/
-├── actions/
-│   └── budget-actions.ts
-├── application/
-│   ├── budget-error.ts
-│   └── use-cases/
-│       ├── create-budget.ts
-│       ├── update-budget.ts
-│       └── archive-budget.ts
-├── components/
-│   ├── budgets-client.tsx
-│   ├── budget-form.tsx
-│   ├── budget-card.tsx
-│   ├── budget-progress.tsx
-│   └── budget-status-badge.tsx
-├── domain/
-│   ├── budget-rules.ts
-│   └── budget-repository.ts
-├── infrastructure/
-│   └── drizzle-budget-repository.ts
-├── queries/
-│   └── get-budget-data.ts
-├── schemas/
-│   └── budget.schema.ts
-└── utils/
-    └── budget-draft.ts
+src/features/forecast/
 ```
-
-Rutas:
 
 ```text
-app/(private)/scheduled-payments/page.tsx
-app/(private)/scheduled-payments/loading.tsx
-app/(private)/budgets/page.tsx
-app/(private)/budgets/loading.tsx
+app/(private)/scheduled/
+app/(private)/financing/
+app/(private)/budgets/
+app/(private)/forecast/
 ```
 
-Los `page.tsx` deben seguir siendo Server Components: autentican, consultan y pasan
-DTOs serializables. Los componentes `*-client.tsx`, formularios, modales, filtros y
-animaciones sí serán Client Components.
+Los `page.tsx` son Server Components. Formularios, filtros, modales y animaciones
+son Client Components. El cliente nunca persiste saldos.
 
-## 9. Diseño e interacción
+## 18. Experiencia de usuario
 
-### 9.1 Pagos programados
+### Programados
 
-La pantalla se divide en:
+- resumen de ingresos y gastos próximos;
+- timeline agrupada por fecha;
+- filtros por tipo y estado;
+- cards de reglas activas;
+- presets de salario, suscripción y servicio;
+- editor de ocurrencias;
+- selector de monto fijo, total mensual o personalizado;
+- calendario custom con múltiples fechas y montos.
 
-- resumen: monto próximo, pagos en 7 días y suscripciones activas;
-- timeline de ocurrencias agrupadas por fecha;
-- cuadrícula de reglas recurrentes;
-- filtros por próximas, vencidas, completadas y pausadas;
-- modal para crear o editar;
-- menú contextual para completar, omitir, pausar o cancelar.
+### Financiamientos
 
-El formulario debe usar React Hook Form y Zod, como los módulos existentes. Campos
-condicionales:
+- obligación original y saldo restante;
+- progreso, siguiente cuota y pago final;
+- calendario completo;
+- acción “Registrar pago” con cuenta de origen;
+- advertencia para no duplicar el gasto.
 
-- cuenta y categoría;
-- nombre, descripción, monto y moneda;
-- pago único o recurrente;
-- frecuencia e intervalo;
-- fecha inicial y final;
-- pago automático.
+### Presupuestos y previsión
 
-Las animaciones con Framer Motion deben limitarse a entrada/salida de modal, cambio
-de filtros, inserción de tarjetas y expansión de detalles. Deben respetar
-`prefers-reduced-motion` y no retrasar la confirmación de una operación financiera.
-
-### 9.2 Presupuestos
-
-La pantalla debe mostrar:
-
-- gasto total contra monto disponible del periodo;
-- saldo restante;
-- tarjetas por presupuesto con barras de progreso;
-- categorías incluidas y gasto por categoría;
+- progreso por presupuesto y categoría;
 - estados `healthy`, `warning` y `exceeded`;
-- selector de periodo;
-- modal de creación y edición.
+- selector de periodo y rollover;
+- saldo proyectado por semana o mes;
+- desglose de datos reales, programados y estimados.
 
-Estados sugeridos:
+Framer Motion se limita a modales, filtros, cards y detalles. Debe respetar
+`prefers-reduced-motion` y no retrasar operaciones financieras.
 
-```text
-healthy   usage < warning_threshold
-warning   usage >= warning_threshold y usage <= 100
-exceeded  usage > 100
-```
+## 19. Dashboard
 
-El dashboard no duplica esta pantalla. Sólo muestra el resumen global y los tres
-presupuestos que requieren más atención: excedidos primero, después advertencias y
-finalmente los más cercanos al límite.
-
-## 10. Monedas
-
-El proyecto aún no tiene una moneda preferida global. Para evitar sumas inválidas:
-
-- una regla recurrente debe usar la moneda de su cuenta;
-- un presupuesto tiene una moneda explícita;
-- en el MVP, sólo cuenta transacciones cuya `currency` coincide con la del
-  presupuesto;
-- la UI debe informar cuando se excluyen gastos de otra moneda.
-
-La agregación multimoneda debe esperar a una política estable de tasas de cambio y
-moneda de reporte. No se debe sumar MXN, USD y EUR directamente.
-
-## 11. Integración con el dashboard
-
-### Próximos pagos
-
-`getUpcomingPayments()` debe migrar de consultar `transactions.status = scheduled`
-a consultar ocurrencias `scheduled` dentro de los siguientes 45 días. El DTO puede
-ampliarse a:
+El widget consulta `scheduled_occurrences` dentro de los siguientes 45 días:
 
 ```ts
-interface UpcomingPayment {
+interface UpcomingMovement {
     id: string;
     name: string;
+    transactionType: "income" | "expense" | "transfer";
     amount: number;
     currency: string;
     scheduledDate: Date;
-    type: "one_time" | "recurring" | "subscription";
-    autoPay: boolean;
+    source: "manual" | "recurring_rule" | "financing_installment";
+    autoPost: boolean;
     accountName: string | null;
 }
 ```
 
-### Presupuestos
+Presupuestos muestra el total y los tres que requieren atención. La previsión puede
+añadir después “Saldo estimado al cierre del mes” con enlace a su desglose.
 
-`getBudgetOverview()` debe calcular:
-
-```ts
-interface BudgetSummary {
-    budgetId: string;
-    name: string;
-    allocated: number;
-    spent: number;
-    remaining: number;
-    usagePercentage: number;
-    status: "healthy" | "warning" | "exceeded";
-}
-```
-
-El dashboard conserva un estado vacío hasta que exista al menos un presupuesto
-activo para el periodo seleccionado.
-
-## 12. Seguridad e integridad
+## 20. Seguridad
 
 Todas las mutaciones deben:
 
-- obtener `userId` desde la sesión en el servidor;
-- ignorar cualquier `userId` enviado por el cliente;
-- verificar que cuentas, categorías, reglas y presupuestos pertenezcan al usuario;
-- limitar consultas y actualizaciones por `userId`;
-- validar el payload con Zod;
-- usar `numeric`/strings decimales en persistencia y redondeo explícito;
-- revalidar únicamente las rutas afectadas;
-- retornar errores de dominio aptos para la UI, sin filtrar errores internos de BD.
+- obtener `userId` desde la sesión;
+- ignorar cualquier `userId` del cliente;
+- verificar propiedad de todas las entidades;
+- validar con Zod;
+- limitar consultas por usuario;
+- usar `numeric` y redondeo explícito;
+- devolver errores de dominio sin detalles internos.
 
-Completar una ocurrencia y aplicar su saldo debe ser atómico. Los componentes cliente
-nunca calculan ni persisten el nuevo saldo.
+Completar una ocurrencia o cuota debe ser atómico e idempotente.
 
-## 13. Plan de implementación
+## 21. Plan de implementación
 
-### Fase 1 — Esquema y dominio de recurrencias
+### Fase 1 — Ocurrencias manuales
 
-1. Agregar enums y tablas al esquema Drizzle.
-2. Agregar referencias opcionales a `transactions`.
-3. Generar y revisar la migración.
-4. Implementar y probar el cálculo de próximas fechas.
-5. Implementar restricciones e índices de idempotencia.
+Crear `scheduled_occurrences`, completar/omitir/cancelar, aplicar el saldo una vez y
+conectar el dashboard.
 
-### Fase 2 — Pagos únicos y ocurrencias
+### Fase 2 — Recurrencias simples
 
-1. Crear la pantalla y formulario de pago programado único.
-2. Listar próximas ocurrencias.
-3. Completar, omitir y cancelar una ocurrencia.
-4. Reutilizar el ledger para aplicar saldos.
-5. Conectar el widget “Próximos pagos” del dashboard.
+Crear reglas de ingreso y gasto, frecuencias normales, monto fijo, CRUD, pausa e
+idempotencia.
 
-Esta fase valida el ciclo de vida sin introducir todavía un scheduler.
+### Fase 3 — Salarios y calendarios avanzados
 
-### Fase 3 — Reglas recurrentes
+Agregar total mensual distribuido, quinta ocurrencia configurable, excepciones,
+calendarios custom y edición “esta y las siguientes”.
 
-1. Crear, editar, pausar, reanudar y archivar reglas.
-2. Generar ocurrencias idempotentes hasta un horizonte de 45 días.
-3. Agregar el endpoint interno para scheduler.
-4. Habilitar `auto_post` sólo después de probar la confirmación manual.
+### Fase 4 — Automatización
 
-### Fase 4 — Presupuestos
+Crear endpoint protegido, conectar scheduler y validar concurrencia antes de
+habilitar autopost.
 
-1. Agregar tablas y migración de presupuestos.
-2. Implementar CRUD y asignación de categorías.
-3. Crear periodos idempotentes.
-4. Calcular progreso desde el ledger.
-5. Crear pantalla, estados visuales y filtros.
-6. Conectar `getBudgetOverview()` al dashboard.
+### Fase 5 — Financiamientos
 
-### Fase 5 — Alertas internas
+Crear planes y cuotas, relacionar compra y tarjeta, generar pago final y completar
+cuotas como transferencias.
 
-1. Avisar pagos vencidos o próximos.
-2. Avisar presupuestos en umbral o excedidos.
-3. Diseñar después persistencia y canales para notificaciones reales.
+### Fase 6 — Presupuestos
 
-## 14. Estrategia de pruebas
+Crear tablas, CRUD, asignaciones, cálculo desde ledger, rollover e integración con
+dashboard.
 
-### Unitarias
+### Fase 7 — Previsión
 
-- próxima fecha diaria, semanal, mensual y anual;
-- intervalo mayor que uno;
-- día 29, 30 o 31 en meses cortos y año bisiesto;
-- fin de vigencia;
-- cálculo de rollover;
-- estados healthy, warning y exceeded;
-- suma precisa y redondeo monetario.
+Proyectar desde cuentas y ocurrencias, incorporar financiamientos, usar presupuestos
+como estimación opcional y mostrar el desglose.
 
-### Integración
+## 22. Pruebas esenciales
 
-- dos ejecuciones del generador producen una sola ocurrencia;
-- completar dos veces una ocurrencia sólo afecta el saldo una vez;
-- una ocurrencia cancelada u omitida no altera saldos;
-- una regla de otro usuario no puede verse ni modificarse;
-- una categoría de otro usuario no puede asignarse;
-- editar o cancelar un gasto actualiza inmediatamente el progreso del presupuesto;
-- una transferencia y un pago de tarjeta no aumentan el gasto presupuestado;
-- una categoría archivada sigue apareciendo en datos históricos;
-- los límites de periodo no duplican transacciones a medianoche.
+### Recurrencias
 
-### Interfaz
+- todas las frecuencias y límites;
+- días 29, 30, 31 y años bisiestos;
+- meses con cuatro y cinco pagos;
+- distribución exacta con centavos;
+- excepciones aisladas;
+- calendario custom sin fechas adicionales;
+- doble generación y doble confirmación sin duplicados.
 
-- formularios muestran errores Zod junto al campo;
-- el modal conserva fluidez en desktop y mobile;
-- los estados vacíos ofrecen un CTA claro;
-- completar una ocurrencia actualiza lista, dashboard y saldo;
-- el foco vuelve al disparador al cerrar el modal;
-- las animaciones respetan reducción de movimiento.
+### Financiamientos
 
-### Comprobaciones técnicas
+- cuotas más pago final igual al total;
+- obligación creada una vez;
+- cuotas reducen deuda y restauran crédito;
+- pagos no duplican gasto;
+- cancelación conserva consistencia.
 
-```bash
-pnpm exec tsc --noEmit
-pnpm lint
-pnpm build
-```
+### Presupuesto y previsión
 
-Cuando se agregue una herramienta de pruebas, conviene incorporar scripts separados
-para unitarias e integración antes de activar el cron en producción.
+- sólo suma gastos completados;
+- excluye transferencias y cancelados;
+- editar o cancelar actualiza progreso;
+- rollover no se duplica;
+- rangos respetan CDMX;
+- monedas no se suman silenciosamente;
+- cuotas completadas no vuelven a proyectarse.
 
-## 15. Criterios de aceptación
+## 23. Criterios de aceptación
 
-El módulo de recurrencias está terminado cuando:
+- Se programan ingresos y gastos.
+- Se distingue cada 14 días de dos veces al mes.
+- Existen monto fijo, total mensual y monto personalizado.
+- Puede configurarse el quinto pago semanal.
+- Se editan fechas y montos específicos y calendarios custom.
+- Los reintentos no duplican ocurrencias ni saldos.
+- Un financiamiento admite cuotas y pago final sin duplicar el gasto.
+- Los presupuestos se calculan desde el ledger.
+- La previsión diferencia información confirmada, programada y estimada.
 
-- un usuario puede programar un pago único y una regla recurrente;
-- el generador no duplica ocurrencias al reintentarse;
-- completar un pago modifica el saldo exactamente una vez;
-- pausar una regla no elimina su historial;
-- los próximos 45 días aparecen correctamente en el dashboard;
-- ninguna operación permite acceder a datos de otro usuario.
+## 24. Elementos pospuestos
 
-El módulo de presupuestos está terminado cuando:
+- `budget_credit_cards` y `budget_category_credit_allocations`;
+- notificaciones persistidas;
+- escenarios persistidos de previsión;
+- transferencias recurrentes automáticas;
+- balances retenidos específicos por institución.
 
-- un usuario puede crear, editar y archivar presupuestos;
-- puede asignar una o más categorías de gasto;
-- el progreso se calcula desde gastos completados del periodo;
-- editar o cancelar movimientos se refleja sin reconciliación manual;
-- el rollover genera el siguiente periodo una sola vez;
-- el dashboard muestra el resumen y los presupuestos que requieren atención.
+## 25. Recomendación final
 
-## 16. Recomendación final
+El primer PR implementa ocurrencias manuales y su integración atómica con el ledger.
+El segundo agrega reglas simples de ingreso y gasto. El tercero incorpora salarios,
+montos variables y calendarios custom.
 
-El primer PR debe cubrir únicamente esquema, cálculo de recurrencia e idempotencia.
-El segundo debe entregar pagos programados manuales y su integración con el ledger.
-El tercero agrega automatización recurrente. Presupuestos comienza después de que ese
-ciclo esté probado.
+Financiamientos se implementa después como subdominio propio. Los presupuestos se
+construyen sobre el ledger y la previsión se agrega al final como read model de los
+módulos anteriores.
 
-Esta separación reduce el riesgo principal: automatizar un movimiento antes de
-garantizar que un reintento no pueda alterar el saldo dos veces.
+Esta separación cubre los casos avanzados sin convertir una sola tabla de “pagos
+recurrentes” en una colección de excepciones difíciles de validar.

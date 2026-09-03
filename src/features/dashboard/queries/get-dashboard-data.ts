@@ -5,7 +5,8 @@ import {
 } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    categories, financialAccounts, transactions,
+    categories, financialAccounts, scheduledOccurrences,
+    transactions,
 } from "@/src/db/schema";
 import {
     addAppCalendarDays, formatAppDate, getAppMonthEnd,
@@ -264,40 +265,51 @@ async function getNetWorthHistory(userId: string, currentNetWorth: number, now =
     });
 }
 
-async function getUpcomingPayments(userId: string, now = new Date()) {
+async function getUpcomingMovements(userId: string, now = new Date()) {
     const until = addAppCalendarDays(now, 45);
 
     const rows = await db
         .select({
-            id: transactions.id,
-            name: transactions.merchant,
-            description: transactions.description,
-            date: transactions.date,
-            amount: transactions.amount,
+            id: scheduledOccurrences.id,
+            name: scheduledOccurrences.name,
+            date: scheduledOccurrences.scheduledAt,
+            amount: scheduledOccurrences.amount,
+            currency: scheduledOccurrences.currency,
+            type: scheduledOccurrences.transactionType,
             category: categories.name,
+            account: financialAccounts.name,
         })
-        .from(transactions)
-        .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        .from(scheduledOccurrences)
+        .innerJoin(
+            financialAccounts,
+            eq(scheduledOccurrences.accountId, financialAccounts.id),
+        )
+        .leftJoin(
+            categories,
+            eq(scheduledOccurrences.categoryId, categories.id),
+        )
         .where(
             and(
-                eq(transactions.userId, userId),
-                eq(transactions.status, "scheduled"),
-                eq(transactions.type, "expense"),
-                gte(transactions.date, now),
-                lte(transactions.date, until),
+                eq(scheduledOccurrences.userId, userId),
+                eq(scheduledOccurrences.status, "scheduled"),
+                gte(scheduledOccurrences.scheduledAt, now),
+                lte(scheduledOccurrences.scheduledAt, until),
             ),
         )
-        .orderBy(asc(transactions.date))
+        .orderBy(asc(scheduledOccurrences.scheduledAt))
         .limit(5);
 
     return rows.map((row) => ({
-        name: row.name ?? row.description ?? "Pago programado",
+        id: row.id,
+        name: row.name,
         date: formatAppDate(row.date, {
             day: "numeric",
             month: "short",
         }),
         amount: toNumber(row.amount),
-        badge: row.category ?? undefined,
+        currency: row.currency,
+        type: row.type as "income" | "expense",
+        badge: row.category ?? row.account,
     }));
 }
 
@@ -310,7 +322,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         getSpendingByCategory(userId, range),
         getRecentDashboardTransactions(userId),
         getNetWorthHistory(userId, overview.netWorth, now),
-        getUpcomingPayments(userId, now),
+        getUpcomingMovements(userId, now),
     ]);
     const featuredAccount = accounts.find((account) => account.type === "credit") ?? accounts[0];
 

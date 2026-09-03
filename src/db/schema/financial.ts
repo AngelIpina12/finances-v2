@@ -17,6 +17,12 @@ export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expens
 export const transactionStatusEnum = pgEnum("transaction_status", ["pending", "completed", "scheduled", "cancelled"]);
 export const transferDirectionEnum = pgEnum("transfer_direction", ["in", "out"]);
 export const currencyCodeEnum = pgEnum("currency_code", ["MXN", "USD", "EUR", "GBP"]);
+export const occurrenceStatusEnum = pgEnum("occurrence_status", [
+    "scheduled", "completed", "skipped", "cancelled",
+]);
+export const occurrenceSourceEnum = pgEnum("occurrence_source", [
+    "manual", "recurring_rule", "financing_installment",
+]);
 
 export const categories = pgTable(
     "categories",
@@ -86,6 +92,34 @@ export const financialAccounts = pgTable(
     ],
 );
 
+export const scheduledOccurrences = pgTable(
+    "scheduled_occurrences",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        source: occurrenceSourceEnum("source").notNull().default("manual"),
+        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+        transactionType: transactionTypeEnum("transaction_type").notNull(),
+        name: text("name").notNull(),
+        amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        currency: currencyCodeEnum("currency").notNull(),
+        notes: text("notes"),
+        originalScheduledAt: timestamp("original_scheduled_at", { withTimezone: true }).notNull(),
+        scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+        executedAt: timestamp("executed_at", { withTimezone: true }),
+        status: occurrenceStatusEnum("status").notNull().default("scheduled"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("scheduled_occurrences_user_status_date_idx")
+            .on(table.userId, table.status, table.scheduledAt),
+        index("scheduled_occurrences_account_idx").on(table.accountId),
+        index("scheduled_occurrences_category_idx").on(table.categoryId),
+    ],
+);
+
 export const transactions = pgTable(
     "transactions",
     {
@@ -93,6 +127,8 @@ export const transactions = pgTable(
         userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
         accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
         categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+        scheduledOccurrenceId: uuid("scheduled_occurrence_id")
+            .references(() => scheduledOccurrences.id, { onDelete: "set null" }),
         // A transfer is represented by two rows sharing this id: an outflow and an inflow.
         transferGroupId: uuid("transfer_group_id"),
         transferDirection: transferDirectionEnum("transfer_direction"),
@@ -115,5 +151,8 @@ export const transactions = pgTable(
         index("transactions_account_date_idx").on(table.accountId, table.date),
         index("transactions_category_date_idx").on(table.categoryId, table.date),
         index("transactions_transfer_group_idx").on(table.transferGroupId),
+        uniqueIndex("transactions_scheduled_occurrence_idx")
+            .on(table.scheduledOccurrenceId)
+            .where(sql`${table.scheduledOccurrenceId} is not null`),
     ],
 );

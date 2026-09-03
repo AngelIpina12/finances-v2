@@ -25,6 +25,7 @@ export type AccountPlasticViewModel = {
     currentBalance: string | number;
     currency: FinancialAccountFormData["currency"];
     owedAmount?: string | number | null;
+    creditLimit?: string | number | null;
 };
 
 function darkenHexColor(color: string, amount = 0.56) {
@@ -54,6 +55,13 @@ export function AccountPlastic({ account, hideBalance = false, preview = false }
             : Number(account.currentBalance);
     const baseColor = account.color || "#2563eb";
     const darkerColor = darkenHexColor(baseColor);
+    const overLimit = account.type === "credit"
+        ? Math.max(
+            0,
+            Number(account.owedAmount ?? account.currentBalance)
+                - Number(account.creditLimit ?? 0),
+        )
+        : 0;
     return (
         <div
             style={{
@@ -75,6 +83,16 @@ export function AccountPlastic({ account, hideBalance = false, preview = false }
                 <p className="mt-1 text-2xl font-semibold tracking-tight">
                     {formatMoney(Math.abs(balance), account.currency, hideBalance)}
                 </p>
+                {overLimit > 0 && !hideBalance && (
+                    <p className="mt-1 text-xs font-semibold text-amber-100">
+                        Exceso del límite: {new Intl.NumberFormat("es-MX", {
+                            style: "currency",
+                            currency: account.currency,
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                        }).format(overLimit)}
+                    </p>
+                )}
             </div>
             <div className="mt-6 flex items-end justify-between">
                 <p className="text-sm tracking-[0.18em]">

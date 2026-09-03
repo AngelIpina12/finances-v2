@@ -1,15 +1,17 @@
-"use-client"
+"use client"
 
 import Link from "next/link";
-import { ArrowRight, CreditCard } from "lucide-react";
+import {
+    ArrowDownLeft, ArrowRight, ArrowUpRight,
+    CreditCard,
+} from "lucide-react";
 import {
     Card, CardContent, CardHeader,
     CardTitle
 } from "@/components/ui/card";
 import {
-    Table, TableBody,
-    TableCell, TableHead,
-    TableHeader, TableRow,
+    Table, TableBody, TableCell,
+    TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import type { DashboardData } from "../types/dashboard.types";
 
@@ -32,7 +34,7 @@ function Progress({ value, color = "bg-primary" }: { value: number; color?: stri
     )
 }
 
-function Heading({ children, href }: { children: React.ReactNode; href?: "/accounts" }) {
+function Heading({ children, href }: { children: React.ReactNode; href?: "/accounts" | "/scheduled"; }) {
     return (
         <CardHeader className="pb-4">
             <CardTitle>{children}</CardTitle>
@@ -128,26 +130,51 @@ export function BudgetOverview({ budgets }: { budgets: DashboardData["budgets"] 
 export function UpcomingPayments({ items }: { items: DashboardData["upcomingPayments"] }) {
     return (
         <Card className="xl:col-span-5">
-            <Heading>Próximos pagos</Heading>
+            <Heading href="/scheduled">Próximos movimientos</Heading>
             <CardContent className="space-y-4">
-                {items.map((item) =>
-                    <div
-                        key={item.name}
-                        className="flex justify-between gap-3"
-                    >
-                        <div>
-                            <p className="text-sm font-medium">
-                                {item.name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                {item.date}{item.badge ? ` · ${item.badge}` : ""}
+                {!items.length && (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                        No tienes ingresos ni gastos programados próximamente.
+                    </p>
+                )}
+                {items.map((item) => {
+                    const income = item.type === "income";
+                    const Icon = income ? ArrowUpRight : ArrowDownLeft;
+
+                    return (
+                        <div
+                            key={item.id}
+                            className="flex items-center justify-between gap-3"
+                        >
+                            <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${income
+                                ? "bg-emerald-500/10 text-emerald-600"
+                                : "bg-rose-500/10 text-rose-600"
+                                }`}
+                            >
+                                <Icon className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                    {item.name}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                    {item.date}{item.badge ? ` · ${item.badge}` : ""}
+                                </p>
+                            </div>
+                            <p className={income
+                                ? "text-sm font-medium text-emerald-600"
+                                : "text-sm font-medium"}
+                            >
+                                {income ? "+" : "-"}
+                                {new Intl.NumberFormat("es-MX", {
+                                    style: "currency",
+                                    currency: item.currency,
+                                    maximumFractionDigits: 2,
+                                }).format(item.amount)}
                             </p>
                         </div>
-                        <p className="text-sm font-medium">
-                            {money.format(item.amount)}
-                        </p>
-                    </div>
-                )}
+                    );
+                })}
             </CardContent>
         </Card>
     )

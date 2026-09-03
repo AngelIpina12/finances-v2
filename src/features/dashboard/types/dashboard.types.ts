@@ -20,7 +20,15 @@ export interface DashboardData {
   netWorthHistory: Array<{ label: string; value: number }>;
   spendingByCategory: Array<{ name: string; amount: number; percentage: number; color: string }>;
   budgets: Array<{ name: string; spent: number; allocated: number; status: "healthy" | "warning" | "exceeded" }>;
-  upcomingPayments: Array<{ name: string; date: string; amount: number; badge?: string }>;
+  upcomingPayments: Array<{
+    id: string;
+    name: string;
+    date: string;
+    amount: number;
+    currency: "MXN" | "USD" | "EUR" | "GBP";
+    type: "income" | "expense";
+    badge?: string;
+  }>;
   account: {
     name: string;
     type: "cash" | "debit" | "credit" | "wallet" | "investment" | "fixed_income" | "loan";

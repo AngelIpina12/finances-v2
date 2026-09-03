@@ -307,6 +307,8 @@ export function AccountForm({ initialValues, onClose }: Props) {
                             ),
                             owedAmount:
                                 values.owedAmount === undefined ? null : String(values.owedAmount),
+                            creditLimit:
+                                values.creditLimit === undefined ? null : String(values.creditLimit),
                         }}
                     />
                 </div>
