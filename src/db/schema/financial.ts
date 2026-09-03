@@ -7,22 +7,15 @@ import {
 import { sql } from "drizzle-orm";
 import { users } from "./auth";
 
-export const accountTypeEnum = pgEnum("account_type", [
-    "cash", "debit", "credit",
-    "wallet", "investment", "fixed_income",
-    "loan",
-]);
-
+export const accountTypeEnum = pgEnum("account_type", ["cash", "debit", "credit", "wallet", "investment", "fixed_income", "loan"]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense", "transfer"]);
 export const transactionStatusEnum = pgEnum("transaction_status", ["pending", "completed", "scheduled", "cancelled"]);
 export const transferDirectionEnum = pgEnum("transfer_direction", ["in", "out"]);
 export const currencyCodeEnum = pgEnum("currency_code", ["MXN", "USD", "EUR", "GBP"]);
-export const occurrenceStatusEnum = pgEnum("occurrence_status", [
-    "scheduled", "completed", "skipped", "cancelled",
-]);
-export const occurrenceSourceEnum = pgEnum("occurrence_source", [
-    "manual", "recurring_rule", "financing_installment",
-]);
+export const occurrenceStatusEnum = pgEnum("occurrence_status", ["scheduled", "completed", "skipped", "cancelled"]);
+export const occurrenceSourceEnum = pgEnum("occurrence_source", ["manual", "recurring_rule", "financing_installment"]);
+export const scheduleFrequencyEnum = pgEnum("schedule_frequency", ["weekly", "biweekly", "monthly", "yearly"]);
+export const recurrenceEndModeEnum = pgEnum("recurrence_end_mode", ["never", "on_date"]);
 
 export const categories = pgTable(
     "categories",
@@ -92,12 +85,46 @@ export const financialAccounts = pgTable(
     ],
 );
 
+export const recurringRules = pgTable(
+    "recurring_rules",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
+        transactionType: transactionTypeEnum("transaction_type").notNull(),
+        frequency: scheduleFrequencyEnum("frequency").notNull(),
+        endMode: recurrenceEndModeEnum("end_mode").notNull().default("never"),
+        name: text("name").notNull(),
+        amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        currency: currencyCodeEnum("currency").notNull(),
+        notes: text("notes"),
+        startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+        endsAt: timestamp("ends_at", { withTimezone: true }),
+        lastGeneratedAt: timestamp("last_generated_at", { withTimezone: true }),
+        isActive: boolean("is_active").notNull().default(true),
+        deletedAt: timestamp("deleted_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("recurring_rules_user_active_next_idx")
+            .on(table.userId, table.isActive, table.startsAt)
+            .where(sql`${table.deletedAt} is null`),
+        index("recurring_rules_account_idx").on(table.accountId),
+        index("recurring_rules_category_idx").on(table.categoryId),
+    ],
+);
+
 export const scheduledOccurrences = pgTable(
     "scheduled_occurrences",
     {
         id: uuid("id").defaultRandom().primaryKey(),
         userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
         source: occurrenceSourceEnum("source").notNull().default("manual"),
+        recurringRuleId: uuid("recurring_rule_id")
+            .references(() => recurringRules.id, { onDelete: "cascade" }),
+        sequence: integer("sequence"),
         accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
         categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
         transactionType: transactionTypeEnum("transaction_type").notNull(),
@@ -117,6 +144,11 @@ export const scheduledOccurrences = pgTable(
             .on(table.userId, table.status, table.scheduledAt),
         index("scheduled_occurrences_account_idx").on(table.accountId),
         index("scheduled_occurrences_category_idx").on(table.categoryId),
+        index("scheduled_occurrences_rule_date_idx")
+            .on(table.recurringRuleId, table.scheduledAt),
+        uniqueIndex("scheduled_occurrences_rule_sequence_idx")
+            .on(table.recurringRuleId, table.sequence)
+            .where(sql`${table.recurringRuleId} is not null`),
     ],
 );
 

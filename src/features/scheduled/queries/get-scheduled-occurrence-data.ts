@@ -1,11 +1,12 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    categories, financialAccounts, scheduledOccurrences,
+    categories, financialAccounts, recurringRules,
+    scheduledOccurrences,
 } from "@/src/db/schema";
 
 export async function getScheduledOccurrenceData(userId: string, now = new Date()) {
-    const [accounts, userCategories, occurrences] = await Promise.all([
+    const [accounts, userCategories, occurrences, rules, nextOccurrences] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -75,7 +76,53 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 desc(scheduledOccurrences.createdAt),
             )
             .limit(150),
+        db
+            .select({
+                id: recurringRules.id,
+                accountId: recurringRules.accountId,
+                accountName: financialAccounts.name,
+                categoryId: recurringRules.categoryId,
+                categoryName: categories.name,
+                transactionType: recurringRules.transactionType,
+                frequency: recurringRules.frequency,
+                name: recurringRules.name,
+                amount: recurringRules.amount,
+                currency: recurringRules.currency,
+                notes: recurringRules.notes,
+                startsAt: recurringRules.startsAt,
+                endsAt: recurringRules.endsAt,
+                lastGeneratedAt: recurringRules.lastGeneratedAt,
+                isActive: recurringRules.isActive,
+                createdAt: recurringRules.createdAt,
+            })
+            .from(recurringRules)
+            .innerJoin(financialAccounts, eq(recurringRules.accountId, financialAccounts.id))
+            .leftJoin(categories, eq(recurringRules.categoryId, categories.id))
+            .where(and(
+                eq(recurringRules.userId, userId),
+                isNull(recurringRules.deletedAt),
+            ))
+            .orderBy(desc(recurringRules.isActive), asc(recurringRules.name)),
+        db
+            .select({
+                recurringRuleId: scheduledOccurrences.recurringRuleId,
+                scheduledAt: scheduledOccurrences.scheduledAt,
+            })
+            .from(scheduledOccurrences)
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                eq(scheduledOccurrences.status, "scheduled"),
+                gte(scheduledOccurrences.scheduledAt, now),
+            ))
+            .orderBy(asc(scheduledOccurrences.scheduledAt)),
     ]);
+
+    const nextOccurrenceByRule = new Map<string, Date>();
+    for (const occurrence of nextOccurrences) {
+        if (occurrence.recurringRuleId && !nextOccurrenceByRule.has(occurrence.recurringRuleId)) {
+            nextOccurrenceByRule.set(occurrence.recurringRuleId, occurrence.scheduledAt);
+        }
+    }
 
     return {
         accounts: accounts.map((account) => ({
@@ -92,6 +139,11 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
         })),
         categories: userCategories,
         occurrences,
+        rules: rules.map((rule) => ({
+            ...rule,
+            amount: Number(rule.amount),
+            nextOccurrenceAt: nextOccurrenceByRule.get(rule.id) ?? null,
+        })),
         now,
     };
 }
@@ -99,3 +151,7 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
 export type ScheduledOccurrenceListItem = Awaited<
     ReturnType<typeof getScheduledOccurrenceData>
 >["occurrences"][number];
+
+export type RecurringRuleListItem = Awaited<
+    ReturnType<typeof getScheduledOccurrenceData>
+>["rules"][number];

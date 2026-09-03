@@ -56,13 +56,18 @@ La fase de ocurrencias manuales está implementada mediante la migración
 - actualización de saldos mediante el ledger existente;
 - sincronización al cancelar posteriormente la transacción generada;
 - pantalla `/scheduled`, filtros, resumen, modal y estados animados;
-- integración de próximos movimientos con el dashboard.
+- integración de próximos movimientos con el dashboard;
 - aviso no bloqueante al programar un gasto que hoy excedería el crédito;
 - confirmación explícita y validación de servidor al completar o registrar un
   gasto por encima del límite, conservando el exceso visible en la tarjeta.
+- reglas recurrentes simples de ingreso y gasto, con frecuencia semanal, cada
+  14 días, mensual o anual;
+- creación idempotente de ocurrencias mediante `recurring_rule_id + sequence`,
+  una ventana de 60 días y controles para editar, pausar, reanudar, archivar y
+  actualizar las próximas fechas desde `/scheduled`.
 
-Continúan pendientes las reglas recurrentes, salarios avanzados, calendarios custom,
-automatización, financiamientos, presupuestos y previsión.
+Continúan pendientes los salarios avanzados, calendarios custom, automatización,
+financiamientos, presupuestos y previsión.
 
 ## 3. Límites del dominio
 
@@ -713,8 +718,10 @@ conectar el dashboard.
 
 ### Fase 2 — Recurrencias simples
 
-Crear reglas de ingreso y gasto, frecuencias normales, monto fijo, CRUD, pausa e
-idempotencia.
+Implementada: reglas de ingreso y gasto con monto fijo, frecuencias semanales,
+cada 14 días, mensuales y anuales, CRUD, pausa, reanudación e idempotencia.
+La ventana se genera al crear, editar o reanudar una regla, y también puede
+actualizarse manualmente desde la interfaz.
 
 ### Fase 3 — Salarios y calendarios avanzados
 

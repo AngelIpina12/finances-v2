@@ -27,6 +27,8 @@ import {
     cancelScheduledOccurrence, completeScheduledOccurrence, skipScheduledOccurrence,
 } from "../actions/scheduled-occurrence-actions";
 import type { ScheduledOccurrenceListItem } from "../queries/get-scheduled-occurrence-data";
+import type { RecurringRuleListItem } from "../queries/get-scheduled-occurrence-data";
+import { RecurringRulesPanel } from "@/src/features/recurring-movements/components/recurring-rules-panel";
 import { ScheduledOccurrenceForm } from "./scheduled-occurrence-form";
 import {
     ScheduledOccurrenceList, type ScheduledAction, type ScheduledFilter,
@@ -39,6 +41,7 @@ interface Props {
     accounts: FormProps["accounts"];
     categories: FormProps["categories"];
     occurrences: ScheduledOccurrenceListItem[];
+    rules: RecurringRuleListItem[];
     now: Date;
 }
 
@@ -72,10 +75,11 @@ const actionCopy = {
     },
 } as const;
 
-export function ScheduledClient({ accounts, categories, occurrences, now }: Props) {
+export function ScheduledClient({ accounts, categories, occurrences, rules, now }: Props) {
     const router = useRouter();
     const [formOpen, setFormOpen] = useState(false);
     const [filter, setFilter] = useState<ScheduledFilter>("upcoming");
+    const [view, setView] = useState<"occurrences" | "rules">("occurrences");
     const [selection, setSelection] = useState<{
         occurrence: ScheduledOccurrenceListItem;
         action: ScheduledAction;
@@ -158,46 +162,72 @@ export function ScheduledClient({ accounts, categories, occurrences, now }: Prop
                 </Button>
             </motion.header>
 
-            <ScheduledSummary occurrences={occurrences} now={now} />
+            <div className="flex gap-2 overflow-x-auto pb-1">
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={view === "occurrences" ? "default" : "outline"}
+                    onClick={() => setView("occurrences")}
+                    className="shrink-0 cursor-pointer"
+                >
+                    Calendario
+                </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={view === "rules" ? "default" : "outline"}
+                    onClick={() => setView("rules")}
+                    className="shrink-0 cursor-pointer"
+                >
+                    Recurrencias {rules.length ? `(${rules.length})` : ""}
+                </Button>
+            </div>
 
-            {!accounts.length ? (
-                <EmptyState
-                    title="Primero agrega una cuenta"
-                    description="Necesitamos saber dónde se recibirá o pagará el movimiento."
-                    onAction={() => router.push("/accounts")}
-                    actionLabel="Ir a cuentas"
-                />
-            ) : !categories.length ? (
-                <EmptyState
-                    title="Prepara tus categorías"
-                    description="Cada movimiento programado necesita una categoría de ingreso o gasto."
-                    onAction={() => router.push("/categories")}
-                    actionLabel="Ir a categorías"
-                />
+            {view === "rules" ? (
+                <RecurringRulesPanel accounts={accounts} categories={categories} rules={rules} />
             ) : (
                 <>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                        {filters.map((item) => (
-                            <Button
-                                key={item.value}
-                                type="button"
-                                size="sm"
-                                variant={filter === item.value ? "default" : "outline"}
-                                onClick={() => setFilter(item.value)}
-                                className="shrink-0 cursor-pointer"
-                            >
-                                {item.label}
-                            </Button>
-                        ))}
-                    </div>
-                    <ScheduledOccurrenceList
-                        occurrences={occurrences}
-                        filter={filter}
-                        now={now}
-                        onAction={(occurrence, action) => (
-                            setSelection({ occurrence, action })
-                        )}
-                    />
+                    <ScheduledSummary occurrences={occurrences} now={now} />
+                    {!accounts.length ? (
+                        <EmptyState
+                            title="Primero agrega una cuenta"
+                            description="Necesitamos saber dónde se recibirá o pagará el movimiento."
+                            onAction={() => router.push("/accounts")}
+                            actionLabel="Ir a cuentas"
+                        />
+                    ) : !categories.length ? (
+                        <EmptyState
+                            title="Prepara tus categorías"
+                            description="Cada movimiento programado necesita una categoría de ingreso o gasto."
+                            onAction={() => router.push("/categories")}
+                            actionLabel="Ir a categorías"
+                        />
+                    ) : (
+                        <>
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                {filters.map((item) => (
+                                    <Button
+                                        key={item.value}
+                                        type="button"
+                                        size="sm"
+                                        variant={filter === item.value ? "default" : "outline"}
+                                        onClick={() => setFilter(item.value)}
+                                        className="shrink-0 cursor-pointer"
+                                    >
+                                        {item.label}
+                                    </Button>
+                                ))}
+                            </div>
+                            <ScheduledOccurrenceList
+                                occurrences={occurrences}
+                                filter={filter}
+                                now={now}
+                                onAction={(occurrence, action) => (
+                                    setSelection({ occurrence, action })
+                                )}
+                            />
+                        </>
+                    )}
                 </>
             )}
 

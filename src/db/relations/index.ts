@@ -3,7 +3,8 @@ import {
     accounts, sessions, users
 } from "../schema/auth";
 import {
-    categories, financialAccounts, scheduledOccurrences, transactions
+    categories, financialAccounts, recurringRules,
+    scheduledOccurrences, transactions
 } from "../schema/financial";
 
 export const usersRelations = drizzleRelations(users, ({ many }) => ({
@@ -12,6 +13,7 @@ export const usersRelations = drizzleRelations(users, ({ many }) => ({
     financialAccounts: many(financialAccounts),
     categories: many(categories),
     scheduledOccurrences: many(scheduledOccurrences),
+    recurringRules: many(recurringRules),
     transactions: many(transactions),
 }));
 
@@ -27,6 +29,7 @@ export const financialAccountsRelations = drizzleRelations(financialAccounts, ({
     user: one(users, { fields: [financialAccounts.userId], references: [users.id] }),
     transactions: many(transactions),
     scheduledOccurrences: many(scheduledOccurrences),
+    recurringRules: many(recurringRules),
 }));
 
 export const categoriesRelations = drizzleRelations(categories, ({ many, one }) => ({
@@ -35,12 +38,21 @@ export const categoriesRelations = drizzleRelations(categories, ({ many, one }) 
     children: many(categories, { relationName: "category_hierarchy" }),
     transactions: many(transactions),
     scheduledOccurrences: many(scheduledOccurrences),
+    recurringRules: many(recurringRules),
+}));
+
+export const recurringRulesRelations = drizzleRelations(recurringRules, ({ many, one }) => ({
+    user: one(users, { fields: [recurringRules.userId], references: [users.id] }),
+    account: one(financialAccounts, { fields: [recurringRules.accountId], references: [financialAccounts.id] }),
+    category: one(categories, { fields: [recurringRules.categoryId], references: [categories.id] }),
+    occurrences: many(scheduledOccurrences),
 }));
 
 export const scheduledOccurrencesRelations = drizzleRelations(scheduledOccurrences, ({ many, one }) => ({
     user: one(users, { fields: [scheduledOccurrences.userId], references: [users.id] }),
     account: one(financialAccounts, { fields: [scheduledOccurrences.accountId], references: [financialAccounts.id] }),
     category: one(categories, { fields: [scheduledOccurrences.categoryId], references: [categories.id] }),
+    recurringRule: one(recurringRules, { fields: [scheduledOccurrences.recurringRuleId], references: [recurringRules.id] }),
     transactions: many(transactions),
 }));
 
@@ -60,6 +72,7 @@ export const relations = {
     accountsRelations,
     financialAccountsRelations,
     categoriesRelations,
+    recurringRulesRelations,
     scheduledOccurrencesRelations,
     transactionsRelations,
 };
