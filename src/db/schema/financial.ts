@@ -1,6 +1,6 @@
 import {
     boolean, foreignKey, index,
-    integer, numeric, pgEnum,
+    integer, jsonb, numeric, pgEnum,
     pgTable, text, timestamp,
     uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
@@ -14,8 +14,16 @@ export const transferDirectionEnum = pgEnum("transfer_direction", ["in", "out"])
 export const currencyCodeEnum = pgEnum("currency_code", ["MXN", "USD", "EUR", "GBP"]);
 export const occurrenceStatusEnum = pgEnum("occurrence_status", ["scheduled", "completed", "skipped", "cancelled"]);
 export const occurrenceSourceEnum = pgEnum("occurrence_source", ["manual", "recurring_rule", "financing_installment"]);
-export const scheduleFrequencyEnum = pgEnum("schedule_frequency", ["weekly", "biweekly", "monthly", "yearly"]);
+export const scheduleFrequencyEnum = pgEnum("schedule_frequency", [
+    "weekly", "biweekly", "semimonthly", "monthly", "yearly", "custom",
+]);
 export const recurrenceEndModeEnum = pgEnum("recurrence_end_mode", ["never", "on_date"]);
+export const recurrenceAmountStrategyEnum = pgEnum("recurrence_amount_strategy", [
+    "fixed", "period_total", "custom_per_occurrence",
+]);
+export const fifthOccurrencePolicyEnum = pgEnum("fifth_occurrence_policy", [
+    "keep_fixed", "distribute_monthly_total", "custom_amount",
+]);
 
 export const categories = pgTable(
     "categories",
@@ -95,10 +103,18 @@ export const recurringRules = pgTable(
         transactionType: transactionTypeEnum("transaction_type").notNull(),
         frequency: scheduleFrequencyEnum("frequency").notNull(),
         endMode: recurrenceEndModeEnum("end_mode").notNull().default("never"),
+        amountStrategy: recurrenceAmountStrategyEnum("amount_strategy").notNull().default("fixed"),
+        fifthOccurrencePolicy: fifthOccurrencePolicyEnum("fifth_occurrence_policy").notNull().default("keep_fixed"),
         name: text("name").notNull(),
         amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        periodTotal: numeric("period_total", { precision: 15, scale: 2 }),
+        fifthOccurrenceAmount: numeric("fifth_occurrence_amount", { precision: 15, scale: 2 }),
         currency: currencyCodeEnum("currency").notNull(),
         notes: text("notes"),
+        semimonthlyFirstDay: integer("semimonthly_first_day"),
+        semimonthlySecondDay: integer("semimonthly_second_day"),
+        calendarEntries: jsonb("calendar_entries").notNull().default(sql`'[]'::jsonb`),
+        dateOverrides: jsonb("date_overrides").notNull().default(sql`'[]'::jsonb`),
         startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
         endsAt: timestamp("ends_at", { withTimezone: true }),
         lastGeneratedAt: timestamp("last_generated_at", { withTimezone: true }),

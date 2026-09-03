@@ -43,6 +43,13 @@
       "when": 1788470677425,
       "tag": "0005_certain_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788475790158,
+      "tag": "0006_same_vivisector",
+      "breakpoints": true
     }
   ]
 }

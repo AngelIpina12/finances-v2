@@ -1,7 +1,10 @@
 import type {
     Currency, TransactionAccount, TransactionType,
 } from "@/src/features/transactions/domain/transaction-repository";
-import type { RecurrenceFrequency } from "./recurrence-calculator";
+import type {
+    AmountStrategy, CalendarEntry, DateOverride,
+    FifthOccurrencePolicy, RecurrenceFrequency,
+} from "./recurrence-calculator";
 
 export type RecurringRule = {
     id: string;
@@ -10,10 +13,18 @@ export type RecurringRule = {
     categoryId: string | null;
     transactionType: TransactionType;
     frequency: RecurrenceFrequency;
+    amountStrategy: AmountStrategy;
+    fifthOccurrencePolicy: FifthOccurrencePolicy;
     name: string;
     amount: number;
+    periodTotal: number | null;
+    fifthOccurrenceAmount: number | null;
     currency: Currency;
     notes: string | null;
+    semimonthlyFirstDay: number | null;
+    semimonthlySecondDay: number | null;
+    calendarEntries: CalendarEntry[];
+    dateOverrides: DateOverride[];
     startsAt: Date;
     endsAt: Date | null;
     isActive: boolean;
@@ -24,9 +35,17 @@ export type RecurringRuleValues = {
     categoryId: string;
     transactionType: TransactionType;
     frequency: RecurrenceFrequency;
+    amountStrategy: AmountStrategy;
+    fifthOccurrencePolicy: FifthOccurrencePolicy;
     name: string;
     amount: number;
+    periodTotal?: number;
+    fifthOccurrenceAmount?: number;
     notes?: string;
+    semimonthlyFirstDay?: number;
+    semimonthlySecondDay?: number;
+    calendarEntries?: CalendarEntry[];
+    dateOverrides?: DateOverride[];
     startsAt: Date;
     endsAt?: Date;
 };
@@ -62,7 +81,9 @@ export interface RecurringRuleScope {
     insertGeneratedOccurrences(input: Array<{
         rule: RecurringRule;
         sequence: number;
+        originalScheduledAt: Date;
         scheduledAt: Date;
+        amount: number;
     }>): Promise<number>;
     markGenerated(userId: string, ruleId: string, generatedAt: Date): Promise<void>;
 }

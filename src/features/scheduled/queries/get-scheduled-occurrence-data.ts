@@ -85,10 +85,18 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 categoryName: categories.name,
                 transactionType: recurringRules.transactionType,
                 frequency: recurringRules.frequency,
+                amountStrategy: recurringRules.amountStrategy,
+                fifthOccurrencePolicy: recurringRules.fifthOccurrencePolicy,
                 name: recurringRules.name,
                 amount: recurringRules.amount,
+                periodTotal: recurringRules.periodTotal,
+                fifthOccurrenceAmount: recurringRules.fifthOccurrenceAmount,
                 currency: recurringRules.currency,
                 notes: recurringRules.notes,
+                semimonthlyFirstDay: recurringRules.semimonthlyFirstDay,
+                semimonthlySecondDay: recurringRules.semimonthlySecondDay,
+                calendarEntries: recurringRules.calendarEntries,
+                dateOverrides: recurringRules.dateOverrides,
                 startsAt: recurringRules.startsAt,
                 endsAt: recurringRules.endsAt,
                 lastGeneratedAt: recurringRules.lastGeneratedAt,
@@ -142,6 +150,26 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
         rules: rules.map((rule) => ({
             ...rule,
             amount: Number(rule.amount),
+            periodTotal: rule.periodTotal === null ? null : Number(rule.periodTotal),
+            fifthOccurrenceAmount: rule.fifthOccurrenceAmount === null
+                ? null
+                : Number(rule.fifthOccurrenceAmount),
+            calendarEntries: (rule.calendarEntries as Array<{
+                scheduledAt: string;
+                amount?: number;
+            }>).map((entry) => ({
+                scheduledAt: new Date(entry.scheduledAt),
+                amount: entry.amount,
+            })),
+            dateOverrides: (rule.dateOverrides as Array<{
+                originalScheduledAt: string;
+                scheduledAt: string;
+                amount?: number;
+            }>).map((entry) => ({
+                originalScheduledAt: new Date(entry.originalScheduledAt),
+                scheduledAt: new Date(entry.scheduledAt),
+                amount: entry.amount,
+            })),
             nextOccurrenceAt: nextOccurrenceByRule.get(rule.id) ?? null,
         })),
         now,

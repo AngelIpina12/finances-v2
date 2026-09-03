@@ -29,19 +29,19 @@ import type { RecurringRuleListItem } from "@/src/features/scheduled/queries/get
 import { toRecurringRuleDraft } from "../utils/recurring-rule-draft";
 import { RecurringRuleForm } from "./recurring-rule-form";
 
-type FormProps = React.ComponentProps<typeof RecurringRuleForm>;
-
-interface Props {
-    accounts: FormProps["accounts"];
-    categories: FormProps["categories"];
-    rules: RecurringRuleListItem[];
-}
-
 const frequencyLabels = {
     weekly: "Cada semana",
     biweekly: "Cada 14 días",
+    semimonthly: "Dos veces al mes",
     monthly: "Cada mes",
     yearly: "Cada año",
+    custom: "Calendario personalizado",
+} as const;
+
+const amountStrategyLabels = {
+    fixed: "Monto fijo",
+    period_total: "Total mensual distribuido",
+    custom_per_occurrence: "Con excepciones de monto",
 } as const;
 
 function formatMoney(amount: number, currency: string) {
@@ -51,6 +51,14 @@ function formatMoney(amount: number, currency: string) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
     }).format(amount);
+}
+
+type FormProps = React.ComponentProps<typeof RecurringRuleForm>;
+
+interface Props {
+    accounts: FormProps["accounts"];
+    categories: FormProps["categories"];
+    rules: RecurringRuleListItem[];
 }
 
 export function RecurringRulesPanel({ accounts, categories, rules }: Props) {
@@ -152,6 +160,9 @@ export function RecurringRulesPanel({ accounts, categories, rules }: Props) {
                                         <p className="mt-1 text-sm text-muted-foreground">
                                             {frequencyLabels[rule.frequency as keyof typeof frequencyLabels]}
                                             {" · "}{rule.accountName}
+                                        </p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {amountStrategyLabels[rule.amountStrategy as keyof typeof amountStrategyLabels]}
                                         </p>
                                     </div>
                                     <p className={`shrink-0 text-lg font-semibold ${income ? "text-emerald-600" : "text-foreground"}`}>

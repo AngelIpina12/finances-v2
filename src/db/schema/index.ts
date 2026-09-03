@@ -6,7 +6,8 @@ import {
 import {
     accountTypeEnum, categories, currencyCodeEnum,
     financialAccounts, occurrenceSourceEnum, occurrenceStatusEnum,
-    recurrenceEndModeEnum, recurringRules, scheduleFrequencyEnum,
+    recurrenceAmountStrategyEnum, recurrenceEndModeEnum,
+    fifthOccurrencePolicyEnum, recurringRules, scheduleFrequencyEnum,
     scheduledOccurrences, transactions, transactionStatusEnum,
     transactionTypeEnum, transferDirectionEnum
 } from "./financial";
@@ -15,7 +16,8 @@ export {
     accounts, sessions, users,
     verifications, accountTypeEnum, categories,
     currencyCodeEnum, financialAccounts, occurrenceSourceEnum,
-    occurrenceStatusEnum, recurrenceEndModeEnum, recurringRules,
+    occurrenceStatusEnum, recurrenceAmountStrategyEnum, recurrenceEndModeEnum,
+    fifthOccurrencePolicyEnum, recurringRules,
     scheduleFrequencyEnum, scheduledOccurrences, transactions,
     transactionStatusEnum, transactionTypeEnum, transferDirectionEnum
 }

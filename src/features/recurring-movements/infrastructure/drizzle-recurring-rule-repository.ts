@@ -9,13 +9,46 @@ import type {
     RecurringRule, RecurringRuleRepository, RecurringRuleScope,
 } from "../domain/recurring-rule-repository";
 
+type StoredCalendarEntry = { scheduledAt: string; amount?: number };
+type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
+
+function toStoredCalendarEntries(entries: RecurringRule["calendarEntries"]) {
+    return entries.map((entry) => ({
+        scheduledAt: entry.scheduledAt.toISOString(),
+        ...(entry.amount === undefined ? {} : { amount: entry.amount }),
+    }));
+}
+
+function toStoredDateOverrides(entries: RecurringRule["dateOverrides"]) {
+    return entries.map((entry) => ({
+        originalScheduledAt: entry.originalScheduledAt.toISOString(),
+        scheduledAt: entry.scheduledAt.toISOString(),
+        ...(entry.amount === undefined ? {} : { amount: entry.amount }),
+    }));
+}
+
 function toRule(rule: typeof recurringRules.$inferSelect): RecurringRule {
     return {
         ...rule,
         transactionType: rule.transactionType as RecurringRule["transactionType"],
         frequency: rule.frequency as RecurringRule["frequency"],
+        amountStrategy: rule.amountStrategy as RecurringRule["amountStrategy"],
+        fifthOccurrencePolicy: rule.fifthOccurrencePolicy as RecurringRule["fifthOccurrencePolicy"],
         amount: Number(rule.amount),
+        periodTotal: rule.periodTotal === null ? null : Number(rule.periodTotal),
+        fifthOccurrenceAmount: rule.fifthOccurrenceAmount === null
+            ? null
+            : Number(rule.fifthOccurrenceAmount),
         currency: rule.currency as RecurringRule["currency"],
+        calendarEntries: (rule.calendarEntries as StoredCalendarEntry[]).map((entry) => ({
+            scheduledAt: new Date(entry.scheduledAt),
+            amount: entry.amount,
+        })),
+        dateOverrides: (rule.dateOverrides as StoredDateOverride[]).map((entry) => ({
+            originalScheduledAt: new Date(entry.originalScheduledAt),
+            scheduledAt: new Date(entry.scheduledAt),
+            amount: entry.amount,
+        })),
     };
 }
 
@@ -76,7 +109,17 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
             .values({
                 ...input,
                 amount: String(input.amount),
+                amountStrategy: input.amountStrategy,
+                fifthOccurrencePolicy: input.fifthOccurrencePolicy,
+                periodTotal: input.periodTotal === undefined ? null : String(input.periodTotal),
+                fifthOccurrenceAmount: input.fifthOccurrenceAmount === undefined
+                    ? null
+                    : String(input.fifthOccurrenceAmount),
                 notes: input.notes || null,
+                semimonthlyFirstDay: input.semimonthlyFirstDay ?? null,
+                semimonthlySecondDay: input.semimonthlySecondDay ?? null,
+                calendarEntries: toStoredCalendarEntries(input.calendarEntries ?? []),
+                dateOverrides: toStoredDateOverrides(input.dateOverrides ?? []),
                 endsAt: input.endsAt ?? null,
                 endMode: input.endsAt ? "on_date" : "never",
             })
@@ -110,8 +153,18 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
                 frequency: input.frequency,
                 name: input.name,
                 amount: String(input.amount),
+                amountStrategy: input.amountStrategy,
+                fifthOccurrencePolicy: input.fifthOccurrencePolicy,
+                periodTotal: input.periodTotal === undefined ? null : String(input.periodTotal),
+                fifthOccurrenceAmount: input.fifthOccurrenceAmount === undefined
+                    ? null
+                    : String(input.fifthOccurrenceAmount),
                 currency: input.currency,
                 notes: input.notes || null,
+                semimonthlyFirstDay: input.semimonthlyFirstDay ?? null,
+                semimonthlySecondDay: input.semimonthlySecondDay ?? null,
+                calendarEntries: toStoredCalendarEntries(input.calendarEntries ?? []),
+                dateOverrides: toStoredDateOverrides(input.dateOverrides ?? []),
                 startsAt: input.startsAt,
                 endsAt: input.endsAt ?? null,
                 endMode: input.endsAt ? "on_date" : "never",
@@ -179,7 +232,9 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
 
         const inserted = await this.tx
             .insert(scheduledOccurrences)
-            .values(input.map(({ rule, sequence, scheduledAt }) => ({
+            .values(input.map(({
+                rule, sequence, originalScheduledAt, scheduledAt, amount,
+            }) => ({
                 userId: rule.userId,
                 source: "recurring_rule" as const,
                 recurringRuleId: rule.id,
@@ -188,10 +243,10 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
                 categoryId: rule.categoryId,
                 transactionType: rule.transactionType,
                 name: rule.name,
-                amount: String(rule.amount),
+                amount: String(amount),
                 currency: rule.currency,
                 notes: rule.notes,
-                originalScheduledAt: scheduledAt,
+                originalScheduledAt,
                 scheduledAt,
             })))
             .onConflictDoNothing()

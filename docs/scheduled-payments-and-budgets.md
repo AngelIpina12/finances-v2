@@ -65,9 +65,12 @@ La fase de ocurrencias manuales está implementada mediante la migración
 - creación idempotente de ocurrencias mediante `recurring_rule_id + sequence`,
   una ventana de 60 días y controles para editar, pausar, reanudar, archivar y
   actualizar las próximas fechas desde `/scheduled`.
+- estrategias de salario: monto fijo, total mensual distribuido y quinta fecha
+  semanal con importe personalizado;
+- frecuencia semimensual con dos días configurables, excepciones por fecha y
+  calendario personalizado con fechas y montos individuales.
 
-Continúan pendientes los salarios avanzados, calendarios custom, automatización,
-financiamientos, presupuestos y previsión.
+Continúan pendientes la automatización, financiamientos, presupuestos y previsión.
 
 ## 3. Límites del dominio
 
@@ -725,8 +728,11 @@ actualizarse manualmente desde la interfaz.
 
 ### Fase 3 — Salarios y calendarios avanzados
 
-Agregar total mensual distribuido, quinta ocurrencia configurable, excepciones,
-calendarios custom y edición “esta y las siguientes”.
+Implementada mediante `drizzle/0006_same_vivisector.sql`: total mensual distribuido
+con residuo en la última fecha, quinta ocurrencia semanal configurable, frecuencia
+semimensual, excepciones y calendarios custom con montos individuales. Las
+ocurrencias ya generadas permanecen como snapshots; los nuevos parámetros aplican
+a las fechas que se generen posteriormente.
 
 ### Fase 4 — Automatización
 
