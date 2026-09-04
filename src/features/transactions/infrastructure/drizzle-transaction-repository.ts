@@ -5,7 +5,7 @@ import {
 import { db } from "@/src/db";
 import {
     categories, financialAccounts, scheduledOccurrences,
-    transactions,
+    financingInstallments, financingPlans, transactions,
 } from "@/src/db/schema";
 import type {
     LedgerTransaction, TransactionAccount, TransactionRepository,
@@ -60,6 +60,8 @@ class DrizzleTransactionScope implements TransactionScope {
                 accountId: transactions.accountId,
                 categoryId: transactions.categoryId,
                 scheduledOccurrenceId: transactions.scheduledOccurrenceId,
+                financingPlanId: transactions.financingPlanId,
+                financingInstallmentId: transactions.financingInstallmentId,
                 transferGroupId: transactions.transferGroupId,
                 transferDirection: transactions.transferDirection,
                 type: transactions.type,
@@ -88,6 +90,8 @@ class DrizzleTransactionScope implements TransactionScope {
                 accountId: transactions.accountId,
                 categoryId: transactions.categoryId,
                 scheduledOccurrenceId: transactions.scheduledOccurrenceId,
+                financingPlanId: transactions.financingPlanId,
+                financingInstallmentId: transactions.financingInstallmentId,
                 transferGroupId: transactions.transferGroupId,
                 transferDirection: transactions.transferDirection,
                 type: transactions.type,
@@ -151,6 +155,8 @@ class DrizzleTransactionScope implements TransactionScope {
             merchant: input.description || null,
             notes: input.notes || null,
             date: input.date,
+            financingPlanId: input.financingPlanId || null,
+            financingInstallmentId: input.financingInstallmentId || null,
         };
 
         await this.tx.insert(transactions).values([
@@ -159,6 +165,7 @@ class DrizzleTransactionScope implements TransactionScope {
                 accountId: input.sourceAccount.id,
                 transferDirection: "out",
                 currency: input.sourceAccount.currency,
+                scheduledOccurrenceId: input.scheduledOccurrenceId || null,
             },
             {
                 ...common,
@@ -228,6 +235,58 @@ class DrizzleTransactionScope implements TransactionScope {
             .returning({ id: scheduledOccurrences.id });
 
         return cancelled.length;
+    }
+
+    async reopenScheduledOccurrences(userId: string, occurrenceIds: string[]) {
+        if (!occurrenceIds.length) return 0;
+
+        const reopened = await this.tx
+            .update(scheduledOccurrences)
+            .set({ status: "scheduled", executedAt: null })
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                inArray(scheduledOccurrences.id, occurrenceIds),
+                eq(scheduledOccurrences.status, "completed"),
+            ))
+            .returning({ id: scheduledOccurrences.id });
+
+        return reopened.length;
+    }
+
+    async reopenFinancingInstallments(userId: string, installmentIds: string[]) {
+        if (!installmentIds.length) return 0;
+
+        const ownedPlanIds = this.tx
+            .select({ id: financingPlans.id })
+            .from(financingPlans)
+            .where(eq(financingPlans.userId, userId));
+
+        const reopened = await this.tx
+            .update(financingInstallments)
+            .set({ paidAt: null, paymentTransferGroupId: null })
+            .where(and(
+                inArray(financingInstallments.id, installmentIds),
+                inArray(
+                    financingInstallments.financingPlanId,
+                    ownedPlanIds,
+                ),
+            ))
+            .returning({
+                id: financingInstallments.id,
+                financingPlanId: financingInstallments.financingPlanId,
+            });
+
+        if (reopened.length) {
+            await this.tx
+                .update(financingPlans)
+                .set({ status: "active" })
+                .where(inArray(
+                    financingPlans.id,
+                    [...new Set(reopened.map((installment) => installment.financingPlanId))],
+                ));
+        }
+
+        return reopened.length;
     }
 
     async applyBalanceDelta(account: TransactionAccount, userId: string, delta: number) {

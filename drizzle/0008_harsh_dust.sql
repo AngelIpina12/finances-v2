@@ -1,0 +1,2 @@
+DROP INDEX "transactions_scheduled_occurrence_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "transactions_scheduled_occurrence_idx" ON "transactions" USING btree ("scheduled_occurrence_id") WHERE "transactions"."scheduled_occurrence_id" is not null and "transactions"."status" <> 'cancelled';

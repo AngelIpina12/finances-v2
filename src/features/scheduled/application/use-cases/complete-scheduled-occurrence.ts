@@ -20,6 +20,10 @@ export class CompleteScheduledOccurrenceUseCase {
                 throw new ScheduledOccurrenceError("El movimiento ya fue atendido o no existe.");
             }
 
+            if (occurrence.source === "financing_installment") {
+                throw new ScheduledOccurrenceError("Registra el pago de esta cuota desde Financiamientos.");
+            }
+
             const account = await scope.findAccount(userId, occurrence.accountId, { activeOnly: true });
 
             if (!account) {

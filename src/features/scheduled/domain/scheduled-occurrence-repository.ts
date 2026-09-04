@@ -6,6 +6,7 @@ export type OccurrenceStatus = "scheduled" | "completed" | "skipped" | "cancelle
 
 export type ScheduledOccurrence = {
     id: string;
+    source: "manual" | "recurring_rule" | "financing_installment";
     accountId: string;
     categoryId: string | null;
     transactionType: TransactionType;

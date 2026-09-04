@@ -35,6 +35,9 @@ export type CreateTransferCommand = {
     date: Date;
     description?: string;
     notes?: string;
+    financingPlanId?: string;
+    financingInstallmentId?: string;
+    scheduledOccurrenceId?: string;
 };
 
 export type TransactionAccount = {
@@ -50,6 +53,8 @@ export type LedgerTransaction = {
     accountId: string;
     categoryId: string | null;
     scheduledOccurrenceId: string | null;
+    financingPlanId: string | null;
+    financingInstallmentId: string | null;
     transferGroupId: string | null;
     transferDirection: TransferDirection | null;
     type: LedgerTransactionType;
@@ -99,6 +104,9 @@ export interface TransactionScope {
         description?: string;
         notes?: string;
         date: Date;
+        financingPlanId?: string;
+        financingInstallmentId?: string;
+        scheduledOccurrenceId?: string;
     }): Promise<void>;
     updateCompletedTransaction(
         userId: string,
@@ -106,6 +114,8 @@ export interface TransactionScope {
     ): Promise<boolean>;
     cancelTransactions(userId: string, transactionIds: string[]): Promise<number>;
     cancelScheduledOccurrences(userId: string, occurrenceIds: string[]): Promise<number>;
+    reopenScheduledOccurrences(userId: string, occurrenceIds: string[]): Promise<number>;
+    reopenFinancingInstallments(userId: string, installmentIds: string[]): Promise<number>;
     applyBalanceDelta(
         account: TransactionAccount,
         userId: string,

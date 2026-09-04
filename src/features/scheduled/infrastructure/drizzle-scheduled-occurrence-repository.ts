@@ -79,6 +79,7 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
         const [occurrence] = await this.tx
             .select({
                 id: scheduledOccurrences.id,
+                source: scheduledOccurrences.source,
                 accountId: scheduledOccurrences.accountId,
                 categoryId: scheduledOccurrences.categoryId,
                 transactionType: scheduledOccurrences.transactionType,
@@ -99,7 +100,12 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
             .limit(1)
             .for("update");
 
-        return occurrence ? { ...occurrence, amount: Number(occurrence.amount) } as ScheduledOccurrence : undefined;
+        return occurrence ? {
+            ...occurrence,
+            source: occurrence.source as ScheduledOccurrence["source"],
+            transactionType: occurrence.transactionType as ScheduledOccurrence["transactionType"],
+            amount: Number(occurrence.amount),
+        } : undefined;
     }
 
     async insertOccurrence(input: Parameters<ScheduledOccurrenceScope["insertOccurrence"]>[0]) {

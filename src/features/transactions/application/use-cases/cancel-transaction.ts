@@ -45,11 +45,35 @@ export class CancelTransactionUseCase {
                 throw new TransactionError("El movimiento cambió mientras se cancelaba.");
             }
 
-            const occurrenceIds = movements.flatMap((movement) => (
+            const occurrenceIds = [...new Set(movements.flatMap((movement) => (
                 movement.scheduledOccurrenceId
                     ? [movement.scheduledOccurrenceId]
                     : []
-            ));
+            )))];
+            const financingInstallmentIds = [...new Set(movements.flatMap((movement) => (
+                movement.financingInstallmentId
+                    ? [movement.financingInstallmentId]
+                    : []
+            )))];
+
+            if (financingInstallmentIds.length) {
+                const reopenedInstallments = await scope.reopenFinancingInstallments(
+                    userId,
+                    financingInstallmentIds,
+                );
+
+                if (reopenedInstallments !== financingInstallmentIds.length) {
+                    throw new TransactionError("No fue posible reabrir la cuota del financiamiento.");
+                }
+
+                const reopenedOccurrences = await scope.reopenScheduledOccurrences(userId, occurrenceIds);
+
+                if (reopenedOccurrences !== occurrenceIds.length) {
+                    throw new TransactionError("No fue posible reabrir el pago programado.");
+                }
+
+                return;
+            }
 
             const cancelledOccurrences = await scope.cancelScheduledOccurrences(userId, occurrenceIds);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
     ArrowDownLeft, ArrowUpRight, Check,
     Clock3, Ellipsis, Forward,
@@ -193,7 +194,16 @@ export function ScheduledOccurrenceList({ occurrences, filter, now, onAction }: 
                                             {money(occurrence.amount, occurrence.currency)}
                                         </p>
 
-                                        {occurrence.status === "scheduled" && (
+                                        {occurrence.status === "scheduled" && occurrence.source === "financing_installment" && (
+                                            <Link
+                                                href="/financing"
+                                                className="inline-flex h-8 items-center justify-center rounded-md border px-3 text-xs font-medium transition-colors hover:bg-muted"
+                                            >
+                                                Pagar cuota
+                                            </Link>
+                                        )}
+
+                                        {occurrence.status === "scheduled" && occurrence.source !== "financing_installment" && (
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger
                                                     render={(

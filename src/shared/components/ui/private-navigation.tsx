@@ -9,6 +9,7 @@ const items = [
     { href: "/accounts", label: "Cuentas" },
     { href: "/transactions", label: "Movimientos" },
     { href: "/scheduled", label: "Programados" },
+    { href: "/financing", label: "Financiamientos" },
     { href: "/categories", label: "Categorías" },
 ] as const;
 

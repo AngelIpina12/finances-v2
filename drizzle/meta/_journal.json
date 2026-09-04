@@ -50,6 +50,20 @@
       "when": 1788475790158,
       "tag": "0006_same_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788494531239,
+      "tag": "0007_old_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788541260450,
+      "tag": "0008_harsh_dust",
+      "breakpoints": true
     }
   ]
 }

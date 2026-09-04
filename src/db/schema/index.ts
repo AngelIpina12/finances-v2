@@ -8,7 +8,8 @@ import {
     financialAccounts, occurrenceSourceEnum, occurrenceStatusEnum,
     recurrenceAmountStrategyEnum, recurrenceEndModeEnum,
     fifthOccurrencePolicyEnum, recurringRules, scheduleFrequencyEnum,
-    scheduledOccurrences, transactions, transactionStatusEnum,
+    scheduledOccurrences, transactions, transactionStatusEnum, financingPlans,
+    financingInstallments, financingStatusEnum,
     transactionTypeEnum, transferDirectionEnum
 } from "./financial";
 
@@ -18,6 +19,7 @@ export {
     currencyCodeEnum, financialAccounts, occurrenceSourceEnum,
     occurrenceStatusEnum, recurrenceAmountStrategyEnum, recurrenceEndModeEnum,
     fifthOccurrencePolicyEnum, recurringRules,
-    scheduleFrequencyEnum, scheduledOccurrences, transactions,
+    scheduleFrequencyEnum, scheduledOccurrences, transactions, financingPlans,
+    financingInstallments, financingStatusEnum,
     transactionStatusEnum, transactionTypeEnum, transferDirectionEnum
 }

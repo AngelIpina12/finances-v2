@@ -8,6 +8,7 @@ describe("CompleteScheduledOccurrenceUseCase", () => {
     it("aplica el saldo y crea la transacción una sola vez ante doble confirmación", async () => {
         const occurrence: ScheduledOccurrence = {
             id: "occurrence-1",
+            source: "manual",
             accountId: "account-1",
             categoryId: "category-1",
             transactionType: "expense",

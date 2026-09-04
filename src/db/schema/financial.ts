@@ -24,6 +24,7 @@ export const recurrenceAmountStrategyEnum = pgEnum("recurrence_amount_strategy",
 export const fifthOccurrencePolicyEnum = pgEnum("fifth_occurrence_policy", [
     "keep_fixed", "distribute_monthly_total", "custom_amount",
 ]);
+export const financingStatusEnum = pgEnum("financing_status", ["active", "completed", "cancelled"]);
 
 export const categories = pgTable(
     "categories",
@@ -140,6 +141,7 @@ export const scheduledOccurrences = pgTable(
         source: occurrenceSourceEnum("source").notNull().default("manual"),
         recurringRuleId: uuid("recurring_rule_id")
             .references(() => recurringRules.id, { onDelete: "cascade" }),
+        financingInstallmentId: uuid("financing_installment_id"),
         sequence: integer("sequence"),
         accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
         categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
@@ -165,6 +167,60 @@ export const scheduledOccurrences = pgTable(
         uniqueIndex("scheduled_occurrences_rule_sequence_idx")
             .on(table.recurringRuleId, table.sequence)
             .where(sql`${table.recurringRuleId} is not null`),
+        uniqueIndex("scheduled_occurrences_financing_installment_idx")
+            .on(table.financingInstallmentId)
+            .where(sql`${table.financingInstallmentId} is not null`),
+    ],
+);
+
+export const financingPlans = pgTable(
+    "financing_plans",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        creditAccountId: uuid("credit_account_id")
+            .notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        purchaseTransactionId: uuid("purchase_transaction_id").notNull(),
+        name: text("name").notNull(),
+        totalAmount: numeric("total_amount", { precision: 15, scale: 2 }).notNull(),
+        regularInstallmentCount: integer("regular_installment_count").notNull(),
+        regularInstallmentAmount: numeric("regular_installment_amount", { precision: 15, scale: 2 }).notNull(),
+        balloonAmount: numeric("balloon_amount", { precision: 15, scale: 2 }).notNull().default("0"),
+        currency: currencyCodeEnum("currency").notNull(),
+        startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+        status: financingStatusEnum("status").notNull().default("active"),
+        cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        uniqueIndex("financing_plans_purchase_transaction_idx").on(table.purchaseTransactionId),
+        index("financing_plans_user_status_idx").on(table.userId, table.status),
+        index("financing_plans_credit_account_idx").on(table.creditAccountId),
+    ],
+);
+
+export const financingInstallments = pgTable(
+    "financing_installments",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        financingPlanId: uuid("financing_plan_id")
+            .notNull().references(() => financingPlans.id, { onDelete: "cascade" }),
+        sequence: integer("sequence").notNull(),
+        scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
+        amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        isBalloon: boolean("is_balloon").notNull().default(false),
+        paidAt: timestamp("paid_at", { withTimezone: true }),
+        paymentTransferGroupId: uuid("payment_transfer_group_id"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        uniqueIndex("financing_installments_plan_sequence_idx").on(table.financingPlanId, table.sequence),
+        uniqueIndex("financing_installments_payment_transfer_idx")
+            .on(table.paymentTransferGroupId)
+            .where(sql`${table.paymentTransferGroupId} is not null`),
+        index("financing_installments_plan_date_idx").on(table.financingPlanId, table.scheduledAt),
     ],
 );
 
@@ -177,6 +233,8 @@ export const transactions = pgTable(
         categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
         scheduledOccurrenceId: uuid("scheduled_occurrence_id")
             .references(() => scheduledOccurrences.id, { onDelete: "set null" }),
+        financingPlanId: uuid("financing_plan_id"),
+        financingInstallmentId: uuid("financing_installment_id"),
         // A transfer is represented by two rows sharing this id: an outflow and an inflow.
         transferGroupId: uuid("transfer_group_id"),
         transferDirection: transferDirectionEnum("transfer_direction"),
@@ -198,9 +256,11 @@ export const transactions = pgTable(
         index("transactions_user_date_idx").on(table.userId, table.date),
         index("transactions_account_date_idx").on(table.accountId, table.date),
         index("transactions_category_date_idx").on(table.categoryId, table.date),
+        index("transactions_financing_plan_idx").on(table.financingPlanId),
+        index("transactions_financing_installment_idx").on(table.financingInstallmentId),
         index("transactions_transfer_group_idx").on(table.transferGroupId),
         uniqueIndex("transactions_scheduled_occurrence_idx")
             .on(table.scheduledOccurrenceId)
-            .where(sql`${table.scheduledOccurrenceId} is not null`),
+            .where(sql`${table.scheduledOccurrenceId} is not null and ${table.status} <> 'cancelled'`),
     ],
 );
