@@ -28,7 +28,7 @@ export function CategoryForm({ initialValues, typeLocked = false, onClose }: Pro
     const [isPending, startTransition] = useTransition();
     const {
         register, control, handleSubmit,
-        setValue, formState: { errors },
+        setValue, clearErrors, formState: { errors },
     } = useForm<CategoryFormData>({
         resolver: zodResolver(categoryFormSchema) as Resolver<CategoryFormData>,
         defaultValues: initialValues,
@@ -39,6 +39,12 @@ export function CategoryForm({ initialValues, typeLocked = false, onClose }: Pro
 
     function changeType(nextType: CategoryType) {
         setValue("type", nextType, { shouldDirty: true });
+        setValue("name", "", {
+            shouldDirty: true,
+            shouldTouch: false,
+            shouldValidate: false,
+        });
+        clearErrors("name");
     }
 
     function onSubmit(data: CategoryFormData) {

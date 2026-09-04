@@ -1,5 +1,5 @@
 import {
-    addMonths, addWeeks, addYears,
+    addMonths, addWeeks,
     lastDayOfMonth,
 } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
@@ -53,17 +53,35 @@ type Candidate = Omit<GeneratedScheduleItem, "amount"> & {
     amountOverride?: number;
 };
 
-function addFrequency(date: Date, frequency: Exclude<RecurrenceFrequency, "semimonthly" | "custom">) {
+function addFrequency(date: Date, frequency: "weekly" | "biweekly") {
     const localDate = toZonedTime(date, APP_TIME_ZONE);
-    const next = frequency === "weekly"
-        ? addWeeks(localDate, 1)
-        : frequency === "biweekly"
-            ? addWeeks(localDate, 2)
-            : frequency === "monthly"
-                ? addMonths(localDate, 1)
-                : addYears(localDate, 1);
+    const next = addWeeks(localDate, frequency === "weekly" ? 1 : 2);
 
     return fromZonedTime(next, APP_TIME_ZONE);
+}
+
+function getAnchoredDate(
+    startsAt: Date,
+    frequency: "monthly" | "yearly",
+    offset: number,
+) {
+    const localStart = toZonedTime(startsAt, APP_TIME_ZONE);
+
+    if (frequency === "monthly") {
+        return dateAtRuleTime(
+            startsAt,
+            localStart.getFullYear(),
+            localStart.getMonth() + offset,
+            localStart.getDate(),
+        );
+    }
+
+    return dateAtRuleTime(
+        startsAt,
+        localStart.getFullYear() + offset,
+        localStart.getMonth(),
+        localStart.getDate(),
+    );
 }
 
 function dateAtRuleTime(base: Date, year: number, month: number, day: number) {
@@ -136,7 +154,9 @@ function getStandardCandidates(schedule: RecurrenceSchedule, until: Date) {
             originalScheduledAt: scheduledAt,
             scheduledAt,
         });
-        scheduledAt = addFrequency(scheduledAt, schedule.frequency);
+        scheduledAt = schedule.frequency === "monthly" || schedule.frequency === "yearly"
+            ? getAnchoredDate(schedule.startsAt, schedule.frequency, sequence)
+            : addFrequency(scheduledAt, schedule.frequency);
         sequence += 1;
         if (sequence > 2_000) throw new Error("La regla genera demasiadas ocurrencias.");
     }
