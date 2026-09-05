@@ -10,7 +10,8 @@ import {
     fifthOccurrencePolicyEnum, recurringRules, scheduleFrequencyEnum,
     scheduledOccurrences, transactions, transactionStatusEnum, financingPlans,
     financingInstallments, financingStatusEnum,
-    transactionTypeEnum, transferDirectionEnum
+    transactionTypeEnum, transferDirectionEnum, budgetPeriodEnum,
+    rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods,
 } from "./financial";
 
 export {
@@ -21,5 +22,6 @@ export {
     fifthOccurrencePolicyEnum, recurringRules,
     scheduleFrequencyEnum, scheduledOccurrences, transactions, financingPlans,
     financingInstallments, financingStatusEnum,
-    transactionStatusEnum, transactionTypeEnum, transferDirectionEnum
+    transactionStatusEnum, transactionTypeEnum, transferDirectionEnum,
+    budgetPeriodEnum, rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods
 }

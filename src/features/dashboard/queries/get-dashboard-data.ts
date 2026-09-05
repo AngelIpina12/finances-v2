@@ -4,6 +4,7 @@ import {
     lt, lte, ne,
 } from "drizzle-orm";
 import { db } from "@/src/db";
+import { getBudgets } from "@/src/features/budgets/queries/get-budgets";
 import {
     categories, financialAccounts, scheduledOccurrences,
     transactions,
@@ -318,11 +319,12 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
     const range = getAppMonthRange(now);
     const accounts = await getAccountsSummary(userId);
     const overview = await getFinancialOverview(userId, range, accounts);
-    const [spendingByCategory, recentTransactions, netWorthHistory, upcomingPayments] = await Promise.all([
+    const [spendingByCategory, recentTransactions, netWorthHistory, upcomingPayments, budgetData] = await Promise.all([
         getSpendingByCategory(userId, range),
         getRecentDashboardTransactions(userId),
         getNetWorthHistory(userId, overview.netWorth, now),
         getUpcomingMovements(userId, now),
+        getBudgets(userId, now),
     ]);
     const featuredAccount = accounts.find((account) => account.type === "credit") ?? accounts[0];
 
@@ -334,7 +336,12 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         overview: overview.overview,
         netWorthHistory,
         spendingByCategory,
-        budgets: [],
+        budgets: budgetData.budgets.map((budget) => ({
+            name: budget.name,
+            spent: budget.spent,
+            allocated: budget.availableAmount,
+            status: budget.status,
+        })),
         upcomingPayments,
         account: featuredAccount
             ? {

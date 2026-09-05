@@ -9,9 +9,9 @@ export default defineConfig({
     },
     test: {
         environment: "node",
-        include: ["src/**/*.test.ts", "app/**/*.test.ts"],
-        exclude: ["src/**/*.integration.test.ts", "app/**/*.integration.test.ts"],
+        include: ["src/**/*.integration.test.ts", "app/**/*.integration.test.ts"],
         clearMocks: true,
         restoreMocks: true,
+        sequence: { concurrent: false },
     },
 });

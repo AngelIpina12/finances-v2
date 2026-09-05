@@ -64,6 +64,13 @@
       "when": 1788541260450,
       "tag": "0008_harsh_dust",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788541681237,
+      "tag": "0009_square_paladin",
+      "breakpoints": true
     }
   ]
 }

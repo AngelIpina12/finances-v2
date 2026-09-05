@@ -34,13 +34,13 @@ function Progress({ value, color = "bg-primary" }: { value: number; color?: stri
     )
 }
 
-function Heading({ children, href }: { children: React.ReactNode; href?: "/accounts" | "/scheduled"; }) {
+function Heading({ children, href }: { children: React.ReactNode; href?: "/accounts" | "/scheduled" | "/budgets"; }) {
     return (
         <CardHeader className="pb-4">
             <CardTitle>{children}</CardTitle>
             {href && (
                 <Link
-                    href={href}
+                    href={href as never}
                     className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                 >
                     Ver todo
@@ -90,7 +90,7 @@ export function BudgetOverview({ budgets }: { budgets: DashboardData["budgets"] 
 
     return (
         <Card className="xl:col-span-7">
-            <Heading>Estado de presupuestos</Heading>
+            <Heading href="/budgets">Estado de presupuestos</Heading>
             <CardContent className="space-y-5">
                 <div className="space-y-2">
                     <div className="flex justify-between text-sm">

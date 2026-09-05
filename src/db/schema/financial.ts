@@ -25,6 +25,8 @@ export const fifthOccurrencePolicyEnum = pgEnum("fifth_occurrence_policy", [
     "keep_fixed", "distribute_monthly_total", "custom_amount",
 ]);
 export const financingStatusEnum = pgEnum("financing_status", ["active", "completed", "cancelled"]);
+export const budgetPeriodEnum = pgEnum("budget_period", ["weekly", "monthly", "quarterly", "yearly", "custom"]);
+export const rolloverTypeEnum = pgEnum("rollover_type", ["disabled", "carry_remaining", "carry_deficit"]);
 
 export const categories = pgTable(
     "categories",
@@ -221,6 +223,62 @@ export const financingInstallments = pgTable(
             .on(table.paymentTransferGroupId)
             .where(sql`${table.paymentTransferGroupId} is not null`),
         index("financing_installments_plan_date_idx").on(table.financingPlanId, table.scheduledAt),
+    ],
+);
+
+export const budgets = pgTable(
+    "budgets",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        currency: currencyCodeEnum("currency_code").notNull(),
+        period: budgetPeriodEnum("period").notNull().default("monthly"),
+        rollover: rolloverTypeEnum("rollover").notNull().default("disabled"),
+        isReusable: boolean("is_reusable").notNull().default(true),
+        color: text("color").notNull().default("#2563eb"),
+        warningThreshold: integer("warning_threshold").notNull().default(80),
+        startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+        endsAt: timestamp("ends_at", { withTimezone: true }),
+        isActive: boolean("is_active").notNull().default(true),
+        deletedAt: timestamp("deleted_at", { withTimezone: true }),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("budgets_user_active_idx").on(table.userId, table.isActive).where(sql`${table.deletedAt} is null`),
+    ],
+);
+
+export const budgetAllocations = pgTable(
+    "budget_allocations",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        budgetId: uuid("budget_id").notNull().references(() => budgets.id, { onDelete: "cascade" }),
+        categoryId: uuid("category_id").notNull().references(() => categories.id, { onDelete: "restrict" }),
+        amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [uniqueIndex("budget_allocations_budget_category_idx").on(table.budgetId, table.categoryId)],
+);
+
+export const budgetPeriods = pgTable(
+    "budget_periods",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        budgetId: uuid("budget_id").notNull().references(() => budgets.id, { onDelete: "cascade" }),
+        periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+        periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+        allocatedAmount: numeric("allocated_amount", { precision: 15, scale: 2 }).notNull(),
+        rolloverAmount: numeric("rollover_amount", { precision: 15, scale: 2 }).notNull().default("0"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        uniqueIndex("budget_periods_budget_range_idx").on(table.budgetId, table.periodStart, table.periodEnd),
+        index("budget_periods_budget_start_idx").on(table.budgetId, table.periodStart),
     ],
 );
 

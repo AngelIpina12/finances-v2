@@ -10,6 +10,7 @@ const items = [
     { href: "/transactions", label: "Movimientos" },
     { href: "/scheduled", label: "Programados" },
     { href: "/financing", label: "Financiamientos" },
+    { href: "/budgets", label: "Presupuestos" },
     { href: "/categories", label: "Categorías" },
 ] as const;
 
@@ -28,7 +29,7 @@ export function PrivateNavigation() {
                     return (
                         <Link
                             key={item.href}
-                            href={item.href}
+                            href={item.href as never}
                             className={cn(
                                 "font-heading shrink-0 rounded-lg px-2.5 py-2 text-sm font-medium tracking-[-0.01em] transition-colors sm:px-3",
                                 active
