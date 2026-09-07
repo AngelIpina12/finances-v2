@@ -11,6 +11,7 @@ const items = [
     { href: "/scheduled", label: "Programados" },
     { href: "/financing", label: "Financiamientos" },
     { href: "/budgets", label: "Presupuestos" },
+    { href: "/forecast", label: "Previsión" },
     { href: "/categories", label: "Categorías" },
 ] as const;
 

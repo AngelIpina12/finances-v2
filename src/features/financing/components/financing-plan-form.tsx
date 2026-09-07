@@ -24,10 +24,11 @@ const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX
 
 interface Props {
     purchases: FinancingData["purchases"];
+    paymentAccounts: FinancingData["paymentAccounts"];
     onClose: () => void;
 }
 
-export function FinancingPlanForm({ purchases, onClose }: Props) {
+export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
     const {
         register, control, handleSubmit,
@@ -42,6 +43,9 @@ export function FinancingPlanForm({ purchases, onClose }: Props) {
     const installmentAmount = useWatch({ control, name: "regularInstallmentAmount" });
     const balloonAmount = useWatch({ control, name: "balloonAmount" });
     const selectedPurchase = purchases.find((purchase) => purchase.id === purchaseId);
+    const matchingPaymentAccounts = paymentAccounts.filter((account) => (
+        !selectedPurchase || account.currency === selectedPurchase.currency
+    ));
     const configuredTotal = Number(count || 0) * Number(installmentAmount || 0) + Number(balloonAmount || 0);
 
     function onSubmit(data: FinancingPlanFormData) {
@@ -68,7 +72,7 @@ export function FinancingPlanForm({ purchases, onClose }: Props) {
                     render={({ field }) => (
                         <FormSelect
                             name={field.name}
-                            value={field.value}
+                            value={field.value ?? ""}
                             onValueChange={field.onChange}
                             placeholder="Selecciona una compra"
                             options={purchases.map((purchase) => ({
@@ -89,6 +93,33 @@ export function FinancingPlanForm({ purchases, onClose }: Props) {
                     {...register("name")}
                 />
                 {errors.name && <FormError>{errors.name.message}</FormError>}
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <FormLabel>
+                    Cuenta prevista de pago
+                    <span className="font-normal text-muted-foreground"> (opcional)</span>
+                </FormLabel>
+                <Controller
+                    name="paymentAccountId"
+                    control={control}
+                    render={({ field }) => (
+                        <FormSelect
+                            name={field.name}
+                            value={field.value ?? ""}
+                            onValueChange={field.onChange}
+                            placeholder="La elegiré al registrar cada cuota"
+                            options={matchingPaymentAccounts.map((account) => ({
+                                value: account.id,
+                                label: `${account.name} · ${account.currency}`,
+                            }))}
+                        />
+                    )}
+                />
+                {errors.paymentAccountId && <FormError>{errors.paymentAccountId.message}</FormError>}
+                <p className="text-xs text-muted-foreground">
+                    Se usará para proyectar el pago y reducir la deuda de la tarjeta.
+                </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

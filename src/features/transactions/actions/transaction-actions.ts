@@ -28,6 +28,7 @@ function revalidateFinancialViews() {
     revalidatePath("/transactions");
     revalidatePath("/accounts");
     revalidatePath("/dashboard");
+    revalidatePath("/forecast");
 }
 
 function mutationError(error: unknown, fallback: string): ActionResult {

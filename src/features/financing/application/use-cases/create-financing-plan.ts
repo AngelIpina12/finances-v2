@@ -17,6 +17,16 @@ export class CreateFinancingPlanUseCase {
                 throw new FinancingError("Selecciona una compra vigente hecha con una tarjeta de crédito.");
             }
 
+            if (command.paymentAccountId) {
+                const paymentAccount = await scope.findAccount(userId, command.paymentAccountId, {
+                    activeOnly: true,
+                });
+
+                if (!paymentAccount || paymentAccount.type === "credit" || paymentAccount.currency !== purchase.currency) {
+                    throw new FinancingError("La cuenta prevista debe estar activa, no ser de crédito y usar la misma moneda.");
+                }
+            }
+
             const scheduledTotal = command.regularInstallmentCount * command.regularInstallmentAmount
                 + command.balloonAmount;
 

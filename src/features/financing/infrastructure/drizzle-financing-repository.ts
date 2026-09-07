@@ -16,6 +16,7 @@ function toPlan(plan: typeof financingPlans.$inferSelect): FinancingPlan {
         id: plan.id,
         userId: plan.userId,
         creditAccountId: plan.creditAccountId,
+        paymentAccountId: plan.paymentAccountId,
         purchaseTransactionId: plan.purchaseTransactionId,
         name: plan.name,
         totalAmount: Number(plan.totalAmount),
@@ -65,6 +66,7 @@ class DrizzleFinancingScope implements FinancingScope {
             .insert(financingPlans)
             .values({
                 ...input,
+                paymentAccountId: input.paymentAccountId ?? null,
                 totalAmount: String(input.totalAmount),
                 regularInstallmentAmount: String(input.regularInstallmentAmount),
                 balloonAmount: String(input.balloonAmount),

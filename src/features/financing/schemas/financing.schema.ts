@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const financingPlanFormSchema = z.object({
     purchaseTransactionId: z.uuid("Selecciona una compra válida."),
+    paymentAccountId: z.uuid("Selecciona una cuenta válida.").optional().or(z.literal("")),
     name: z.string().trim().min(2, "Escribe un nombre de al menos 2 caracteres.")
         .max(120, "El nombre no puede superar 120 caracteres."),
     regularInstallmentCount: z.coerce.number().int("Ingresa un número entero.")

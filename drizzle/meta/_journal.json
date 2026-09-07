@@ -71,6 +71,13 @@
       "when": 1788541681237,
       "tag": "0009_square_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788718386262,
+      "tag": "0010_pretty_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

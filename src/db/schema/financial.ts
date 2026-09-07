@@ -182,6 +182,8 @@ export const financingPlans = pgTable(
         userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
         creditAccountId: uuid("credit_account_id")
             .notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        paymentAccountId: uuid("payment_account_id")
+            .references(() => financialAccounts.id, { onDelete: "restrict" }),
         purchaseTransactionId: uuid("purchase_transaction_id").notNull(),
         name: text("name").notNull(),
         totalAmount: numeric("total_amount", { precision: 15, scale: 2 }).notNull(),
@@ -199,6 +201,7 @@ export const financingPlans = pgTable(
         uniqueIndex("financing_plans_purchase_transaction_idx").on(table.purchaseTransactionId),
         index("financing_plans_user_status_idx").on(table.userId, table.status),
         index("financing_plans_credit_account_idx").on(table.creditAccountId),
+        index("financing_plans_payment_account_idx").on(table.paymentAccountId),
     ],
 );
 

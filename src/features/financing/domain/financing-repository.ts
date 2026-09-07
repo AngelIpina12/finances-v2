@@ -16,6 +16,7 @@ export type FinancingPurchase = {
 
 export type FinancingPlanInput = {
     purchaseTransactionId: string;
+    paymentAccountId?: string;
     name: string;
     regularInstallmentCount: number;
     regularInstallmentAmount: number;
@@ -23,10 +24,11 @@ export type FinancingPlanInput = {
     startsAt: Date;
 };
 
-export type FinancingPlan = FinancingPlanInput & {
+export type FinancingPlan = Omit<FinancingPlanInput, "paymentAccountId"> & {
     id: string;
     userId: string;
     creditAccountId: string;
+    paymentAccountId: string | null;
     totalAmount: number;
     currency: Currency;
     status: FinancingStatus;

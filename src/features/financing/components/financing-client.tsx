@@ -104,6 +104,9 @@ export function FinancingClient({ purchases, paymentAccounts, plans }: Props) {
                                         <div>
                                             <p className="font-semibold">{plan.name}</p>
                                             <p className="mt-1 text-xs text-muted-foreground">{plan.creditAccountName} · Compra: {plan.purchaseName || "Sin descripción"}</p>
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Pago previsto: {plan.paymentAccountName || "Se elegirá al registrar la cuota"}
+                                            </p>
                                         </div>
                                         <span
                                             className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${plan.status === "completed"
@@ -215,6 +218,7 @@ export function FinancingClient({ purchases, paymentAccounts, plans }: Props) {
                         <FinancingPlanForm
                             key={planToCreate}
                             purchases={purchases}
+                            paymentAccounts={paymentAccounts}
                             onClose={closePlanForm}
                         />
                     )}

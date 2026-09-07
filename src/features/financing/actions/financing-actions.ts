@@ -23,6 +23,7 @@ function revalidateFinancialViews() {
     revalidatePath("/transactions");
     revalidatePath("/accounts");
     revalidatePath("/dashboard");
+    revalidatePath("/forecast");
 }
 
 function errorResult(error: unknown, fallback: string): ActionResult {
@@ -51,7 +52,10 @@ export async function createFinancingPlan(input: FinancingPlanFormData): Promise
     if (!authenticatedUserId) return { success: false, message: "Tu sesión expiró." };
 
     try {
-        await createPlan.execute(authenticatedUserId, parsed.data);
+        await createPlan.execute(authenticatedUserId, {
+            ...parsed.data,
+            paymentAccountId: parsed.data.paymentAccountId || undefined,
+        });
     } catch (error) {
         return errorResult(error, "No fue posible crear el financiamiento.");
     }

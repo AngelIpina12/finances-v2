@@ -9,6 +9,7 @@ export function createFinancingPlanDraft(purchases: FinancingData["purchases"]):
 
     return {
         purchaseTransactionId: purchase?.id ?? "",
+        paymentAccountId: "",
         name: purchase?.name ?? "",
         regularInstallmentCount: 1,
         regularInstallmentAmount: purchase?.amount ?? 0,

@@ -57,6 +57,7 @@ export async function saveFinancialAccount(input: FinancialAccountFormData) {
 
     revalidatePath("/accounts");
     revalidatePath("/dashboard");
+    revalidatePath("/forecast");
 
     return {
         success: true,
@@ -76,6 +77,7 @@ export async function archiveFinancialAccount(accountId: string) {
 
     revalidatePath("/accounts");
     revalidatePath("/dashboard");
+    revalidatePath("/forecast");
 
     return { success: true, message: "Cuenta archivada." };
 }
