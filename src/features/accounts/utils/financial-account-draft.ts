@@ -13,6 +13,7 @@ export function createFinancialAccountDraft(): FinancialAccountFormData {
         color: "#2563eb",
         lastFourDigits: "",
         includeInNetWorth: true,
+        includeInLiquidity: true,
         creditLimit: undefined,
         owedAmount: undefined,
         billingDate: undefined,
@@ -33,6 +34,7 @@ export function toFinancialAccountDraft(
         color: account.color || "#2563eb",
         lastFourDigits: account.lastFourDigits ?? "",
         includeInNetWorth: account.includeInNetWorth,
+        includeInLiquidity: account.includeInLiquidity,
         creditLimit: account.creditLimit ? Number(account.creditLimit) : undefined,
         owedAmount:
             account.type === "credit"

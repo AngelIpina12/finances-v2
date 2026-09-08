@@ -19,6 +19,7 @@ export function buildAccountRecord(input: AccountInput): AccountRecord {
         color: input.color,
         lastFourDigits: input.lastFourDigits || null,
         includeInNetWorth: input.includeInNetWorth,
+        includeInLiquidity: input.includeInLiquidity,
         creditLimit: creditLimit === null ? null : String(creditLimit),
         owedAmount: owedAmount === null ? null : String(owedAmount),
         availableCredit: availableCredit === null ? null : String(availableCredit),

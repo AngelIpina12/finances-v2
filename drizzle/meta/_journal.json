@@ -78,6 +78,13 @@
       "when": 1788718386262,
       "tag": "0010_pretty_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788803266029,
+      "tag": "0011_chief_electro",
+      "breakpoints": true
     }
   ]
 }

@@ -1,20 +1,20 @@
 import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    financialAccounts, financingInstallments, financingPlans,
-    recurringRules, scheduledOccurrences,
+    creditCardPaymentSettings, financialAccounts, financingInstallments,
+    financingPlans, recurringRules, scheduledOccurrences,
 } from "@/src/db/schema";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
 
-const FORECAST_DAYS = 90;
+const FORECAST_DAYS = 180;
 
 type StoredCalendarEntry = { scheduledAt: string; amount?: number };
 type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
-    const [accounts, occurrences, rules] = await Promise.all([
+    const [accounts, occurrences, cardPaymentSettings, rules] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -23,6 +23,10 @@ export async function getForecastData(userId: string, now = new Date()) {
                 currency: financialAccounts.currency,
                 currentBalance: financialAccounts.currentBalance,
                 creditLimit: financialAccounts.creditLimit,
+                billingDate: financialAccounts.billingDate,
+                statementBalance: financialAccounts.statementBalance,
+                minimumPayment: financialAccounts.minimumPayment,
+                includeInLiquidity: financialAccounts.includeInLiquidity,
             })
             .from(financialAccounts)
             .where(and(
@@ -59,6 +63,17 @@ export async function getForecastData(userId: string, now = new Date()) {
             )),
         db
             .select({
+                creditAccountId: creditCardPaymentSettings.creditAccountId,
+                sourceAccountId: creditCardPaymentSettings.sourceAccountId,
+                strategy: creditCardPaymentSettings.strategy,
+                fixedAmount: creditCardPaymentSettings.fixedAmount,
+                paymentTermDays: creditCardPaymentSettings.paymentTermDays,
+                includeInForecast: creditCardPaymentSettings.includeInForecast,
+            })
+            .from(creditCardPaymentSettings)
+            .where(eq(creditCardPaymentSettings.userId, userId)),
+        db
+            .select({
                 id: recurringRules.id,
                 accountId: recurringRules.accountId,
                 transactionType: recurringRules.transactionType,
@@ -85,17 +100,24 @@ export async function getForecastData(userId: string, now = new Date()) {
             )),
     ]);
 
+    const activeAccountIds = new Set(accounts.map((account) => account.id));
     const existingRecurringKeys = new Set(
         occurrences
             .filter((occurrence) => occurrence.recurringRuleId && occurrence.sequence !== null)
             .map((occurrence) => `${occurrence.recurringRuleId}:${occurrence.sequence}`),
     );
     const events: ForecastEvent[] = occurrences
-        .filter((occurrence) => occurrence.status === "scheduled")
+        .filter((occurrence) => (
+            occurrence.status === "scheduled"
+            && activeAccountIds.has(occurrence.accountId)
+        ))
         .map((occurrence) => ({
             id: occurrence.id,
             accountId: occurrence.source === "financing_installment"
                 ? occurrence.financingPaymentAccountId
+                    && activeAccountIds.has(occurrence.financingPaymentAccountId)
+                    ? occurrence.financingPaymentAccountId
+                    : null
                 : occurrence.accountId,
             source: occurrence.source === "financing_installment"
                 ? "financing"
@@ -108,13 +130,18 @@ export async function getForecastData(userId: string, now = new Date()) {
             scheduledAt: occurrence.scheduledAt,
             transactionType: occurrence.transactionType as ForecastEvent["transactionType"],
             affectsBalance: occurrence.source !== "financing_installment"
-                || occurrence.financingPaymentAccountId !== null,
+                || (
+                    occurrence.financingPaymentAccountId !== null
+                    && activeAccountIds.has(occurrence.financingPaymentAccountId)
+                ),
             settlesAccountId: occurrence.source === "financing_installment"
                 ? occurrence.accountId
                 : null,
         }));
 
     for (const rule of rules) {
+        if (!activeAccountIds.has(rule.accountId)) continue;
+
         const calendarEntries = rule.calendarEntries as StoredCalendarEntry[];
         const dateOverrides = rule.dateOverrides as StoredDateOverride[];
         const generated = getOccurrencesInHorizon({
@@ -159,9 +186,21 @@ export async function getForecastData(userId: string, now = new Date()) {
             ...account,
             currentBalance: Number(account.currentBalance),
             creditLimit: account.creditLimit === null ? null : Number(account.creditLimit),
+            statementBalance: account.statementBalance === null ? null : Number(account.statementBalance),
+            minimumPayment: account.minimumPayment === null ? null : Number(account.minimumPayment),
             type: account.type as ForecastAccount["type"],
             currency: account.currency as ForecastEvent["currency"],
         })),
+        cardPaymentSettings: cardPaymentSettings
+            .filter((setting) => (
+                activeAccountIds.has(setting.creditAccountId)
+                && activeAccountIds.has(setting.sourceAccountId)
+            ))
+            .map((setting) => ({
+                ...setting,
+                fixedAmount: setting.fixedAmount === null ? null : Number(setting.fixedAmount),
+                strategy: setting.strategy as "full_statement" | "minimum_payment" | "fixed_amount" | "manual",
+            })),
         events,
     };
 }

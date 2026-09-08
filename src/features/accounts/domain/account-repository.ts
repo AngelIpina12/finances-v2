@@ -18,6 +18,7 @@ export type AccountInput = {
     color: string;
     lastFourDigits?: string;
     includeInNetWorth: boolean;
+    includeInLiquidity: boolean;
     creditLimit?: number;
     owedAmount?: number;
     billingDate?: number;
@@ -34,6 +35,7 @@ export type AccountRecord = {
     color: string;
     lastFourDigits: string | null;
     includeInNetWorth: boolean;
+    includeInLiquidity: boolean;
     creditLimit: string | null;
     owedAmount: string | null;
     availableCredit: string | null;

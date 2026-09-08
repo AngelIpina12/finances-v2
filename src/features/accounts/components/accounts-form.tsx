@@ -1,6 +1,7 @@
 import { useTransition } from "react";
 import {
-    Controller, Resolver, useForm, useWatch
+    Controller, Resolver, useForm,
+    useWatch
 } from "react-hook-form";
 import toast from "react-hot-toast";
 import {
@@ -48,6 +49,12 @@ export function AccountForm({ initialValues, onClose }: Props) {
             : undefined;
 
     function handleTypeChange(type: FinancialAccountFormData["type"]) {
+        setValue(
+            "includeInLiquidity",
+            type === "cash" || type === "debit" || type === "wallet",
+            { shouldDirty: true },
+        );
+
         if (type === "credit") {
             setValue("owedAmount", values.owedAmount ?? 0);
             return;
@@ -186,7 +193,7 @@ export function AccountForm({ initialValues, onClose }: Props) {
                     </div>
                 )}
                 {credit && (
-                    <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <div className="flex flex-col gap-2">
                             <FormLabel htmlFor="availableCredit">Crédito disponible</FormLabel>
                             <FormInput
@@ -221,29 +228,12 @@ export function AccountForm({ initialValues, onClose }: Props) {
                             />
                             {errors.billingDate && <FormError>{errors.billingDate.message}</FormError>}
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <FormLabel htmlFor="dueDate">Fecha límite de pago</FormLabel>
-                            <Controller
-                                name="dueDate"
-                                control={control}
-                                render={({ field }) => (
-                                    <FormSelect
-                                        name={field.name}
-                                        value={field.value === undefined ? "" : String(field.value)}
-                                        onValueChange={(value) => {
-                                            const nextValue = number(value);
-                                            field.onChange(nextValue);
-                                        }}
-                                        options={[
-                                            { value: "", label: "Sin configurar" },
-                                            ...days.map((day) => ({ value: String(day), label: String(day) })),
-                                        ]}
-                                    />
-                                )}
-                            />
-                            {errors.dueDate && <FormError>{errors.dueDate.message}</FormError>}
-                        </div>
                     </div>
+                )}
+                {credit && (
+                    <p className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
+                        Configura la cuenta de pago y los días naturales posteriores al corte desde Previsión.
+                    </p>
                 )}
                 <label className="flex items-center justify-between rounded-xl border p-3 text-sm">
                     <span>
@@ -258,6 +248,20 @@ export function AccountForm({ initialValues, onClose }: Props) {
                         {...register("includeInNetWorth")}
                     />
                     {errors.includeInNetWorth && <FormError>{errors.includeInNetWorth.message}</FormError>}
+                </label>
+                <label className="flex items-center justify-between rounded-xl border p-3 text-sm">
+                    <span>
+                        <span className="block font-medium">Incluir en liquidez</span>
+                        <span className="text-xs text-muted-foreground">
+                            Considerar esta cuenta al calcular dinero disponible.
+                        </span>
+                    </span>
+                    <FormInput
+                        type="checkbox"
+                        className="size-4 accent-primary cursor-pointer"
+                        {...register("includeInLiquidity")}
+                    />
+                    {errors.includeInLiquidity && <FormError>{errors.includeInLiquidity.message}</FormError>}
                 </label>
             </div>
             <aside className="flex flex-col rounded-xl bg-muted/50 p-4">

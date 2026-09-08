@@ -27,6 +27,9 @@ export const fifthOccurrencePolicyEnum = pgEnum("fifth_occurrence_policy", [
 export const financingStatusEnum = pgEnum("financing_status", ["active", "completed", "cancelled"]);
 export const budgetPeriodEnum = pgEnum("budget_period", ["weekly", "monthly", "quarterly", "yearly", "custom"]);
 export const rolloverTypeEnum = pgEnum("rollover_type", ["disabled", "carry_remaining", "carry_deficit"]);
+export const creditCardPaymentStrategyEnum = pgEnum("credit_card_payment_strategy", [
+    "full_statement", "minimum_payment", "fixed_amount", "manual",
+]);
 
 export const categories = pgTable(
     "categories",
@@ -75,6 +78,7 @@ export const financialAccounts = pgTable(
         iconUrl: text("icon_url"),
         lastFourDigits: text("last_four_digits"),
         includeInNetWorth: boolean("include_in_net_worth").notNull().default(true),
+        includeInLiquidity: boolean("include_in_liquidity").notNull().default(true),
         hideBalance: boolean("hide_balance").notNull().default(false),
         isActive: boolean("is_active").notNull().default(true),
         creditLimit: numeric("credit_limit", { precision: 15, scale: 2 }),
@@ -93,6 +97,29 @@ export const financialAccounts = pgTable(
     (table) => [
         index("financial_accounts_user_active_idx").on(table.userId, table.isActive),
         index("financial_accounts_user_type_idx").on(table.userId, table.type),
+    ],
+);
+
+export const creditCardPaymentSettings = pgTable(
+    "credit_card_payment_settings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        creditAccountId: uuid("credit_account_id")
+            .notNull().references(() => financialAccounts.id, { onDelete: "cascade" }),
+        sourceAccountId: uuid("source_account_id")
+            .notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        strategy: creditCardPaymentStrategyEnum("strategy").notNull().default("full_statement"),
+        fixedAmount: numeric("fixed_amount", { precision: 15, scale: 2 }),
+        paymentTermDays: integer("payment_term_days").notNull().default(20),
+        includeInForecast: boolean("include_in_forecast").notNull().default(true),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        uniqueIndex("credit_card_payment_settings_credit_account_idx").on(table.creditAccountId),
+        index("credit_card_payment_settings_user_idx").on(table.userId),
+        index("credit_card_payment_settings_source_account_idx").on(table.sourceAccountId),
     ],
 );
 

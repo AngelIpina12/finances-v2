@@ -60,6 +60,7 @@ export const financialAccountSchema = z.object({
         .optional()
         .or(z.literal("")),
     includeInNetWorth: z.boolean().default(true),
+    includeInLiquidity: z.boolean().default(true),
     creditLimit: optionalNumber,
     owedAmount: optionalNumber,
     billingDate: z.preprocess(
