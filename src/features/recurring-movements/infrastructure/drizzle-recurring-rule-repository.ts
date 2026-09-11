@@ -230,6 +230,19 @@ class DrizzleRecurringRuleScope implements RecurringRuleScope {
         return rules.map(toRule);
     }
 
+    async removeScheduledOccurrences(userId: string, ruleId: string) {
+        const removed = await this.tx
+            .delete(scheduledOccurrences)
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                eq(scheduledOccurrences.recurringRuleId, ruleId),
+                eq(scheduledOccurrences.status, "scheduled"),
+            ))
+            .returning({ id: scheduledOccurrences.id });
+
+        return removed.length;
+    }
+
     async insertGeneratedOccurrences(input: Parameters<RecurringRuleScope["insertGeneratedOccurrences"]>[0]) {
         if (!input.length) return 0;
 

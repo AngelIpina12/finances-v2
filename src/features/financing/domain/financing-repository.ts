@@ -54,6 +54,7 @@ export type InstallmentDraft = {
     scheduledAt: Date;
     amount: number;
     isBalloon: boolean;
+    paidAt?: Date | null;
 };
 
 export interface FinancingRepository {
@@ -88,4 +89,5 @@ export interface FinancingScope {
     markInstallmentPaid(userId: string, installmentId: string, paidAt: Date, transferGroupId: string): Promise<boolean>;
     completeScheduledOccurrence(userId: string, occurrenceId: string, paidAt: Date): Promise<boolean>;
     completePlanIfPaid(userId: string, planId: string): Promise<void>;
+    cancelPlan(userId: string, planId: string, cancelledAt: Date): Promise<boolean>;
 }

@@ -1,0 +1,2 @@
+DROP INDEX "financing_plans_purchase_transaction_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "financing_plans_purchase_transaction_idx" ON "financing_plans" USING btree ("purchase_transaction_id") WHERE "financing_plans"."status" <> 'cancelled';

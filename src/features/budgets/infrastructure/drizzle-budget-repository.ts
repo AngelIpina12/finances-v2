@@ -37,6 +37,8 @@ export class DrizzleBudgetRepository implements BudgetRepository {
                 warningThreshold: input.warningThreshold,
                 startsAt: input.startsAt,
                 endsAt: input.endsAt ?? null,
+                forecastAccountId: input.forecastAccountId || null,
+                includeInForecast: input.includeInForecast,
             };
             let budgetId = input.id;
 

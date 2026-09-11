@@ -15,10 +15,10 @@ export function Dashboard({ data, userName }: { data: DashboardData; userName?: 
             <section className="grid gap-4 xl:grid-cols-12">
                 <NetWorthChart history={data.netWorthHistory} />
                 <SpendingByCategory items={data.spendingByCategory} />
-                {data.budgets.length > 0 && <BudgetOverview budgets={data.budgets} />}
-                {data.upcomingPayments.length > 0 && <UpcomingPayments items={data.upcomingPayments} />}
+                <BudgetOverview budgets={data.budgets} />
+                <UpcomingPayments items={data.upcomingPayments} />
                 <AccountsSummary account={data.account} />
-                {data.goals.length > 0 && <GoalsSummary goals={data.goals} />}
+                <GoalsSummary goals={data.goals} />
                 <RecentTransactions items={data.recentTransactions} />
             </section>
         </div>

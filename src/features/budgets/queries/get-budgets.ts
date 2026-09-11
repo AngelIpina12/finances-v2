@@ -2,7 +2,7 @@ import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     budgetAllocations, budgetPeriods, budgets,
-    categories, transactions,
+    categories, financialAccounts, transactions,
 } from "@/src/db/schema";
 import { getBudgetPeriodRanges, getRolloverAmount } from "../domain/budget-period";
 import { calculateBudgetProgress } from "../domain/budget-progress";
@@ -97,7 +97,7 @@ async function syncBudgetPeriods(
 }
 
 export async function getBudgets(userId: string, now = new Date()) {
-    const [rows, expenseCategories] = await Promise.all([
+    const [rows, expenseCategories, accounts] = await Promise.all([
         db.select().from(budgets).where(and(
             eq(budgets.userId, userId),
             eq(budgets.isActive, true),
@@ -111,6 +111,10 @@ export async function getBudgets(userId: string, now = new Date()) {
                 isNull(categories.deletedAt),
             ))
             .orderBy(categories.sortOrder),
+        db.select({ id: financialAccounts.id, name: financialAccounts.name, currency: financialAccounts.currency })
+            .from(financialAccounts)
+            .where(and(eq(financialAccounts.userId, userId), eq(financialAccounts.isActive, true), isNull(financialAccounts.deletedAt)))
+            .orderBy(financialAccounts.name),
     ]);
     const ids = rows.map((budget) => budget.id);
     const allAllocations = ids.length
@@ -146,6 +150,8 @@ export async function getBudgets(userId: string, now = new Date()) {
             warningThreshold: budget.warningThreshold,
             startsAt: budget.startsAt,
             endsAt: budget.endsAt,
+            forecastAccountId: budget.forecastAccountId,
+            includeInForecast: budget.includeInForecast,
             periodStart: currentPeriod?.start ?? null,
             periodEnd: currentPeriod?.end ?? null,
             spent: currentPeriod?.spent ?? 0,
@@ -165,6 +171,7 @@ export async function getBudgets(userId: string, now = new Date()) {
             ...category,
             color: category.color ?? "#64748b",
         })),
+        accounts,
     };
 }
 

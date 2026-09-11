@@ -14,6 +14,8 @@ export function createBudgetDraft(): BudgetFormData {
         warningThreshold: 80,
         startsAt: toAppDateTimeInputValue(new Date()) as unknown as Date,
         endsAt: undefined,
+        forecastAccountId: "",
+        includeInForecast: false,
         allocations: [],
     };
 }
@@ -33,6 +35,8 @@ export function toBudgetDraft(budget: BudgetsData["budgets"][number]): BudgetFor
         endsAt: budget.endsAt
             ? toAppDateTimeInputValue(budget.endsAt) as unknown as Date
             : undefined,
+        forecastAccountId: budget.forecastAccountId ?? "",
+        includeInForecast: budget.includeInForecast,
         allocations: budget.allocations.map(({ categoryId, amount }) => ({ categoryId, amount })),
     };
 }

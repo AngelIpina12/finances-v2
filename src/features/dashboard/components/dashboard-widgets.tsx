@@ -253,6 +253,11 @@ export function GoalsSummary({ goals }: { goals: DashboardData["goals"] }) {
         <Card className="xl:col-span-5">
             <Heading>Metas</Heading>
             <CardContent className="space-y-5">
+                {!goals.length && (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                        No tienes metas próximas a cumplir.
+                    </p>
+                )}
                 {goals.map((goal) => {
                     const complete = percent(goal.current, goal.target);
                     return (

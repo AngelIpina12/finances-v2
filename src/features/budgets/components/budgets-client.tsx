@@ -29,7 +29,7 @@ const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX
     currency,
 }).format(amount);
 
-export function BudgetsClient({ budgets, categories }: BudgetsData) {
+export function BudgetsClient({ budgets, categories, accounts }: BudgetsData) {
     const router = useRouter();
     const [selected, setSelected] = useState<BudgetsData["budgets"][number] | "new" | null>(null);
     const [budgetToArchive, setBudgetToArchive] = useState<BudgetsData["budgets"][number] | null>(null);
@@ -255,6 +255,7 @@ export function BudgetsClient({ budgets, categories }: BudgetsData) {
                             key={selected === "new" ? "new" : selected.id}
                             initialValues={selected === "new" ? createBudgetDraft() : toBudgetDraft(selected)}
                             categories={categories}
+                            accounts={accounts}
                             onClose={closeForm}
                         />
                     )}

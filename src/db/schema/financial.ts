@@ -15,7 +15,7 @@ export const currencyCodeEnum = pgEnum("currency_code", ["MXN", "USD", "EUR", "G
 export const occurrenceStatusEnum = pgEnum("occurrence_status", ["scheduled", "completed", "skipped", "cancelled"]);
 export const occurrenceSourceEnum = pgEnum("occurrence_source", ["manual", "recurring_rule", "financing_installment"]);
 export const scheduleFrequencyEnum = pgEnum("schedule_frequency", [
-    "weekly", "biweekly", "semimonthly", "monthly", "yearly", "custom",
+    "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "yearly", "custom",
 ]);
 export const recurrenceEndModeEnum = pgEnum("recurrence_end_mode", ["never", "on_date"]);
 export const recurrenceAmountStrategyEnum = pgEnum("recurrence_amount_strategy", [
@@ -225,7 +225,9 @@ export const financingPlans = pgTable(
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
     },
     (table) => [
-        uniqueIndex("financing_plans_purchase_transaction_idx").on(table.purchaseTransactionId),
+        uniqueIndex("financing_plans_purchase_transaction_idx")
+            .on(table.purchaseTransactionId)
+            .where(sql`${table.status} <> 'cancelled'`),
         index("financing_plans_user_status_idx").on(table.userId, table.status),
         index("financing_plans_credit_account_idx").on(table.creditAccountId),
         index("financing_plans_payment_account_idx").on(table.paymentAccountId),
@@ -271,6 +273,8 @@ export const budgets = pgTable(
         warningThreshold: integer("warning_threshold").notNull().default(80),
         startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
         endsAt: timestamp("ends_at", { withTimezone: true }),
+        forecastAccountId: uuid("forecast_account_id").references(() => financialAccounts.id, { onDelete: "set null" }),
+        includeInForecast: boolean("include_in_forecast").notNull().default(false),
         isActive: boolean("is_active").notNull().default(true),
         deletedAt: timestamp("deleted_at", { withTimezone: true }),
         createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

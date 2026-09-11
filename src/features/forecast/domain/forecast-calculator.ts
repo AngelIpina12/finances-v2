@@ -1,5 +1,5 @@
 import {
-    startOfDay, startOfMonth, startOfWeek
+    startOfDay, startOfMonth, startOfWeek, subMonths
 } from "date-fns";
 import { getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
 import type { AccountType, Currency } from "@/src/features/transactions/domain/transaction-repository";
@@ -21,7 +21,7 @@ export type ForecastAccount = {
     includeInLiquidity: boolean;
 };
 
-export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "card_payment";
+export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "card_payment";
 
 export type ForecastEvent = {
     id: string;
@@ -111,11 +111,11 @@ export function buildCardPaymentEvents(input: {
         const trackedInstallments = input.events
             .filter((event) => (
                 event.source === "financing"
-                && event.settlesAccountId === card.id
+                && event.accountId === card.id
                 && event.scheduledAt <= dueAt
             ))
             .reduce((sum, event) => sum + event.amount, 0);
-        const untrackedStatement = Math.max(0, (card.statementBalance ?? 0) - trackedInstallments);
+        const untrackedStatement = card.statementBalance ?? 0;
         const currentPayment = expectedPaymentAmount({
             strategy: setting.strategy,
             amount: untrackedStatement,
@@ -173,24 +173,32 @@ export function buildCardPaymentEvents(input: {
             });
         }
 
-        const chargesByCycle = new Map<string, { closesAt: Date; amount: number }>();
+        const chargesByDueDate = new Map<string, { dueAt: Date; closesAt: Date; amount: number }>();
         for (const event of input.events) {
             if (
                 event.accountId !== card.id
                 || event.transactionType !== "expense"
-                || event.source === "financing"
                 || event.source === "card_payment"
             ) continue;
+            // El estado actual ya contiene las MSI exigibles antes de su vencimiento.
+            if (event.source === "financing" && event.scheduledAt <= currentDueAt) continue;
 
-            const closesAt = getCycleCloseForCharge(event.scheduledAt, card.billingDate);
-            const key = closesAt.toISOString();
-            const cycle = chargesByCycle.get(key) ?? { closesAt, amount: 0 };
+            // La fecha almacenada de MSI era su antigua fecha de cuota. Para
+            // proyectarla como parte del estado, se asigna al corte previo y
+            // se usa el mismo vencimiento calculado que el resto de cargos.
+            const closesAt = getCycleCloseForCharge(
+                event.source === "financing" ? subMonths(event.scheduledAt, 1) : event.scheduledAt,
+                card.billingDate,
+            );
+            const cycleDueAt = getPaymentDueAt(closesAt, setting.paymentTermDays);
+            const key = cycleDueAt.toISOString();
+            const cycle = chargesByDueDate.get(key) ?? { dueAt: cycleDueAt, closesAt, amount: 0 };
             cycle.amount += event.amount;
-            chargesByCycle.set(key, cycle);
+            chargesByDueDate.set(key, cycle);
         }
 
-        for (const cycle of chargesByCycle.values()) {
-            const cycleDueAt = getPaymentDueAt(cycle.closesAt, setting.paymentTermDays);
+        for (const cycle of chargesByDueDate.values()) {
+            const cycleDueAt = cycle.dueAt;
             if (cycleDueAt < input.now || cycleDueAt >= input.until) continue;
 
             const amount = expectedPaymentAmount({
@@ -225,7 +233,7 @@ export function buildCardPaymentEvents(input: {
             if (amount <= 0) continue;
 
             payments.push({
-                id: `card-cycle:${card.id}:${cycle.closesAt.toISOString()}`,
+                id: `card-cycle:${card.id}:${cycleDueAt.toISOString()}`,
                 accountId: source.id,
                 settlesAccountId: card.id,
                 source: "card_payment",
@@ -270,7 +278,7 @@ export function buildForecast(input: {
     }> = [];
     const baseEvents = input.events.filter((event) => event.scheduledAt >= input.now && event.scheduledAt < until);
     const eventsToProject = [
-        ...baseEvents,
+        ...baseEvents.filter((event) => event.source !== "financing"),
         ...buildCardPaymentEvents({
             accounts: input.accounts,
             events: baseEvents,

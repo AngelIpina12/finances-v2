@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requireAuth } from "@/src/lib/auth-server";
+import { CancelFinancingPlanUseCase } from "../application/use-cases/cancel-financing-plan";
 import { CreateFinancingPlanUseCase } from "../application/use-cases/create-financing-plan";
 import { CompleteFinancingInstallmentUseCase } from "../application/use-cases/complete-financing-installment";
 import { FinancingError } from "../application/financing-error";
@@ -14,6 +16,7 @@ import {
 const repository = new DrizzleFinancingRepository();
 const createPlan = new CreateFinancingPlanUseCase(repository);
 const completeInstallment = new CompleteFinancingInstallmentUseCase(repository);
+const cancelPlan = new CancelFinancingPlanUseCase(repository);
 
 type ActionResult = { success: boolean; message: string };
 
@@ -85,4 +88,21 @@ export async function payFinancingInstallment(input: CompleteFinancingInstallmen
 
     revalidateFinancialViews();
     return { success: true, message: "Pago registrado y deuda de la tarjeta actualizada." };
+}
+
+export async function cancelFinancingPlan(planId: string): Promise<ActionResult> {
+    const parsed = z.uuid("El financiamiento no es válido.").safeParse(planId);
+    if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+    const authenticatedUserId = await userId();
+    if (!authenticatedUserId) return { success: false, message: "Tu sesión expiró." };
+
+    try {
+        await cancelPlan.execute(authenticatedUserId, parsed.data);
+    } catch (error) {
+        return errorResult(error, "No fue posible cancelar el financiamiento.");
+    }
+
+    revalidateFinancialViews();
+    return { success: true, message: "Financiamiento cancelado. Las cuotas pendientes ya no se programarán." };
 }

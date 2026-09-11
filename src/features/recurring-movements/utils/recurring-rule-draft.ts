@@ -31,7 +31,7 @@ export function toRecurringRuleDraft(rule: {
     accountId: string;
     categoryId: string | null;
     transactionType: "income" | "expense";
-    frequency: "weekly" | "biweekly" | "semimonthly" | "monthly" | "yearly" | "custom";
+    frequency: "weekly" | "biweekly" | "semimonthly" | "monthly" | "quarterly" | "yearly" | "custom";
     amountStrategy: "fixed" | "period_total" | "custom_per_occurrence";
     fifthOccurrencePolicy: "keep_fixed" | "distribute_monthly_total" | "custom_amount";
     name: string;

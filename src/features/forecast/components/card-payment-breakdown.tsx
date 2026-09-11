@@ -25,13 +25,13 @@ export function CardPaymentBreakdown({ event }: { event: ProjectedForecastEvent 
                     />
                 )}
                 {breakdown.statementBalance > 0 && (
-                    <BreakdownItem label="Estado informado" value={money(breakdown.statementBalance, event.currency)} />
+                    <BreakdownItem label="Pago informado para no generar intereses" value={money(breakdown.statementBalance, event.currency)} />
                 )}
                 {breakdown.trackedInstallments > 0 && (
                     <BreakdownItem label="Cuotas rastreadas aparte" value={money(breakdown.trackedInstallments, event.currency)} />
                 )}
                 {breakdown.untrackedStatement > 0 && (
-                    <BreakdownItem label="Componente no rastreado" value={money(breakdown.untrackedStatement, event.currency)} />
+                    <BreakdownItem label="Pago de cargos no financiados" value={money(breakdown.untrackedStatement, event.currency)} />
                 )}
                 {breakdown.projectedCharges > 0 && (
                     <BreakdownItem label="Cargos previstos del ciclo" value={money(breakdown.projectedCharges, event.currency)} />

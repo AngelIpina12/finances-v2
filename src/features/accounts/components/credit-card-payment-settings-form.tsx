@@ -162,7 +162,7 @@ export function CreditCardPaymentSettingsForm({ card, accounts, setting, now, on
 
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
-                    <FormLabel htmlFor="statement-balance">Saldo del estado vigente</FormLabel>
+                    <FormLabel htmlFor="statement-balance">Pago para no generar intereses</FormLabel>
                     <FormInput
                         id="statement-balance"
                         type="number"
@@ -172,6 +172,9 @@ export function CreditCardPaymentSettingsForm({ card, accounts, setting, now, on
                         {...register("statementBalance")}
                     />
                     {errors.statementBalance && <FormError>{errors.statementBalance.message}</FormError>}
+                    <p className="text-xs text-muted-foreground">
+                        Captura el importe exigible del último corte, no el saldo deudor total. Las cuotas financiadas se proyectan por separado.
+                    </p>
                 </div>
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="minimum-payment">Pago mínimo vigente</FormLabel>

@@ -5,7 +5,7 @@ import {
     useWatch
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,7 +31,7 @@ interface Props {
 export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
     const {
-        register, control, handleSubmit,
+        register, control, handleSubmit, setValue,
         formState: { errors },
     } = useForm<FinancingPlanFormData>({
         resolver: zodResolver(financingPlanFormSchema) as Resolver<FinancingPlanFormData>,
@@ -43,10 +43,33 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
     const installmentAmount = useWatch({ control, name: "regularInstallmentAmount" });
     const balloonAmount = useWatch({ control, name: "balloonAmount" });
     const selectedPurchase = purchases.find((purchase) => purchase.id === purchaseId);
+    const selectedPurchaseAmount = selectedPurchase?.amount;
     const matchingPaymentAccounts = paymentAccounts.filter((account) => (
         !selectedPurchase || account.currency === selectedPurchase.currency
     ));
     const configuredTotal = Number(count || 0) * Number(installmentAmount || 0) + Number(balloonAmount || 0);
+    const roundingDifferenceCents = selectedPurchase
+        ? Math.round((selectedPurchase.amount - configuredTotal) * 100)
+        : 0;
+    const hasOnlyRoundingDifference = Number(count) > 1
+        && Math.abs(roundingDifferenceCents) < Number(count);
+    const calendarTotal = selectedPurchase && hasOnlyRoundingDifference
+        ? selectedPurchase.amount
+        : configuredTotal;
+
+    useEffect(() => {
+        const installmentCount = Number(count);
+
+        if (selectedPurchaseAmount === undefined || !Number.isInteger(installmentCount) || installmentCount < 0) {
+            return;
+        }
+
+        setValue(
+            "regularInstallmentAmount",
+            installmentCount === 0 ? 0 : Number((selectedPurchaseAmount / installmentCount).toFixed(2)),
+            { shouldValidate: true },
+        );
+    }, [count, selectedPurchaseAmount, setValue]);
 
     function onSubmit(data: FinancingPlanFormData) {
         startTransition(async () => {
@@ -128,7 +151,7 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
                     <FormInput
                         id="financing-count"
                         type="number"
-                        min="1"
+                        min="0"
                         max="240"
                         {...register("regularInstallmentCount")}
                     />
@@ -141,8 +164,9 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
                     <FormInput
                         id="financing-amount"
                         type="number"
-                        min="0.01"
+                        min="0"
                         step="0.01"
+                        disabled={Number(count) === 0}
                         {...register("regularInstallmentAmount")}
                     />
                     {errors.regularInstallmentAmount && (
@@ -150,6 +174,10 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
                     )}
                 </div>
             </div>
+
+            <p className="-mt-2 text-xs text-muted-foreground">
+                Usa 0 cuotas regulares únicamente cuando exista un pago final real, sin mensualidades pendientes.
+            </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
@@ -176,8 +204,8 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
 
             <p className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
                 Compra: {selectedPurchase ? money(selectedPurchase.amount, selectedPurchase.currency) : "—"}
-                {" · "}Calendario: {selectedPurchase ? money(configuredTotal, selectedPurchase.currency) : "—"}
-                {selectedPurchase && Math.round(selectedPurchase.amount * 100) !== Math.round(configuredTotal * 100)
+                {" · "}Calendario: {selectedPurchase ? money(calendarTotal, selectedPurchase.currency) : "—"}
+                {selectedPurchase && Math.round(selectedPurchase.amount * 100) !== Math.round(calendarTotal * 100)
                     ? " · La suma debe coincidir exactamente." : ""}
             </p>
 

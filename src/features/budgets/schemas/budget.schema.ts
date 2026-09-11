@@ -17,6 +17,8 @@ export const budgetFormSchema = z.object({
     warningThreshold: z.coerce.number().int().min(1).max(100),
     startsAt: z.coerce.date(),
     endsAt: z.coerce.date().optional(),
+    forecastAccountId: z.uuid().optional().or(z.literal("")),
+    includeInForecast: z.boolean().default(false),
     allocations: z.array(allocationSchema).default([]),
 }).superRefine((value, context) => {
     if (value.period === "custom" && !value.endsAt) {
@@ -25,6 +27,13 @@ export const budgetFormSchema = z.object({
 
     if (value.endsAt && value.endsAt <= value.startsAt) {
         context.addIssue({ code: "custom", path: ["endsAt"], message: "Debe ser posterior al inicio." });
+    }
+
+    if (value.includeInForecast && value.period !== "monthly") {
+        context.addIssue({ code: "custom", path: ["period"], message: "La previsión por presupuesto solo está disponible para periodos mensuales." });
+    }
+    if (value.includeInForecast && !value.forecastAccountId) {
+        context.addIssue({ code: "custom", path: ["forecastAccountId"], message: "Selecciona la cuenta prevista." });
     }
 
     const ids = new Set(value.allocations.map((allocation) => allocation.categoryId));

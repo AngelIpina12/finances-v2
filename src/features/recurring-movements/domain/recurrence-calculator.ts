@@ -10,6 +10,7 @@ export type RecurrenceFrequency =
     | "biweekly"
     | "semimonthly"
     | "monthly"
+    | "quarterly"
     | "yearly"
     | "custom";
 export type AmountStrategy = "fixed" | "period_total" | "custom_per_occurrence";
@@ -62,16 +63,16 @@ function addFrequency(date: Date, frequency: "weekly" | "biweekly") {
 
 function getAnchoredDate(
     startsAt: Date,
-    frequency: "monthly" | "yearly",
+    frequency: "monthly" | "quarterly" | "yearly",
     offset: number,
 ) {
     const localStart = toZonedTime(startsAt, APP_TIME_ZONE);
 
-    if (frequency === "monthly") {
+    if (frequency === "monthly" || frequency === "quarterly") {
         return dateAtRuleTime(
             startsAt,
             localStart.getFullYear(),
-            localStart.getMonth() + offset,
+            localStart.getMonth() + offset * (frequency === "quarterly" ? 3 : 1),
             localStart.getDate(),
         );
     }
@@ -154,7 +155,7 @@ function getStandardCandidates(schedule: RecurrenceSchedule, until: Date) {
             originalScheduledAt: scheduledAt,
             scheduledAt,
         });
-        scheduledAt = schedule.frequency === "monthly" || schedule.frequency === "yearly"
+        scheduledAt = schedule.frequency === "monthly" || schedule.frequency === "quarterly" || schedule.frequency === "yearly"
             ? getAnchoredDate(schedule.startsAt, schedule.frequency, sequence)
             : addFrequency(scheduledAt, schedule.frequency);
         sequence += 1;

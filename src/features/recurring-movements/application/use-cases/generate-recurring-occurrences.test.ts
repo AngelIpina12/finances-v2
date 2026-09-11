@@ -46,6 +46,13 @@ class InMemoryRecurringRuleRepository implements RecurringRuleRepository {
                 && (!userId || rule.userId === userId)
                 && (!ruleId || rule.id === ruleId)
             )),
+            removeScheduledOccurrences: async (_userId: string, ruleId: string) => {
+                const keys = [...this.occurrences.entries()]
+                    .filter(([, occurrence]) => occurrence.ruleId === ruleId)
+                    .map(([key]) => key);
+                keys.forEach((key) => this.occurrences.delete(key));
+                return keys.length;
+            },
             insertGeneratedOccurrences: async (items: Array<{
                 rule: RecurringRule;
                 sequence: number;
@@ -121,5 +128,24 @@ describe("GenerateRecurringOccurrencesUseCase", () => {
         expect([...repository.occurrences.values()]).not.toEqual(
             expect.arrayContaining([expect.objectContaining({ ruleId: "rule-2" })]),
         );
+    });
+
+    it("genera todas las fechas conocidas de un calendario personalizado", async () => {
+        const repository = new InMemoryRecurringRuleRepository([
+            recurringRule({
+                frequency: "custom",
+                calendarEntries: [
+                    { scheduledAt: fromZonedTime("2026-09-26T00:00:00", APP_TIME_ZONE) },
+                    { scheduledAt: fromZonedTime("2026-10-24T00:00:00", APP_TIME_ZONE) },
+                    { scheduledAt: fromZonedTime("2026-11-28T00:00:00", APP_TIME_ZONE), amount: 2042 },
+                ],
+            }),
+        ]);
+        const useCase = new GenerateRecurringOccurrencesUseCase(repository);
+
+        const result = await useCase.executeForAllUsers(now);
+
+        expect(result.generated).toBe(3);
+        expect(repository.occurrences.size).toBe(3);
     });
 });

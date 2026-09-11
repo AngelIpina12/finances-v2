@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     financialAccounts, financingInstallments, financingPlans,
@@ -51,7 +51,21 @@ class DrizzleFinancingScope implements FinancingScope {
                 eq(transactions.type, "expense"),
                 eq(transactions.status, "completed"),
                 eq(financialAccounts.type, "credit"),
-                isNull(transactions.financingPlanId),
+                or(
+                    isNull(transactions.financingPlanId),
+                    sql`exists (
+                        select 1
+                        from ${financingPlans}
+                        where ${financingPlans.id} = ${transactions.financingPlanId}
+                          and ${financingPlans.status} = ${"cancelled"}
+                          and not exists (
+                              select 1
+                              from ${financingInstallments}
+                              where ${financingInstallments.financingPlanId} = ${financingPlans.id}
+                                and ${financingInstallments.paidAt} is not null
+                          )
+                    )`,
+                ),
             ))
             .limit(1)
             .for("update");
@@ -83,7 +97,21 @@ class DrizzleFinancingScope implements FinancingScope {
             .where(and(
                 eq(transactions.id, purchaseTransactionId),
                 eq(transactions.userId, userId),
-                isNull(transactions.financingPlanId),
+                or(
+                    isNull(transactions.financingPlanId),
+                    sql`exists (
+                        select 1
+                        from ${financingPlans}
+                        where ${financingPlans.id} = ${transactions.financingPlanId}
+                          and ${financingPlans.status} = ${"cancelled"}
+                          and not exists (
+                              select 1
+                              from ${financingInstallments}
+                              where ${financingInstallments.financingPlanId} = ${financingPlans.id}
+                                and ${financingInstallments.paidAt} is not null
+                          )
+                    )`,
+                ),
             ))
             .returning({ id: transactions.id });
 
@@ -99,12 +127,14 @@ class DrizzleFinancingScope implements FinancingScope {
                 scheduledAt: installment.scheduledAt,
                 amount: String(installment.amount),
                 isBalloon: installment.isBalloon,
+                paidAt: installment.paidAt ?? null,
             })))
             .returning({
                 id: financingInstallments.id,
                 sequence: financingInstallments.sequence,
                 scheduledAt: financingInstallments.scheduledAt,
                 amount: financingInstallments.amount,
+                paidAt: financingInstallments.paidAt,
             });
 
         await this.tx.insert(scheduledOccurrences).values(created.map((installment) => ({
@@ -121,6 +151,8 @@ class DrizzleFinancingScope implements FinancingScope {
             notes: "Pago de financiamiento. Al completarlo se registrará una transferencia hacia la tarjeta.",
             originalScheduledAt: installment.scheduledAt,
             scheduledAt: installment.scheduledAt,
+            status: installment.paidAt ? "completed" as const : "scheduled" as const,
+            executedAt: installment.paidAt,
         })));
     }
 
@@ -281,6 +313,54 @@ class DrizzleFinancingScope implements FinancingScope {
                 eq(financingPlans.userId, userId),
                 eq(financingPlans.status, "active"),
             ));
+    }
+
+    async cancelPlan(userId: string, planId: string, cancelledAt: Date) {
+        const [plan] = await this.tx
+            .update(financingPlans)
+            .set({ status: "cancelled", cancelledAt })
+            .where(and(
+                eq(financingPlans.id, planId),
+                eq(financingPlans.userId, userId),
+                eq(financingPlans.status, "active"),
+            ))
+            .returning({ id: financingPlans.id });
+
+        if (!plan) return false;
+
+        const [paidInstallment] = await this.tx
+            .select({ id: financingInstallments.id })
+            .from(financingInstallments)
+            .where(and(
+                eq(financingInstallments.financingPlanId, planId),
+                isNotNull(financingInstallments.paidAt),
+            ))
+            .limit(1);
+
+        if (!paidInstallment) {
+            await this.tx
+                .update(transactions)
+                .set({ financingPlanId: null })
+                .where(and(
+                    eq(transactions.userId, userId),
+                    eq(transactions.financingPlanId, planId),
+                ));
+        }
+
+        await this.tx
+            .update(scheduledOccurrences)
+            .set({ status: "cancelled" })
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                eq(scheduledOccurrences.status, "scheduled"),
+                sql`${scheduledOccurrences.financingInstallmentId} in (
+                    select ${financingInstallments.id}
+                    from ${financingInstallments}
+                    where ${financingInstallments.financingPlanId} = ${planId}
+                )`,
+            ));
+
+        return true;
     }
 }
 

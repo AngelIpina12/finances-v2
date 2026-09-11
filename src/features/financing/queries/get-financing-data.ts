@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     financialAccounts, financingInstallments, financingPlans,
@@ -23,7 +23,21 @@ export async function getFinancingData(userId: string) {
                 eq(transactions.type, "expense"),
                 eq(transactions.status, "completed"),
                 eq(financialAccounts.type, "credit"),
-                isNull(transactions.financingPlanId),
+                or(
+                    isNull(transactions.financingPlanId),
+                    sql`exists (
+                        select 1
+                        from ${financingPlans}
+                        where ${financingPlans.id} = ${transactions.financingPlanId}
+                          and ${financingPlans.status} = ${"cancelled"}
+                          and not exists (
+                              select 1
+                              from ${financingInstallments}
+                              where ${financingInstallments.financingPlanId} = ${financingPlans.id}
+                                and ${financingInstallments.paidAt} is not null
+                          )
+                    )`,
+                ),
             ))
             .orderBy(desc(transactions.date))
             .limit(100),

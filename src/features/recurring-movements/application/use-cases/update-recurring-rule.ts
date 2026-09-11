@@ -41,6 +41,10 @@ export class UpdateRecurringRuleUseCase {
             }
 
             if (updated.isActive) {
+                // Las ocurrencias pendientes son una proyección de la regla. Al
+                // editarla se regeneran para no conservar la cuenta o el monto
+                // anterior. Las ya atendidas permanecen como historial.
+                await scope.removeScheduledOccurrences(userId, ruleId);
                 await generateForRule(scope, updated, now);
             }
 

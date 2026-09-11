@@ -94,18 +94,17 @@ describe("credit card payment forecast", () => {
         })]);
     });
 
-    it("resta del estado las cuotas MSI ya proyectadas para no duplicar la salida", () => {
+    it("mantiene separadas las cuotas MSI del pago informado para no generar intereses", () => {
         const installment: ForecastEvent = {
             id: "installment",
-            accountId: "debit",
-            settlesAccountId: "credit",
+            accountId: "credit",
             source: "financing",
             name: "Cuota MSI",
             amount: 1000,
             currency: "MXN",
             scheduledAt: new Date("2026-09-12T18:00:00.000Z"),
             transactionType: "expense",
-            affectsBalance: true,
+            affectsBalance: false,
         };
         const result = buildForecast({
             accounts: accounts(3000),
@@ -116,11 +115,11 @@ describe("credit card payment forecast", () => {
         });
         const statementPayment = result.events.find((event) => event.source === "card_payment");
 
-        expect(statementPayment).toEqual(expect.objectContaining({ amount: 2000 }));
+        expect(statementPayment).toEqual(expect.objectContaining({ amount: 3000 }));
         expect(statementPayment?.cardPaymentBreakdown).toEqual(expect.objectContaining({
             statementBalance: 3000,
             trackedInstallments: 1000,
-            untrackedStatement: 2000,
+            untrackedStatement: 3000,
         }));
         expect(result.accounts).toEqual(expect.arrayContaining([
             expect.objectContaining({ id: "debit", projectedBalance: 7000 }),
@@ -166,7 +165,7 @@ describe("credit card payment forecast", () => {
             { id: "receipt", accountId: "debit", source: "scheduled", name: "Recibo", amount: 1000, currency: "MXN", scheduledAt: new Date("2026-09-12T18:00:00.000Z"), transactionType: "expense", affectsBalance: true },
             { ...futureCharge, id: "groceries", accountId: "card-a", name: "Mandado" },
             { ...futureCharge, id: "subscription", accountId: "card-b", name: "Suscripción", amount: 300, scheduledAt: new Date("2026-09-21T18:00:00.000Z") },
-            { id: "msi", accountId: "debit", settlesAccountId: "card-b", source: "financing", name: "Cuota MSI", amount: 500, currency: "MXN", scheduledAt: new Date("2026-09-25T18:00:00.000Z"), transactionType: "expense", affectsBalance: true },
+            { id: "msi", accountId: "card-b", source: "financing", name: "Cuota MSI", amount: 500, currency: "MXN", scheduledAt: new Date("2026-09-25T18:00:00.000Z"), transactionType: "expense", affectsBalance: false },
         ];
         const result = buildForecast({
             accounts: scenarioAccounts,
@@ -190,9 +189,7 @@ describe("credit card payment forecast", () => {
             today: 6000,
             incomes: 6000,
             directExpenses: 1000,
-            financingPayments: 500,
-            cardPayments: 3500,
-            ending: 7000,
+            financingPayments: 0,
         }));
         expect(result.accounts).toEqual(expect.arrayContaining([
             expect.objectContaining({ id: "card-a", projectedBalance: 1000 }),

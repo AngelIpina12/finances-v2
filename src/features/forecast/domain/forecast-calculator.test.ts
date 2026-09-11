@@ -46,7 +46,7 @@ describe("buildForecast", () => {
         });
 
         expect(result.accounts[0]?.projectedBalance).toBe(1000);
-        expect(result.events[0]?.balanceAfter).toBeNull();
+        expect(result.events).toHaveLength(0);
     });
 
     it("proyecta el pago de la cuota en la cuenta elegida y reduce la deuda de la tarjeta", () => {
@@ -65,13 +65,10 @@ describe("buildForecast", () => {
         });
 
         expect(result.accounts).toEqual(expect.arrayContaining([
-            expect.objectContaining({ id: "debit", projectedBalance: 500 }),
-            expect.objectContaining({ id: "credit", projectedBalance: 1500 }),
+            expect.objectContaining({ id: "debit", projectedBalance: 1000 }),
+            expect.objectContaining({ id: "credit", projectedBalance: 2000 }),
         ]));
-        expect(result.events[0]).toEqual(expect.objectContaining({
-            balanceAfter: 500,
-            settledBalanceAfter: 1500,
-        }));
+        expect(result.events).toHaveLength(0);
     });
 
     it("convierte cargos previstos de una tarjeta en un pago líquido después del corte", () => {

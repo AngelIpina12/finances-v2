@@ -36,4 +36,34 @@ describe("buildInstallmentSchedule", () => {
         ]);
         expect(localDate(installments[2].scheduledAt)).toBe("2026-07-15 12:00");
     });
+
+    it("permite un financiamiento con únicamente pago final", () => {
+        const installments = buildInstallmentSchedule({
+            startsAt: fromZonedTime("2027-07-14T00:00:00", APP_TIME_ZONE),
+            regularInstallmentCount: 0,
+            regularInstallmentAmount: 0,
+            balloonAmount: 9819,
+        });
+
+        expect(installments).toMatchObject([
+            { sequence: 1, amount: 9819, isBalloon: true },
+        ]);
+        expect(localDate(installments[0]!.scheduledAt)).toBe("2027-07-14 00:00");
+    });
+
+    it("distribuye el redondeo entre las cuotas regulares", () => {
+        const installments = buildInstallmentSchedule({
+            startsAt: fromZonedTime("2026-05-15T12:00:00", APP_TIME_ZONE),
+            regularInstallmentCount: 10,
+            regularInstallmentAmount: 5517.42,
+            regularInstallmentAdjustmentCents: -5,
+            balloonAmount: 0,
+        });
+
+        expect(installments.map((item) => item.amount)).toEqual([
+            5517.41, 5517.41, 5517.41, 5517.41, 5517.41,
+            5517.42, 5517.42, 5517.42, 5517.42, 5517.42,
+        ]);
+        expect(Math.round(installments.reduce((total, installment) => total + installment.amount, 0) * 100)).toBe(5517415);
+    });
 });

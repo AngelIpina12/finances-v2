@@ -41,6 +41,8 @@ function eventIcon(source: ForecastEventSource) {
         ? Repeat2
         : source === "financing"
             ? Landmark
+            : source === "budget"
+                ? ReceiptText
             : source === "card_payment"
                 ? CreditCard
                 : ReceiptText;
@@ -424,6 +426,8 @@ export function ForecastClient({ accounts, cardPaymentSettings, events, now }: F
                                                             ? " · Recurrencia"
                                                             : event.source === "financing"
                                                                 ? " · Cuota por cubrir"
+                                                                : event.source === "budget"
+                                                                    ? " · Presupuesto estimado"
                                                                 : event.source === "card_payment"
                                                                     ? event.affectsBalance
                                                                         ? " · Pago proyectado de tarjeta"

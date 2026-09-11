@@ -1,0 +1,371 @@
+// Finances V2 — esquema actual (Drizzle + migraciones 0000–0011)
+// Compatible con dbdiagram.io y otras herramientas DBML.
+// PostgreSQL usa índices parciales para categorías activas, reglas activas,
+// presupuestos activos y ocurrencias/transacciones no nulas; DBML no modela
+// sus cláusulas WHERE, por lo que se conservan sus nombres pero no el filtro.
+
+Enum account_type { cash debit credit wallet investment fixed_income loan }
+Enum transaction_type { income expense transfer }
+Enum transaction_status { pending completed scheduled cancelled }
+Enum transfer_direction { in out }
+Enum currency_code { MXN USD EUR GBP }
+Enum occurrence_status { scheduled completed skipped cancelled }
+Enum occurrence_source { manual recurring_rule financing_installment }
+Enum schedule_frequency { weekly biweekly semimonthly monthly yearly custom }
+Enum recurrence_end_mode { never on_date }
+Enum recurrence_amount_strategy { fixed period_total custom_per_occurrence }
+Enum fifth_occurrence_policy { keep_fixed distribute_monthly_total custom_amount }
+Enum financing_status { active completed cancelled }
+Enum budget_period { weekly monthly quarterly yearly custom }
+Enum rollover_type { disabled carry_remaining carry_deficit }
+Enum credit_card_payment_strategy { full_statement minimum_payment fixed_amount manual }
+
+Table users {
+  id text [pk]
+  name text [not null]
+  email text [not null, unique]
+  email_verified boolean [not null, default: false]
+  image text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+}
+
+Table sessions {
+  id text [pk]
+  expires_at timestamp [not null]
+  token text [not null, unique]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+  ip_address text
+  user_agent text
+  user_id text [not null]
+
+  Indexes { user_id [name: 'sessions_userId_idx'] }
+}
+
+Table accounts {
+  id text [pk]
+  account_id text [not null]
+  provider_id text [not null]
+  issuer text
+  user_id text [not null]
+  access_token text
+  refresh_token text
+  id_token text
+  access_token_expires_at timestamp
+  refresh_token_expires_at timestamp
+  scope text
+  password text
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null]
+
+  Indexes { user_id [name: 'accounts_userId_idx'] }
+}
+
+Table verifications {
+  id text [pk]
+  identifier text [not null]
+  value text [not null]
+  expires_at timestamp [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes { identifier [name: 'verifications_identifier_idx'] }
+}
+
+Table categories {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  parent_id uuid
+  name text [not null]
+  type transaction_type [not null]
+  icon_url text
+  color text
+  sort_order integer [not null, default: 0]
+  is_system boolean [not null, default: false]
+  deleted_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, type, name) [name: 'categories_user_type_name_idx']
+    (user_id, type, sort_order) [name: 'categories_user_sort_order_idx']
+  }
+}
+
+Table financial_accounts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  name text [not null]
+  type account_type [not null]
+  currency currency_code [not null]
+  opening_balance numeric(15,2) [not null, default: '0']
+  current_balance numeric(15,2) [not null, default: '0']
+  institution text
+  note text
+  color text
+  icon_url text
+  last_four_digits text
+  include_in_net_worth boolean [not null, default: true]
+  include_in_liquidity boolean [not null, default: true]
+  hide_balance boolean [not null, default: false]
+  is_active boolean [not null, default: true]
+  credit_limit numeric(15,2)
+  available_credit numeric(15,2)
+  owed_amount numeric(15,2)
+  minimum_payment numeric(15,2)
+  statement_balance numeric(15,2)
+  interest_rate numeric(7,4)
+  billing_date integer
+  due_date integer
+  payment_reminder boolean [not null, default: false]
+  deleted_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, is_active) [name: 'financial_accounts_user_active_idx']
+    (user_id, type) [name: 'financial_accounts_user_type_idx']
+  }
+}
+
+Table credit_card_payment_settings {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  credit_account_id uuid [not null, unique]
+  source_account_id uuid [not null]
+  strategy credit_card_payment_strategy [not null, default: 'full_statement']
+  fixed_amount numeric(15,2)
+  payment_term_days integer [not null, default: 20]
+  include_in_forecast boolean [not null, default: true]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    user_id [name: 'credit_card_payment_settings_user_idx']
+    source_account_id [name: 'credit_card_payment_settings_source_account_idx']
+  }
+}
+
+Table recurring_rules {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  account_id uuid [not null]
+  category_id uuid
+  transaction_type transaction_type [not null]
+  frequency schedule_frequency [not null]
+  end_mode recurrence_end_mode [not null, default: 'never']
+  amount_strategy recurrence_amount_strategy [not null, default: 'fixed']
+  fifth_occurrence_policy fifth_occurrence_policy [not null, default: 'keep_fixed']
+  name text [not null]
+  amount numeric(15,2) [not null]
+  period_total numeric(15,2)
+  fifth_occurrence_amount numeric(15,2)
+  currency currency_code [not null]
+  notes text
+  semimonthly_first_day integer
+  semimonthly_second_day integer
+  calendar_entries jsonb [not null, default: `'[]'::jsonb`]
+  date_overrides jsonb [not null, default: `'[]'::jsonb`]
+  starts_at timestamp [not null]
+  ends_at timestamp
+  last_generated_at timestamp
+  is_active boolean [not null, default: true]
+  deleted_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, is_active, starts_at) [name: 'recurring_rules_user_active_next_idx']
+    account_id [name: 'recurring_rules_account_idx']
+    category_id [name: 'recurring_rules_category_idx']
+  }
+}
+
+Table scheduled_occurrences {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  source occurrence_source [not null, default: 'manual']
+  recurring_rule_id uuid
+  financing_installment_id uuid [unique]
+  sequence integer
+  account_id uuid [not null]
+  category_id uuid
+  transaction_type transaction_type [not null]
+  name text [not null]
+  amount numeric(15,2) [not null]
+  currency currency_code [not null]
+  notes text
+  original_scheduled_at timestamp [not null]
+  scheduled_at timestamp [not null]
+  executed_at timestamp
+  status occurrence_status [not null, default: 'scheduled']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, status, scheduled_at) [name: 'scheduled_occurrences_user_status_date_idx']
+    account_id [name: 'scheduled_occurrences_account_idx']
+    category_id [name: 'scheduled_occurrences_category_idx']
+    (recurring_rule_id, scheduled_at) [name: 'scheduled_occurrences_rule_date_idx']
+    (recurring_rule_id, sequence) [unique, name: 'scheduled_occurrences_rule_sequence_idx']
+  }
+}
+
+Table financing_plans {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  credit_account_id uuid [not null]
+  payment_account_id uuid
+  purchase_transaction_id uuid [not null, unique]
+  name text [not null]
+  total_amount numeric(15,2) [not null]
+  regular_installment_count integer [not null]
+  regular_installment_amount numeric(15,2) [not null]
+  balloon_amount numeric(15,2) [not null, default: '0']
+  currency currency_code [not null]
+  starts_at timestamp [not null]
+  status financing_status [not null, default: 'active']
+  cancelled_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, status) [name: 'financing_plans_user_status_idx']
+    credit_account_id [name: 'financing_plans_credit_account_idx']
+    payment_account_id [name: 'financing_plans_payment_account_idx']
+  }
+}
+
+Table financing_installments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  financing_plan_id uuid [not null]
+  sequence integer [not null]
+  scheduled_at timestamp [not null]
+  amount numeric(15,2) [not null]
+  is_balloon boolean [not null, default: false]
+  paid_at timestamp
+  payment_transfer_group_id uuid [unique]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (financing_plan_id, sequence) [unique, name: 'financing_installments_plan_sequence_idx']
+    (financing_plan_id, scheduled_at) [name: 'financing_installments_plan_date_idx']
+  }
+}
+
+Table budgets {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  name text [not null]
+  amount numeric(15,2) [not null]
+  currency_code currency_code [not null]
+  period budget_period [not null, default: 'monthly']
+  rollover rollover_type [not null, default: 'disabled']
+  is_reusable boolean [not null, default: true]
+  color text [not null, default: '#2563eb']
+  warning_threshold integer [not null, default: 80]
+  starts_at timestamp [not null]
+  ends_at timestamp
+  is_active boolean [not null, default: true]
+  deleted_at timestamp
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes { (user_id, is_active) [name: 'budgets_user_active_idx'] }
+}
+
+Table budget_allocations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  budget_id uuid [not null]
+  category_id uuid [not null]
+  amount numeric(15,2) [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes { (budget_id, category_id) [unique, name: 'budget_allocations_budget_category_idx'] }
+}
+
+Table budget_periods {
+  id uuid [pk, default: `gen_random_uuid()`]
+  budget_id uuid [not null]
+  period_start timestamp [not null]
+  period_end timestamp [not null]
+  allocated_amount numeric(15,2) [not null]
+  rollover_amount numeric(15,2) [not null, default: '0']
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (budget_id, period_start, period_end) [unique, name: 'budget_periods_budget_range_idx']
+    (budget_id, period_start) [name: 'budget_periods_budget_start_idx']
+  }
+}
+
+Table transactions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  user_id text [not null]
+  account_id uuid [not null]
+  category_id uuid
+  scheduled_occurrence_id uuid
+  financing_plan_id uuid
+  financing_installment_id uuid
+  transfer_group_id uuid
+  transfer_direction transfer_direction
+  type transaction_type [not null]
+  status transaction_status [not null, default: 'completed']
+  amount numeric(15,2) [not null]
+  currency currency_code [not null]
+  exchange_rate numeric(18,8)
+  converted_amount numeric(15,2)
+  merchant text
+  location text
+  description text
+  notes text
+  date timestamp [not null]
+  created_at timestamp [not null, default: `now()`]
+  updated_at timestamp [not null, default: `now()`]
+
+  Indexes {
+    (user_id, date) [name: 'transactions_user_date_idx']
+    (account_id, date) [name: 'transactions_account_date_idx']
+    (category_id, date) [name: 'transactions_category_date_idx']
+    financing_plan_id [name: 'transactions_financing_plan_idx']
+    financing_installment_id [name: 'transactions_financing_installment_idx']
+    transfer_group_id [name: 'transactions_transfer_group_idx']
+    scheduled_occurrence_id [name: 'transactions_scheduled_occurrence_idx']
+  }
+}
+
+Ref: sessions.user_id > users.id [delete: cascade]
+Ref: accounts.user_id > users.id [delete: cascade]
+Ref: categories.user_id > users.id [delete: cascade]
+Ref: categories.parent_id > categories.id [delete: set null]
+Ref: financial_accounts.user_id > users.id [delete: cascade]
+Ref: credit_card_payment_settings.user_id > users.id [delete: cascade]
+Ref: credit_card_payment_settings.credit_account_id > financial_accounts.id [delete: cascade]
+Ref: credit_card_payment_settings.source_account_id > financial_accounts.id [delete: restrict]
+Ref: recurring_rules.user_id > users.id [delete: cascade]
+Ref: recurring_rules.account_id > financial_accounts.id [delete: restrict]
+Ref: recurring_rules.category_id > categories.id [delete: set null]
+Ref: scheduled_occurrences.user_id > users.id [delete: cascade]
+Ref: scheduled_occurrences.recurring_rule_id > recurring_rules.id [delete: cascade]
+Ref: scheduled_occurrences.financing_installment_id > financing_installments.id [delete: cascade]
+Ref: scheduled_occurrences.account_id > financial_accounts.id [delete: restrict]
+Ref: scheduled_occurrences.category_id > categories.id [delete: set null]
+Ref: financing_plans.user_id > users.id [delete: cascade]
+Ref: financing_plans.credit_account_id > financial_accounts.id [delete: restrict]
+Ref: financing_plans.payment_account_id > financial_accounts.id [delete: restrict]
+Ref: financing_plans.purchase_transaction_id > transactions.id [delete: restrict]
+Ref: financing_installments.financing_plan_id > financing_plans.id [delete: cascade]
+Ref: budgets.user_id > users.id [delete: cascade]
+Ref: budget_allocations.budget_id > budgets.id [delete: cascade]
+Ref: budget_allocations.category_id > categories.id [delete: restrict]
+Ref: budget_periods.budget_id > budgets.id [delete: cascade]
+Ref: transactions.user_id > users.id [delete: cascade]
+Ref: transactions.account_id > financial_accounts.id [delete: restrict]
+Ref: transactions.category_id > categories.id [delete: set null]
+Ref: transactions.scheduled_occurrence_id > scheduled_occurrences.id [delete: set null]
+Ref: transactions.financing_plan_id > financing_plans.id [delete: set null]
+Ref: transactions.financing_installment_id > financing_installments.id [delete: set null]

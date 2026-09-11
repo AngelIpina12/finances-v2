@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const recurrenceFrequencies = [
-    "weekly", "biweekly", "semimonthly", "monthly", "yearly", "custom",
+    "weekly", "biweekly", "semimonthly", "monthly", "quarterly", "yearly", "custom",
 ] as const;
 export const amountStrategies = ["fixed", "period_total", "custom_per_occurrence"] as const;
 export const fifthOccurrencePolicies = [

@@ -24,14 +24,21 @@ interface Props {
     startsAt: Date;
     regularInstallmentCount: number;
     regularInstallmentAmount: number;
+    regularInstallmentAdjustmentCents?: number;
     balloonAmount: number;
 }
 
 export function buildInstallmentSchedule(input: Props): InstallmentDraft[] {
+    const adjustmentCents = input.regularInstallmentAdjustmentCents ?? 0;
+    const adjustmentDirection = Math.sign(adjustmentCents);
+    const installmentsToAdjust = Math.abs(adjustmentCents);
+
     const regular = Array.from({ length: input.regularInstallmentCount }, (_, index) => ({
         sequence: index + 1,
         scheduledAt: monthlyDate(input.startsAt, index),
-        amount: input.regularInstallmentAmount,
+        amount: input.regularInstallmentAmount + (
+            index < installmentsToAdjust ? adjustmentDirection / 100 : 0
+        ),
         isBalloon: false,
     }));
 

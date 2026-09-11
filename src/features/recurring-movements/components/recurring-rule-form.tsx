@@ -25,6 +25,7 @@ const frequencyOptions = [
     { value: "biweekly", label: "Cada 14 días" },
     { value: "semimonthly", label: "Dos veces al mes" },
     { value: "monthly", label: "Cada mes" },
+    { value: "quarterly", label: "Cada tres meses" },
     { value: "yearly", label: "Cada año" },
     { value: "custom", label: "Calendario personalizado" },
 ];

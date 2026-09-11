@@ -104,6 +104,26 @@ describe("getOccurrencesInHorizon", () => {
         expect(result.map((item) => localDateTime(item.scheduledAt))).toEqual(expected);
     });
 
+    it("conserva el día ancla en una recurrencia trimestral", () => {
+        const rule = schedule({
+            startsAt: zonedDate("2026-09-17T09:00:00"),
+            frequency: "quarterly",
+        });
+
+        const result = getOccurrencesInHorizon(
+            rule,
+            rule.startsAt,
+            zonedDate("2027-07-01T00:00:00"),
+        );
+
+        expect(result.map((item) => localDateTime(item.scheduledAt))).toEqual([
+            "2026-09-17 09:00",
+            "2026-12-17 09:00",
+            "2027-03-17 09:00",
+            "2027-06-17 09:00",
+        ]);
+    });
+
     it("calcula dos fechas mensuales y respeta el último día de febrero", () => {
         const rule = schedule({
             startsAt: zonedDate("2024-01-01T10:00:00"),

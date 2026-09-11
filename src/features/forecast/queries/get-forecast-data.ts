@@ -2,7 +2,7 @@ import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
-    financingPlans, recurringRules, scheduledOccurrences,
+    financingPlans, recurringRules, scheduledOccurrences, budgets,
 } from "@/src/db/schema";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
@@ -14,7 +14,7 @@ type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
-    const [accounts, occurrences, cardPaymentSettings, rules] = await Promise.all([
+    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -98,6 +98,9 @@ export async function getForecastData(userId: string, now = new Date()) {
                 eq(recurringRules.isActive, true),
                 isNull(recurringRules.deletedAt),
             )),
+        db.select({ id: budgets.id, name: budgets.name, amount: budgets.amount, currency: budgets.currency, startsAt: budgets.startsAt, endsAt: budgets.endsAt, forecastAccountId: budgets.forecastAccountId })
+            .from(budgets)
+            .where(and(eq(budgets.userId, userId), eq(budgets.isActive, true), eq(budgets.includeInForecast, true), eq(budgets.period, "monthly"), isNull(budgets.deletedAt))),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -113,12 +116,7 @@ export async function getForecastData(userId: string, now = new Date()) {
         ))
         .map((occurrence) => ({
             id: occurrence.id,
-            accountId: occurrence.source === "financing_installment"
-                ? occurrence.financingPaymentAccountId
-                    && activeAccountIds.has(occurrence.financingPaymentAccountId)
-                    ? occurrence.financingPaymentAccountId
-                    : null
-                : occurrence.accountId,
+            accountId: occurrence.accountId,
             source: occurrence.source === "financing_installment"
                 ? "financing"
                 : occurrence.source === "recurring_rule"
@@ -129,14 +127,10 @@ export async function getForecastData(userId: string, now = new Date()) {
             currency: occurrence.currency as ForecastEvent["currency"],
             scheduledAt: occurrence.scheduledAt,
             transactionType: occurrence.transactionType as ForecastEvent["transactionType"],
-            affectsBalance: occurrence.source !== "financing_installment"
-                || (
-                    occurrence.financingPaymentAccountId !== null
-                    && activeAccountIds.has(occurrence.financingPaymentAccountId)
-                ),
-            settlesAccountId: occurrence.source === "financing_installment"
-                ? occurrence.accountId
-                : null,
+            // La deuda MSI ya forma parte del saldo de la tarjeta. En Forecast la
+            // cuota sólo alimenta el pago de tarjeta de su vencimiento, sin duplicar
+            // un cargo ni una salida directa desde la cuenta de pago.
+            affectsBalance: occurrence.source !== "financing_installment",
         }));
 
     for (const rule of rules) {
@@ -178,6 +172,19 @@ export async function getForecastData(userId: string, now = new Date()) {
                 transactionType: rule.transactionType as ForecastEvent["transactionType"],
                 affectsBalance: true,
             })));
+    }
+
+    for (const budget of forecastBudgets) {
+        if (!budget.forecastAccountId || !activeAccountIds.has(budget.forecastAccountId)) continue;
+        const account = accounts.find((item) => item.id === budget.forecastAccountId);
+        if (!account || account.currency !== budget.currency) continue;
+        const anchor = new Date(budget.startsAt);
+        for (let index = 0; ; index += 1) {
+            const scheduledAt = new Date(now.getFullYear(), now.getMonth() + index, Math.min(anchor.getDate(), 28), anchor.getHours(), anchor.getMinutes());
+            if (scheduledAt < now || scheduledAt < anchor) continue;
+            if (scheduledAt >= until || (budget.endsAt && scheduledAt >= budget.endsAt)) break;
+            events.push({ id: `budget:${budget.id}:${scheduledAt.toISOString()}`, accountId: budget.forecastAccountId, source: "budget", name: `Presupuesto estimado · ${budget.name}`, amount: Number(budget.amount), currency: budget.currency as ForecastEvent["currency"], scheduledAt, transactionType: "expense", affectsBalance: true });
+        }
     }
 
     return {

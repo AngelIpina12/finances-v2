@@ -43,7 +43,8 @@ interface EmptyStateProps {
     icon: React.ReactNode;
     title: string;
     description: string;
-    action?: React.ReactNode;
+    actionLabel?: string;
+    onAction?: () => void;
 }
 
 export function TransactionsClient({ accounts, categories, transactions }: TransactionsClientProps) {
@@ -163,23 +164,16 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
                     icon={<ReceiptText />}
                     title="Primero agrega una cuenta"
                     description="Los movimientos necesitan una cuenta para actualizar su saldo."
-                    action={(
-                        <Button onClick={() => router.push("/accounts")} className="cursor-pointer">
-                            Ir a cuentas
-                        </Button>
-                    )}
+                    actionLabel="Ir a cuentas"
+                    onAction={() => router.push("/accounts")}
                 />
             ) : !categories.length ? (
                 <EmptyState
                     icon={<FolderPlus />}
                     title="Prepara tus categorías"
-                    description="Crearemos categorías iniciales para que puedas registrar ingresos y gastos."
-                    action={(
-                        <Button onClick={bootstrap} disabled={isBootstrapping} className="cursor-pointer">
-                            <FolderPlus />
-                            {isBootstrapping ? "Preparando..." : "Crear categorías iniciales"}
-                        </Button>
-                    )}
+                    description="Cada movimiento necesita una categoría de ingreso o gasto."
+                    actionLabel="Ir a categorías"
+                    onAction={() => router.push("/categories")}
                 />
             ) : (
                 <>
@@ -193,6 +187,8 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
                             description={typeFilter === "cancelled"
                                 ? "Los movimientos que canceles se conservarán aquí."
                                 : "Registra el primero para actualizar el saldo de tu cuenta."}
+                            actionLabel="Crear movimiento"
+                            onAction={() => setTransactionToEdit("new")}
                         />
                     ) : (
                         <TransactionList
@@ -316,7 +312,7 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
     );
 }
 
-function EmptyState({ icon, title, description, action }: EmptyStateProps) {
+function EmptyState({ icon, title, description, actionLabel, onAction }: EmptyStateProps) {
     return (
         <motion.section
             initial={{ opacity: 0, y: 16 }}
@@ -329,7 +325,9 @@ function EmptyState({ icon, title, description, action }: EmptyStateProps) {
                 </span>
                 <h2 className="mt-4 text-xl font-semibold">{title}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-                {action && <div className="mt-5">{action}</div>}
+                <Button onClick={onAction} className="mt-5 cursor-pointer">
+                    {actionLabel}
+                </Button>
             </div>
         </motion.section>
     );

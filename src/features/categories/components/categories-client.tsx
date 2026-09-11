@@ -88,7 +88,11 @@ export function CategoriesClient({ categories }: Props) {
                         Clasifica tus ingresos y gastos para entender mejor tu dinero.
                     </p>
                 </div>
-                <Button size="lg" onClick={() => setCategoryToEdit("new")} className="cursor-pointer">
+                <Button
+                    size="lg"
+                    onClick={() => setCategoryToEdit("new")}
+                    className="cursor-pointer"
+                >
                     <Plus />
                     Nueva categoría
                 </Button>
@@ -106,11 +110,19 @@ export function CategoriesClient({ categories }: Props) {
                             Después podrás personalizarlas.
                         </p>
                         <div className="mt-5 flex flex-wrap justify-center gap-2">
-                            <Button onClick={bootstrap} disabled={isBootstrapping}>
+                            <Button
+                                onClick={bootstrap}
+                                disabled={isBootstrapping}
+                                className="cursor-pointer"
+                            >
                                 <FolderPlus />
                                 {isBootstrapping ? "Preparando..." : "Crear categorías iniciales"}
                             </Button>
-                            <Button variant="outline" onClick={() => setCategoryToEdit("new")}>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCategoryToEdit("new")}
+                                className="cursor-pointer"
+                            >
                                 Crear una manualmente
                             </Button>
                         </div>
@@ -158,6 +170,7 @@ export function CategoriesClient({ categories }: Props) {
                                 size="icon-sm"
                                 variant="ghost"
                                 onClick={() => setCategoryToEdit(null)}
+                                className="cursor-pointer"
                             >
                                 <X />
                                 <span className="sr-only">Cerrar</span>

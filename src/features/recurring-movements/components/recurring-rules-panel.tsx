@@ -34,6 +34,7 @@ const frequencyLabels = {
     biweekly: "Cada 14 días",
     semimonthly: "Dos veces al mes",
     monthly: "Cada mes",
+    quarterly: "Cada tres meses",
     yearly: "Cada año",
     custom: "Calendario personalizado",
 } as const;

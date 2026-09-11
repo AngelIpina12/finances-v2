@@ -44,10 +44,11 @@ function money(amount: number, currency: string) {
 interface Props {
     initialValues: BudgetFormData;
     categories: BudgetsData["categories"];
+    accounts: BudgetsData["accounts"];
     onClose: () => void;
 }
 
-export function BudgetForm({ initialValues, categories, onClose }: Props) {
+export function BudgetForm({ initialValues, categories, accounts, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
     const {
         register, control, handleSubmit,
@@ -62,6 +63,7 @@ export function BudgetForm({ initialValues, categories, onClose }: Props) {
     const color = useWatch({ control, name: "color" });
     const budgetAmount = Number(useWatch({ control, name: "amount" }) || 0);
     const currency = useWatch({ control, name: "currency" });
+    const includeInForecast = useWatch({ control, name: "includeInForecast" });
     const allocations = useWatch({ control, name: "allocations" }) ?? [];
     const allocatedAmount = allocations.reduce(
         (total, allocation) => total + Number(allocation.amount || 0),
@@ -254,6 +256,24 @@ export function BudgetForm({ initialValues, categories, onClose }: Props) {
                 />
                 Crear periodos futuros automáticamente
             </label>
+
+            <div className="rounded-xl border p-3">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                    <FormInput type="checkbox" className="size-4 cursor-pointer accent-primary" {...register("includeInForecast")} />
+                    Incluir gasto estimado en Forecast
+                </label>
+                <p className="mt-1 text-xs text-muted-foreground">No crea movimientos reales; proyecta este límite cada mes.</p>
+                {includeInForecast && (
+                    <div className="mt-3 flex flex-col gap-2">
+                        <FormLabel>Cuenta prevista</FormLabel>
+                        <Controller name="forecastAccountId" control={control} render={({ field }) => (
+                            <FormSelect name={field.name} value={field.value ?? ""} onValueChange={field.onChange}
+                                placeholder="Selecciona una cuenta" options={accounts.filter((account) => account.currency === currency).map((account) => ({ value: account.id, label: `${account.name} · ${account.currency}` }))} />
+                        )} />
+                        {errors.forecastAccountId && <FormError>{errors.forecastAccountId.message}</FormError>}
+                    </div>
+                )}
+            </div>
 
             <div className="space-y-3 rounded-xl border p-3">
                 <div className="flex items-center justify-between gap-4">
