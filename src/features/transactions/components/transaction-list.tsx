@@ -46,6 +46,7 @@ export function TransactionList({ transactions, onEdit, onCancel }: Props) {
                     const title = transfer
                         ? item.merchant || "Transferencia entre cuentas"
                         : item.merchant || item.categoryName || "Movimiento";
+                    const financedPurchase = item.type === "expense" && item.financingPlanId !== null;
                     const detail = transfer
                         ? `${item.transferDirection === "in" ? "Recibida en" : "Enviada desde"} ${item.accountName}`
                         : `${item.categoryName || "Sin categoría"} · ${item.accountName}`;
@@ -72,6 +73,11 @@ export function TransactionList({ transactions, onEdit, onCancel }: Props) {
                                     <p className={`truncate font-medium ${cancelled ? "line-through" : ""}`}>
                                         {title}
                                     </p>
+                                    {financedPurchase && (
+                                        <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:text-violet-300">
+                                            Financiada
+                                        </span>
+                                    )}
                                     {cancelled && (
                                         <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                                             Cancelado

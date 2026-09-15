@@ -2,8 +2,10 @@ import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
-    financingPlans, recurringRules, scheduledOccurrences, budgets,
+    financingPlans, recurringRules, scheduledOccurrences, budgets, transactions,
+    creditCardPaymentDismissals,
 } from "@/src/db/schema";
+import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
 
@@ -14,7 +16,7 @@ type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
-    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets] = await Promise.all([
+    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets, completedTransactions, dismissedCardPayments] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -101,6 +103,30 @@ export async function getForecastData(userId: string, now = new Date()) {
         db.select({ id: budgets.id, name: budgets.name, amount: budgets.amount, currency: budgets.currency, startsAt: budgets.startsAt, endsAt: budgets.endsAt, forecastAccountId: budgets.forecastAccountId })
             .from(budgets)
             .where(and(eq(budgets.userId, userId), eq(budgets.isActive, true), eq(budgets.includeInForecast, true), eq(budgets.period, "monthly"), isNull(budgets.deletedAt))),
+        db.select({
+            id: transactions.id,
+            accountId: transactions.accountId,
+            type: transactions.type,
+            amount: transactions.amount,
+            currency: transactions.currency,
+            merchant: transactions.merchant,
+            date: transactions.date,
+        })
+            .from(transactions)
+            .where(and(
+                eq(transactions.userId, userId),
+                eq(transactions.status, "completed"),
+                eq(transactions.type, "expense"),
+                // Las compras financiadas se proyectan mediante sus cuotas;
+                // incluir la compra completa duplicaría el compromiso.
+                isNull(transactions.financingPlanId),
+            )),
+        db.select({
+            creditAccountId: creditCardPaymentDismissals.creditAccountId,
+            dueAt: creditCardPaymentDismissals.dueAt,
+        })
+            .from(creditCardPaymentDismissals)
+            .where(eq(creditCardPaymentDismissals.userId, userId)),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -132,6 +158,30 @@ export async function getForecastData(userId: string, now = new Date()) {
             // un cargo ni una salida directa desde la cuenta de pago.
             affectsBalance: occurrence.source !== "financing_installment",
         }));
+
+    const creditCardsById = new Map(accounts
+        .filter((account) => account.type === "credit" && account.billingDate !== null)
+        .map((account) => [account.id, account]));
+
+    events.push(...completedTransactions
+        .filter((transaction) => {
+            const card = creditCardsById.get(transaction.accountId);
+            return card !== undefined && isAppCalendarDateBefore(
+                getLatestCycleClose(now, card.billingDate!),
+                transaction.date,
+            );
+        })
+        .map((transaction) => ({
+            id: `posted-card-charge:${transaction.id}`,
+            accountId: transaction.accountId,
+            source: "posted_card_charge" as const,
+            name: transaction.merchant || "Cargo registrado en tarjeta",
+            amount: Number(transaction.amount),
+            currency: transaction.currency as ForecastEvent["currency"],
+            scheduledAt: transaction.date,
+            transactionType: "expense" as const,
+            affectsBalance: false,
+        })));
 
     for (const rule of rules) {
         if (!activeAccountIds.has(rule.accountId)) continue;
@@ -208,6 +258,10 @@ export async function getForecastData(userId: string, now = new Date()) {
                 fixedAmount: setting.fixedAmount === null ? null : Number(setting.fixedAmount),
                 strategy: setting.strategy as "full_statement" | "minimum_payment" | "fixed_amount" | "manual",
             })),
+        dismissedCardPaymentKeys: dismissedCardPayments.map((payment) => (
+            `${payment.creditAccountId}:${payment.dueAt.toISOString()}`
+        )),
+        dismissedCardPayments,
         events,
     };
 }

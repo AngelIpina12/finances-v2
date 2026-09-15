@@ -60,6 +60,7 @@ export async function getTransactions(userId: string) {
             accountId: transactions.accountId,
             categoryId: transactions.categoryId,
             transferGroupId: transactions.transferGroupId,
+            financingPlanId: transactions.financingPlanId,
             transferDirection: transactions.transferDirection,
             type: transactions.type,
             status: transactions.status,

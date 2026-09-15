@@ -7,10 +7,14 @@ type AccountOption = {
 
 export function createTransactionDraft(
     accounts: AccountOption[],
+    preferredAccountId?: string | null,
 ): Partial<TransactionFormData> {
     return {
         type: "expense",
-        accountId: accounts[0]?.id ?? "",
+        // `null` representa una selección múltiple: exige elegir la cuenta.
+        accountId: preferredAccountId === null
+            ? ""
+            : preferredAccountId ?? accounts[0]?.id ?? "",
         categoryId: "",
         // datetime-local expects YYYY-MM-DDTHH:mm without a timezone suffix.
         date: toAppDateTimeInputValue() as unknown as Date,

@@ -94,6 +94,50 @@ describe("credit card payment forecast", () => {
         })]);
     });
 
+    it("omite sólo el pago de tarjeta descartado para ese vencimiento", () => {
+        const result = buildForecast({
+            accounts: accounts(800),
+            events: [],
+            settings: [setting("full_statement")],
+            dismissedCardPaymentKeys: ["credit:2026-09-13T06:00:00.000Z"],
+            now,
+            days: 30,
+        });
+
+        expect(result.events.filter((event) => event.source === "card_payment")).toEqual([]);
+    });
+
+    it("incluye un cargo ya registrado después del corte en el vencimiento de su ciclo", () => {
+        const postedCharge: ForecastEvent = {
+            id: "posted-charge",
+            accountId: "credit",
+            source: "posted_card_charge",
+            name: "Compra ya realizada",
+            amount: 1200,
+            currency: "MXN",
+            scheduledAt: new Date("2026-09-01T18:00:00.000Z"),
+            transactionType: "expense",
+            affectsBalance: false,
+        };
+        const result = buildForecast({
+            accounts: accounts(),
+            events: [postedCharge],
+            settings: [setting("full_statement")],
+            now,
+            days: 60,
+        });
+
+        expect(result.events).toEqual(expect.arrayContaining([
+            expect.objectContaining({ source: "card_payment", amount: 800 }),
+            expect.objectContaining({
+                source: "card_payment",
+                amount: 1200,
+                scheduledAt: new Date("2026-10-14T06:00:00.000Z"),
+            }),
+        ]));
+        expect(result.events.find((event) => event.source === "posted_card_charge")).toBeUndefined();
+    });
+
     it("mantiene separadas las cuotas MSI del pago informado para no generar intereses", () => {
         const installment: ForecastEvent = {
             id: "installment",

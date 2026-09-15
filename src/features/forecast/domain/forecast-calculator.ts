@@ -21,7 +21,7 @@ export type ForecastAccount = {
     includeInLiquidity: boolean;
 };
 
-export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "card_payment";
+export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment";
 
 export type ForecastEvent = {
     id: string;
@@ -35,6 +35,7 @@ export type ForecastEvent = {
     affectsBalance: boolean;
     settlesAccountId?: string | null;
     isOverdue?: boolean;
+    cardPaymentDueAt?: Date;
     cardPaymentBreakdown?: {
         statementBalance: number;
         trackedInstallments: number;
@@ -87,10 +88,12 @@ export function buildCardPaymentEvents(input: {
     accounts: ForecastAccount[];
     events: ForecastEvent[];
     settings: CardPaymentSetting[];
+    dismissedCardPaymentKeys?: string[];
     now: Date;
     until: Date;
 }) {
     const accountsById = new Map(input.accounts.map((account) => [account.id, account]));
+    const dismissedPaymentKeys = new Set(input.dismissedCardPaymentKeys);
     const payments: ForecastEvent[] = [];
 
     for (const setting of input.settings) {
@@ -123,7 +126,8 @@ export function buildCardPaymentEvents(input: {
             fixedAmount: setting.fixedAmount,
         });
 
-        if (dueAt < input.until && currentPayment !== null && currentPayment > 0) {
+        const currentPaymentKey = `${card.id}:${currentDueAt.toISOString()}`;
+        if (dueAt < input.until && currentPayment !== null && currentPayment > 0 && !dismissedPaymentKeys.has(currentPaymentKey)) {
             payments.push({
                 id: `card-statement:${card.id}:${dueAt.toISOString()}`,
                 accountId: source.id,
@@ -136,6 +140,7 @@ export function buildCardPaymentEvents(input: {
                 transactionType: "expense",
                 affectsBalance: true,
                 isOverdue,
+                cardPaymentDueAt: currentDueAt,
                 cardPaymentBreakdown: {
                     statementBalance: card.statementBalance ?? 0,
                     trackedInstallments,
@@ -149,6 +154,7 @@ export function buildCardPaymentEvents(input: {
             dueAt < input.until
             && setting.strategy === "manual"
             && untrackedStatement > 0
+            && !dismissedPaymentKeys.has(currentPaymentKey)
         ) {
             payments.push({
                 id: `card-statement:${card.id}:${dueAt.toISOString()}`,
@@ -162,6 +168,7 @@ export function buildCardPaymentEvents(input: {
                 transactionType: "expense",
                 affectsBalance: false,
                 isOverdue,
+                cardPaymentDueAt: currentDueAt,
                 cardPaymentBreakdown: {
                     statementBalance: card.statementBalance ?? 0,
                     trackedInstallments,
@@ -200,6 +207,8 @@ export function buildCardPaymentEvents(input: {
         for (const cycle of chargesByDueDate.values()) {
             const cycleDueAt = cycle.dueAt;
             if (cycleDueAt < input.now || cycleDueAt >= input.until) continue;
+            const cyclePaymentKey = `${card.id}:${cycleDueAt.toISOString()}`;
+            if (dismissedPaymentKeys.has(cyclePaymentKey)) continue;
 
             const amount = expectedPaymentAmount({
                 strategy: setting.strategy,
@@ -219,6 +228,7 @@ export function buildCardPaymentEvents(input: {
                     scheduledAt: cycleDueAt,
                     transactionType: "expense",
                     affectsBalance: false,
+                    cardPaymentDueAt: cycleDueAt,
                     cardPaymentBreakdown: {
                         statementBalance: 0,
                         trackedInstallments: 0,
@@ -243,6 +253,7 @@ export function buildCardPaymentEvents(input: {
                 scheduledAt: cycleDueAt,
                 transactionType: "expense",
                 affectsBalance: true,
+                cardPaymentDueAt: cycleDueAt,
                 cardPaymentBreakdown: {
                     statementBalance: 0,
                     trackedInstallments: 0,
@@ -262,6 +273,7 @@ export function buildForecast(input: {
     accounts: ForecastAccount[];
     events: ForecastEvent[];
     settings?: CardPaymentSetting[];
+    dismissedCardPaymentKeys?: string[];
     now: Date;
     days: number;
 }) {
@@ -277,12 +289,17 @@ export function buildForecast(input: {
         totalAfter: number;
     }> = [];
     const baseEvents = input.events.filter((event) => event.scheduledAt >= input.now && event.scheduledAt < until);
+    // Los cargos ya registrados ya están reflejados en el saldo actual de la
+    // tarjeta. Se usan sólo para calcular el pago de su ciclo, no como un
+    // movimiento futuro que vuelva a modificar ese saldo.
+    const postedCardCharges = input.events.filter((event) => event.source === "posted_card_charge");
     const eventsToProject = [
         ...baseEvents.filter((event) => event.source !== "financing"),
         ...buildCardPaymentEvents({
             accounts: input.accounts,
-            events: baseEvents,
+            events: [...baseEvents, ...postedCardCharges],
             settings: input.settings ?? [],
+            dismissedCardPaymentKeys: input.dismissedCardPaymentKeys,
             now: input.now,
             until,
         }),

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, recurringRules,
-    scheduledOccurrences, users,
+    scheduledOccurrences, transactions, users,
 } from "@/src/db/schema";
 import { getForecastData } from "./get-forecast-data";
 
@@ -98,6 +98,28 @@ describe("getForecastData integration", () => {
             paymentTermDays: 20,
             includeInForecast: true,
         });
+        await db.insert(transactions).values([
+            {
+                userId,
+                accountId: creditAccount.id,
+                type: "expense",
+                status: "completed",
+                amount: "250",
+                currency: "MXN",
+                merchant: "Cargo del ciclo actual",
+                date: new Date("2026-09-01T18:00:00.000Z"),
+            },
+            {
+                userId,
+                accountId: creditAccount.id,
+                type: "expense",
+                status: "completed",
+                amount: "100",
+                currency: "MXN",
+                merchant: "Cargo ya incluido en el corte",
+                date: new Date("2026-08-24T18:00:00.000Z"),
+            },
+        ]);
 
         const result = await getForecastData(userId, new Date("2026-09-05T12:00:00.000Z"));
 
@@ -109,6 +131,15 @@ describe("getForecastData integration", () => {
         expect(result.accounts).toEqual(expect.arrayContaining([
             expect.objectContaining({ id: creditAccount.id, billingDate: 24, statementBalance: 1000 }),
         ]));
+        expect(result.events).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                source: "posted_card_charge",
+                accountId: creditAccount.id,
+                amount: 250,
+                name: "Cargo del ciclo actual",
+            }),
+        ]));
+        expect(result.events.find((event) => event.name === "Cargo ya incluido en el corte")).toBeUndefined();
     });
 
     it("aísla usuarios y excluye estados atendidos y cuentas archivadas", async () => {

@@ -22,10 +22,11 @@ import { CardTitle } from "@/src/shared/components/ui/card";
 import { bootstrapDefaultCategories } from "../../categories/actions/category-actions";
 import { cancelTransaction } from "../actions/transaction-actions";
 import type { TransactionListItem } from "../queries/get-transaction-data";
-import { toTransactionDraft } from "../utils/transaction-draft";
+import { createTransactionDraft, toTransactionDraft } from "../utils/transaction-draft";
 import { TransactionFilters, type TransactionFilter } from "./transaction-filters";
 import { TransactionForm } from "./transaction-form";
 import { TransactionList } from "./transaction-list";
+import { TransactionTotal } from "./transaction-total";
 import { TransferForm } from "./transfer-form";
 
 type FormData = React.ComponentProps<typeof TransactionForm> extends {
@@ -53,10 +54,14 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
     const [transferOpen, setTransferOpen] = useState(false);
     const [transactionToCancel, setTransactionToCancel] = useState<TransactionListItem | null>(null);
     const [typeFilter, setTypeFilter] = useState<TransactionFilter>("all");
+    const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
     const [isBootstrapping, startBootstrap] = useTransition();
     const [isCancelling, startCancel] = useTransition();
 
     const visibleTransactions = transactions.filter((item) => {
+        const matchesAccount = selectedAccountIds.size === 0 || selectedAccountIds.has(item.accountId);
+        if (!matchesAccount) return false;
+
         if (typeFilter === "cancelled") {
             return item.status === "cancelled";
         }
@@ -73,6 +78,11 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
             (other, otherIndex) => index !== otherIndex && account.currency === other.currency,
         ),
     );
+    const preferredAccountId = selectedAccountIds.size === 1
+        ? [...selectedAccountIds][0]
+        : selectedAccountIds.size > 1
+            ? null
+            : undefined;
 
     function bootstrap() {
         startBootstrap(async () => {
@@ -177,7 +187,14 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
                 />
             ) : (
                 <>
-                    <TransactionFilters value={typeFilter} onChange={setTypeFilter} />
+                    <TransactionFilters
+                        value={typeFilter}
+                        onChange={setTypeFilter}
+                        accounts={accounts}
+                        selectedAccountIds={selectedAccountIds}
+                        onSelectedAccountIdsChange={setSelectedAccountIds}
+                    />
+                    <TransactionTotal transactions={visibleTransactions} />
                     {!visibleTransactions.length ? (
                         <EmptyState
                             icon={<ReceiptText />}
@@ -237,7 +254,7 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
                             accounts={accounts}
                             categories={categories}
                             initialValues={transactionToEdit === "new"
-                                ? undefined
+                                ? createTransactionDraft(accounts, preferredAccountId)
                                 : toTransactionDraft({
                                     ...transactionToEdit,
                                     type: transactionToEdit.type as "income" | "expense",

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
     Dialog, DialogContent, DialogDescription,
@@ -20,6 +21,7 @@ import {
     addAppCalendarDays, toAppDateInputValue,
 } from "@/src/shared/utils/local-date-time";
 import { CardPaymentBreakdown } from "./card-payment-breakdown";
+import { dismissCardPayment, restoreCardPayment } from "../actions/card-payment-dismissal-actions";
 import { ForecastControls } from "./forecast-controls";
 import { LiquiditySummary } from "./liquidity-summary";
 import {
@@ -48,7 +50,10 @@ function eventIcon(source: ForecastEventSource) {
                 : ReceiptText;
 }
 
-export function ForecastClient({ accounts, cardPaymentSettings, events, now }: ForecastData) {
+export function ForecastClient({
+    accounts, cardPaymentSettings, events, dismissedCardPaymentKeys: savedDismissedCardPaymentKeys,
+    dismissedCardPayments, now,
+}: ForecastData) {
     const router = useRouter();
     const anchorNow = useMemo(() => new Date(now), [now]);
     const minimumDate = toAppDateInputValue(anchorNow);
@@ -62,6 +67,9 @@ export function ForecastClient({ accounts, cardPaymentSettings, events, now }: F
     const [accountId, setAccountId] = useState<string>("all");
     const [granularity, setGranularity] = useState<ForecastGranularity>("week");
     const [cardToConfigure, setCardToConfigure] = useState<ForecastData["accounts"][number] | null>(null);
+    const [locallyDismissedPaymentKeys, setLocallyDismissedPaymentKeys] = useState<Set<string>>(new Set());
+    const [locallyRestoredPaymentKeys, setLocallyRestoredPaymentKeys] = useState<Set<string>>(new Set());
+    const [dismissingPaymentId, setDismissingPaymentId] = useState<string | null>(null);
     const startsAt = fromForecastDateInput(startsAtValue) ?? anchorNow;
     const endsAt = fromForecastDateInput(endsAtValue) ?? addAppCalendarDays(anchorNow, 30);
     const forecastDays = Math.min(180, Math.max(
@@ -69,15 +77,24 @@ export function ForecastClient({ accounts, cardPaymentSettings, events, now }: F
         Math.ceil((endsAt.getTime() - anchorNow.getTime()) / (24 * 60 * 60 * 1000)),
     ));
     const currencies = [...new Set(accounts.map((account) => account.currency))];
+    const dismissedCardPaymentKeys = useMemo(() => [
+        ...new Set([...savedDismissedCardPaymentKeys, ...locallyDismissedPaymentKeys]),
+    ].filter((key) => !locallyRestoredPaymentKeys.has(key)), [
+        savedDismissedCardPaymentKeys, locallyDismissedPaymentKeys, locallyRestoredPaymentKeys,
+    ]);
+    const visibleDismissedCardPayments = dismissedCardPayments.filter((payment) => (
+        !locallyRestoredPaymentKeys.has(`${payment.creditAccountId}:${payment.dueAt.toISOString()}`)
+    ));
     const forecast = useMemo(
         () => buildForecast({
             accounts,
             events,
             settings: cardPaymentSettings,
+            dismissedCardPaymentKeys,
             now: anchorNow,
             days: forecastDays,
         }),
-        [accounts, cardPaymentSettings, events, anchorNow, forecastDays],
+        [accounts, cardPaymentSettings, events, dismissedCardPaymentKeys, anchorNow, forecastDays],
     );
     const visibleEvents = forecast.events.filter((event) => (
         isInsideForecastRange(event.scheduledAt, startsAt, endsAt)
@@ -130,6 +147,58 @@ export function ForecastClient({ accounts, cardPaymentSettings, events, now }: F
         const nextStart = fromForecastDateInput(value);
         if (nextStart && nextStart >= endsAt) {
             setEndsAtValue(toAppDateInputValue(addAppCalendarDays(nextStart, 1)));
+        }
+    }
+
+    async function dismissPayment(eventId: string, creditAccountId: string, dueAt: Date) {
+        setDismissingPaymentId(eventId);
+        try {
+            const result = await dismissCardPayment({ creditAccountId, dueAt });
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            setLocallyDismissedPaymentKeys((current) => new Set([
+                ...current,
+                `${creditAccountId}:${dueAt.toISOString()}`,
+            ]));
+            setLocallyRestoredPaymentKeys((current) => {
+                const next = new Set(current);
+                next.delete(`${creditAccountId}:${dueAt.toISOString()}`);
+                return next;
+            });
+            toast.success(result.message);
+            router.refresh();
+        } catch {
+            toast.error("No fue posible omitir el pago. Inténtalo de nuevo.");
+        } finally {
+            setDismissingPaymentId(null);
+        }
+    }
+
+    async function restorePayment(creditAccountId: string, dueAt: Date) {
+        const key = `${creditAccountId}:${dueAt.toISOString()}`;
+        setDismissingPaymentId(`restore:${key}`);
+        try {
+            const result = await restoreCardPayment({ creditAccountId, dueAt });
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            setLocallyRestoredPaymentKeys((current) => new Set([...current, key]));
+            setLocallyDismissedPaymentKeys((current) => {
+                const next = new Set(current);
+                next.delete(key);
+                return next;
+            });
+            toast.success(result.message);
+            router.refresh();
+        } catch {
+            toast.error("No fue posible volver a incluir el pago. Inténtalo de nuevo.");
+        } finally {
+            setDismissingPaymentId(null);
         }
     }
 
@@ -453,12 +522,63 @@ export function ForecastClient({ accounts, cardPaymentSettings, events, now }: F
                                                 )}
                                             </div>
                                             <CardPaymentBreakdown event={event} />
+                                            {event.source === "card_payment" && event.settlesAccountId && event.cardPaymentDueAt && (
+                                                <div className="mt-3 flex justify-end">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={dismissingPaymentId === event.id}
+                                                        onClick={() => void dismissPayment(event.id, event.settlesAccountId!, event.cardPaymentDueAt!)}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        Omitir este pago
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </article>
                                     );
                                 })}
                             </div>
                         )}
                     </section>
+
+                    {visibleDismissedCardPayments.length > 0 && (
+                        <section className="rounded-2xl border border-dashed bg-muted/30 p-4 sm:p-5">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="font-semibold">Pagos omitidos</h2>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                        Puedes volver a incluirlos cuando quieras.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="mt-3 divide-y rounded-xl border bg-background">
+                                {visibleDismissedCardPayments.map((payment) => {
+                                    const card = accounts.find((account) => account.id === payment.creditAccountId);
+                                    const key = `${payment.creditAccountId}:${payment.dueAt.toISOString()}`;
+                                    return (
+                                        <div key={key} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                                            <p className="text-sm">
+                                                <span className="font-medium">{card?.name ?? "Tarjeta archivada"}</span>
+                                                <span className="text-muted-foreground"> · vencía el {format(payment.dueAt, "d 'de' MMM", { locale: es })}</span>
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={dismissingPaymentId === `restore:${key}`}
+                                                onClick={() => void restorePayment(payment.creditAccountId, payment.dueAt)}
+                                                className="cursor-pointer"
+                                            >
+                                                Volver a incluir
+                                            </Button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    )}
 
                     <p className="rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground">
                         Esta previsión es informativa: no crea movimientos ni modifica saldos. Los pagos de tarjeta se calculan desde el corte y los días naturales que configures.

@@ -12,7 +12,7 @@ import {
     financingInstallments, financingStatusEnum,
     transactionTypeEnum, transferDirectionEnum, budgetPeriodEnum,
     rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods,
-    creditCardPaymentSettings, creditCardPaymentStrategyEnum,
+    creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
 } from "./financial";
 
 export {
@@ -25,5 +25,5 @@ export {
     financingInstallments, financingStatusEnum,
     transactionStatusEnum, transactionTypeEnum, transferDirectionEnum,
     budgetPeriodEnum, rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods,
-    creditCardPaymentSettings, creditCardPaymentStrategyEnum,
+    creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
 }

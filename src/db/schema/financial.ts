@@ -123,6 +123,23 @@ export const creditCardPaymentSettings = pgTable(
     ],
 );
 
+export const creditCardPaymentDismissals = pgTable(
+    "credit_card_payment_dismissals",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        creditAccountId: uuid("credit_account_id")
+            .notNull().references(() => financialAccounts.id, { onDelete: "cascade" }),
+        dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    },
+    (table) => [
+        uniqueIndex("credit_card_payment_dismissals_card_due_idx")
+            .on(table.creditAccountId, table.dueAt),
+        index("credit_card_payment_dismissals_user_idx").on(table.userId),
+    ],
+);
+
 export const recurringRules = pgTable(
     "recurring_rules",
     {
