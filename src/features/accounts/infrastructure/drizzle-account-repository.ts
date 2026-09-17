@@ -1,17 +1,26 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/src/db";
 import { financialAccounts } from "@/src/db/schema";
-import type { AccountRecord, AccountRepository } from "../domain/account-repository";
+import type {
+    AccountRecord, AccountRepository, AccountUpdateRecord,
+} from "../domain/account-repository";
 
 export class DrizzleAccountRepository implements AccountRepository {
     async create(userId: string, account: AccountRecord) {
         await db.insert(financialAccounts).values({ ...account, userId });
     }
 
-    async update(userId: string, accountId: string, account: AccountRecord) {
+    async update(userId: string, accountId: string, account: AccountUpdateRecord) {
         const [updatedAccount] = await db
             .update(financialAccounts)
-            .set(account)
+            .set({
+                ...account,
+                // El límite puede cambiar, pero la deuda procede de las
+                // transacciones. Recalculamos sólo el crédito disponible.
+                availableCredit: account.type === "credit"
+                    ? sql`greatest(0, ${account.creditLimit ?? "0"}::numeric - coalesce(${financialAccounts.owedAmount}, 0))`
+                    : null,
+            })
             .where(
                 and(
                     eq(financialAccounts.id, accountId),

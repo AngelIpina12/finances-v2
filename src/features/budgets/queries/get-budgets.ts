@@ -38,11 +38,14 @@ async function getPeriodSpent(
     }
 
     const ledger = await db
-        .select({ amount: transactions.amount })
+        .select({ amount: transactions.amount, budgetAmount: transactions.budgetAmount })
         .from(transactions)
         .where(and(...conditions));
 
-    return ledger.reduce((sum, transaction) => sum + toNumber(transaction.amount), 0);
+    return ledger.reduce(
+        (sum, transaction) => sum + toNumber(transaction.budgetAmount ?? transaction.amount),
+        0,
+    );
 }
 
 async function syncBudgetPeriods(

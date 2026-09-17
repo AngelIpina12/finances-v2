@@ -65,6 +65,7 @@ export async function getTransactions(userId: string) {
             type: transactions.type,
             status: transactions.status,
             amount: transactions.amount,
+            budgetAmount: transactions.budgetAmount,
             currency: transactions.currency,
             date: transactions.date,
             merchant: transactions.merchant,

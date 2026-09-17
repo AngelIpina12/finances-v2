@@ -350,6 +350,8 @@ export const transactions = pgTable(
         type: transactionTypeEnum("type").notNull(),
         status: transactionStatusEnum("status").notNull().default("completed"),
         amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+        // Null means the full transaction amount counts toward the budget.
+        budgetAmount: numeric("budget_amount", { precision: 15, scale: 2 }),
         currency: currencyCodeEnum("currency").notNull(),
         exchangeRate: numeric("exchange_rate", { precision: 18, scale: 8 }),
         convertedAmount: numeric("converted_amount", { precision: 15, scale: 2 }),

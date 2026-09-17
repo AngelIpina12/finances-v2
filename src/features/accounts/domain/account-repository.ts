@@ -15,6 +15,7 @@ export type AccountInput = {
     name: string;
     institution?: string;
     openingBalance: number;
+    currentBalance?: number;
     color: string;
     lastFourDigits?: string;
     includeInNetWorth: boolean;
@@ -43,8 +44,15 @@ export type AccountRecord = {
     dueDate: number | null;
 };
 
+// Los saldos se modifican desde el ledger. La edición de los datos de una
+// cuenta no debe reconstruirlos a partir del saldo con el que se creó.
+export type AccountUpdateRecord = Omit<
+    AccountRecord,
+    "openingBalance" | "owedAmount" | "availableCredit"
+>;
+
 export interface AccountRepository {
     create(userId: string, account: AccountRecord): Promise<void>;
-    update(userId: string, accountId: string, account: AccountRecord): Promise<boolean>;
+    update(userId: string, accountId: string, account: AccountUpdateRecord): Promise<boolean>;
     archive(userId: string, accountId: string): Promise<boolean>;
 }

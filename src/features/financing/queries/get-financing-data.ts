@@ -64,6 +64,7 @@ export async function getFinancingData(userId: string) {
                 regularInstallmentAmount: financingPlans.regularInstallmentAmount,
                 balloonAmount: financingPlans.balloonAmount,
                 currency: financingPlans.currency,
+                creditAccountId: financingPlans.creditAccountId,
                 paymentAccountId: financingPlans.paymentAccountId,
                 startsAt: financingPlans.startsAt,
                 status: financingPlans.status,
@@ -95,6 +96,7 @@ export async function getFinancingData(userId: string) {
     return {
         purchases: purchases.map((purchase) => ({ ...purchase, amount: Number(purchase.amount) })),
         paymentAccounts: accounts.filter((account) => account.type !== "credit"),
+        creditAccounts: accounts.filter((account) => account.type === "credit"),
         plans: plans.map((plan) => ({
             ...plan,
             paymentAccountName: accounts.find((account) => account.id === plan.paymentAccountId)?.name ?? null,

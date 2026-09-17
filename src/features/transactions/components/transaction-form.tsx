@@ -90,6 +90,7 @@ export function TransactionForm({
         setValue("type", nextType, { shouldDirty: true });
         setValue("categoryId", "", { shouldDirty: true, shouldValidate: false, shouldTouch: false });
         clearErrors("categoryId");
+        if (nextType === "income") setValue("budgetAmount", undefined, { shouldDirty: true });
     }
 
     function persistTransaction(data: TransactionFormData) {
@@ -182,6 +183,27 @@ export function TransactionForm({
                     {errors.categoryId && <FormError>{errors.categoryId.message}</FormError>}
                 </div>
             </div>
+            {transactionType === "expense" && (
+                <div className="flex flex-col gap-2">
+                    <FormLabel htmlFor="budgetAmount">
+                        Importe que descuenta del presupuesto
+                        <span className="font-normal text-muted-foreground"> (opcional)</span>
+                    </FormLabel>
+                    <FormInput
+                        id="budgetAmount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        placeholder="Vacío = monto total"
+                        {...register("budgetAmount")}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        El saldo de la cuenta usará el monto total; sólo este importe se descontará del presupuesto de la categoría.
+                    </p>
+                    {errors.budgetAmount && <FormError>{errors.budgetAmount.message}</FormError>}
+                </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="amount">Monto</FormLabel>

@@ -4,7 +4,9 @@ export function buildAccountRecord(input: AccountInput): AccountRecord {
     const isCreditAccount = input.type === "credit";
     const owedAmount = isCreditAccount ? (input.owedAmount ?? 0) : null;
     const creditLimit = isCreditAccount ? (input.creditLimit ?? 0) : null;
-    const currentBalance = isCreditAccount ? owedAmount : input.openingBalance;
+    const currentBalance = isCreditAccount
+        ? owedAmount
+        : (input.currentBalance ?? input.openingBalance);
     const availableCredit = isCreditAccount
         ? Math.max(0, (creditLimit ?? 0) - (owedAmount ?? 0))
         : null;

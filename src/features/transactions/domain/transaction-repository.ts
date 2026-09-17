@@ -16,6 +16,7 @@ export type TransactionValues = {
     categoryId: string;
     type: TransactionType;
     amount: number;
+    budgetAmount?: number;
     date: Date;
     merchant?: string;
     notes?: string;
@@ -90,6 +91,7 @@ export interface TransactionScope {
         categoryId: string;
         type: TransactionType;
         amount: number;
+        budgetAmount?: number;
         currency: Currency;
         merchant?: string;
         notes?: string;

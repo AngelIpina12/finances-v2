@@ -21,6 +21,7 @@ import { formatAppDate } from "@/src/shared/utils/local-date-time";
 import toast from "react-hot-toast";
 import { cancelFinancingPlan } from "../actions/financing-actions";
 import type { FinancingData } from "../queries/get-financing-data";
+import { FinancingFilters, type FinancingFilter } from "./financing-filters";
 import { FinancingPaymentForm } from "./financing-payment-form";
 import { FinancingPlanForm } from "./financing-plan-form";
 
@@ -38,16 +39,19 @@ interface EmptyStateProps {
     onAction?: () => void;
 }
 
-export function FinancingClient({ purchases, paymentAccounts, plans }: Props) {
+export function FinancingClient({ purchases, paymentAccounts, creditAccounts, plans }: Props) {
     const router = useRouter();
     const [isCancelling, startCancel] = useTransition();
     const [planToCreate, setPlanToCreate] = useState<"new" | null>(null);
     const [installmentToPay, setInstallmentToPay] = useState<string | null>(null);
     const [planToCancel, setPlanToCancel] = useState<Props["plans"][number] | null>(null);
-    const [showCancelled, setShowCancelled] = useState(false);
-    const visiblePlans = showCancelled
-        ? plans
-        : plans.filter((plan) => plan.status !== "cancelled");
+    const [statusFilter, setStatusFilter] = useState<FinancingFilter>("all");
+    const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
+    const visiblePlans = plans.filter((plan) => {
+        const matchesAccount = selectedAccountIds.size === 0 || selectedAccountIds.has(plan.creditAccountId);
+        const matchesStatus = statusFilter === "all" || plan.status === statusFilter;
+        return matchesAccount && matchesStatus;
+    });
     const selectedInstallment = plans.flatMap((plan) => plan.installments)
         .find((installment) => installment.id === installmentToPay);
 
@@ -98,28 +102,26 @@ export function FinancingClient({ purchases, paymentAccounts, plans }: Props) {
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {plans.some((plan) => plan.status === "cancelled") && (
-                        <Button
-                            size="lg"
-                            variant="outline"
-                            onClick={() => setShowCancelled((visible) => !visible)}
-                            className="cursor-pointer"
-                        >
-                            {showCancelled ? "Ocultar cancelados" : "Ver cancelados"}
-                        </Button>
-                    )}
                     <Button size="lg" onClick={() => setPlanToCreate("new")} disabled={!purchases.length} className="cursor-pointer">
                         <Plus /> Nuevo financiamiento
                     </Button>
                 </div>
             </motion.header>
 
+            <FinancingFilters
+                value={statusFilter}
+                onChange={setStatusFilter}
+                accounts={creditAccounts}
+                selectedAccountIds={selectedAccountIds}
+                onSelectedAccountIdsChange={setSelectedAccountIds}
+            />
+
             {!visiblePlans.length ? (
                 <EmptyState
                     icon={<CreditCard />}
-                    title={plans.length ? "No hay financiamientos visibles." : "Hora de registrar una compra."}
+                    title={plans.length ? "No hay financiamientos con estos filtros." : "Hora de registrar una compra."}
                     description={plans.length
-                        ? "Los financiamientos cancelados están ocultos. Puedes mostrarlos cuando los necesites."
+                        ? "Prueba con otro estado o muestra todas las tarjetas."
                         : "Primero registra una compra de gasto en una tarjeta de crédito."}
                     actionLabel={plans.length ? "Crear financiamiento" : "Ir a movimientos"}
                     onAction={plans.length ? () => setPlanToCreate("new") : () => router.push("/transactions")}

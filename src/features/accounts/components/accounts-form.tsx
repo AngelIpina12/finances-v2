@@ -147,7 +147,7 @@ export function AccountForm({ initialValues, onClose }: Props) {
                         {errors.currency && <FormError>{errors.currency.message}</FormError>}
                     </div>
                 </div>
-                {!credit && (
+                {!credit && !values.id && (
                     <div className="flex flex-col gap-2">
                         <FormLabel htmlFor="openingBalance">Saldo inicial</FormLabel>
                         <FormInput
@@ -157,6 +157,20 @@ export function AccountForm({ initialValues, onClose }: Props) {
                             {...register("openingBalance")}
                         />
                         {errors.openingBalance && <FormError>{errors.openingBalance.message}</FormError>}
+                    </div>
+                )}
+                {!credit && values.id && (
+                    <div className="flex flex-col gap-2">
+                        <FormLabel htmlFor="currentBalance">Saldo actual</FormLabel>
+                        <FormInput
+                            id="currentBalance"
+                            type="number"
+                            step="0.01"
+                            {...register("currentBalance")}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Puedes ajustarlo manualmente. Los movimientos posteriores partirán de este saldo.
+                        </p>
                     </div>
                 )}
                 {card && (
@@ -307,7 +321,9 @@ export function AccountForm({ initialValues, onClose }: Props) {
                             color: values.color,
                             lastFourDigits: values.lastFourDigits || null,
                             currentBalance: String(
-                                credit ? (values.owedAmount ?? 0) : values.openingBalance,
+                                credit
+                                    ? (values.owedAmount ?? 0)
+                                    : (values.currentBalance ?? values.openingBalance),
                             ),
                             owedAmount:
                                 values.owedAmount === undefined ? null : String(values.owedAmount),

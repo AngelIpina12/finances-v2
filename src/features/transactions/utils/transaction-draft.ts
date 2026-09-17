@@ -30,6 +30,7 @@ export function toTransactionDraft(transaction: {
     categoryId: string | null;
     type: "income" | "expense";
     amount: string;
+    budgetAmount: string | null;
     date: Date;
     merchant: string | null;
     notes: string | null;
@@ -40,6 +41,7 @@ export function toTransactionDraft(transaction: {
         categoryId: transaction.categoryId ?? "",
         type: transaction.type,
         amount: Number(transaction.amount),
+        budgetAmount: transaction.budgetAmount === null ? undefined : Number(transaction.budgetAmount),
         date: toAppDateTimeInputValue(transaction.date) as unknown as Date,
         merchant: transaction.merchant ?? "",
         notes: transaction.notes ?? "",

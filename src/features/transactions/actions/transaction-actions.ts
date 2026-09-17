@@ -25,6 +25,7 @@ type ActionResult = {
 };
 
 function revalidateFinancialViews() {
+    revalidatePath("/budgets");
     revalidatePath("/transactions");
     revalidatePath("/accounts");
     revalidatePath("/dashboard");

@@ -13,6 +13,12 @@ export const transactionFormSchema = z.object({
         .number({ error: "Ingresa un monto válido." })
         .finite("Ingresa un monto válido.")
         .positive("El monto debe ser mayor que cero."),
+    budgetAmount: z.preprocess(
+        (value) => (value === "" || value === null ? undefined : value),
+        z.coerce.number().finite("Ingresa un monto válido.")
+            .min(0, "El monto no puede ser negativo.")
+            .optional(),
+    ),
     date: z.coerce.date({ error: "Selecciona una fecha válida." }),
     merchant: z
         .string()
@@ -27,6 +33,14 @@ export const transactionFormSchema = z.object({
         .optional()
         .or(z.literal("")),
     allowCreditOverLimit: z.boolean().optional(),
+}).superRefine((data, context) => {
+    if (data.budgetAmount !== undefined && data.budgetAmount > data.amount) {
+        context.addIssue({
+            code: "custom",
+            path: ["budgetAmount"],
+            message: "El importe para presupuesto no puede superar el monto del movimiento.",
+        });
+    }
 });
 
 export type TransactionFormData = z.infer<typeof transactionFormSchema>;

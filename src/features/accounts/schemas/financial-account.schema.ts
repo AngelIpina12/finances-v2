@@ -53,6 +53,10 @@ export const financialAccountSchema = z.object({
     currency: z.enum(currencies),
     institution: z.string().trim().max(80).optional().or(z.literal("")),
     openingBalance: z.coerce.number().finite("Ingresa un saldo válido."),
+    currentBalance: z.preprocess(
+        (value) => (value === "" || value === null ? undefined : value),
+        z.coerce.number().finite("Ingresa un saldo válido.").optional(),
+    ),
     color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Selecciona un color válido."),
     lastFourDigits: z
         .string()
