@@ -30,6 +30,11 @@ export const rolloverTypeEnum = pgEnum("rollover_type", ["disabled", "carry_rema
 export const creditCardPaymentStrategyEnum = pgEnum("credit_card_payment_strategy", [
     "full_statement", "minimum_payment", "fixed_amount", "manual",
 ]);
+export const fixedIncomeCalculationMethodEnum = pgEnum("fixed_income_calculation_method", ["simple", "compound"]);
+export const fixedIncomeDayCountConventionEnum = pgEnum("fixed_income_day_count_convention", ["actual_360", "actual_365"]);
+export const fixedIncomeInterestFrequencyEnum = pgEnum("fixed_income_interest_frequency", ["daily", "monthly", "at_maturity"]);
+export const fixedIncomeStatusEnum = pgEnum("fixed_income_status", ["planned", "active", "matured", "settled", "cancelled"]);
+export const fixedIncomeCashFlowTypeEnum = pgEnum("fixed_income_cash_flow_type", ["contribution", "interest", "withholding", "withdrawal", "maturity"]);
 
 export const categories = pgTable(
     "categories",
@@ -373,5 +378,59 @@ export const transactions = pgTable(
         uniqueIndex("transactions_scheduled_occurrence_idx")
             .on(table.scheduledOccurrenceId)
             .where(sql`${table.scheduledOccurrenceId} is not null and ${table.status} <> 'cancelled'`),
+    ],
+);
+
+export const fixedIncomePositions = pgTable(
+    "fixed_income_positions",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        fundingAccountId: uuid("funding_account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        settlementAccountId: uuid("settlement_account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        name: text("name").notNull(),
+        institution: text("institution"),
+        currency: currencyCodeEnum("currency").notNull(),
+        principal: numeric("principal", { precision: 15, scale: 2 }).notNull(),
+        outstandingPrincipal: numeric("outstanding_principal", { precision: 15, scale: 2 }).notNull(),
+        annualRate: numeric("annual_rate", { precision: 10, scale: 8 }).notNull(),
+        calculationMethod: fixedIncomeCalculationMethodEnum("calculation_method").notNull().default("simple"),
+        dayCountConvention: fixedIncomeDayCountConventionEnum("day_count_convention").notNull().default("actual_365"),
+        interestFrequency: fixedIncomeInterestFrequencyEnum("interest_frequency").notNull().default("at_maturity"),
+        withholdingRate: numeric("withholding_rate", { precision: 10, scale: 8 }),
+        startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+        maturesAt: timestamp("matures_at", { withTimezone: true }),
+        isAvailableOnDemand: boolean("is_available_on_demand").notNull().default(false),
+        autoRenew: boolean("auto_renew").notNull().default(false),
+        status: fixedIncomeStatusEnum("status").notNull().default("planned"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        uniqueIndex("fixed_income_positions_account_idx").on(table.accountId),
+        index("fixed_income_positions_user_status_idx").on(table.userId, table.status),
+        index("fixed_income_positions_user_maturity_idx").on(table.userId, table.maturesAt),
+    ],
+);
+
+export const fixedIncomeCashFlows = pgTable(
+    "fixed_income_cash_flows",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        positionId: uuid("position_id").notNull().references(() => fixedIncomePositions.id, { onDelete: "cascade" }),
+        type: fixedIncomeCashFlowTypeEnum("type").notNull(),
+        grossAmount: numeric("gross_amount", { precision: 15, scale: 2 }).notNull(),
+        taxAmount: numeric("tax_amount", { precision: 15, scale: 2 }).notNull().default("0"),
+        netAmount: numeric("net_amount", { precision: 15, scale: 2 }).notNull(),
+        occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+        transactionId: uuid("transaction_id").references(() => transactions.id, { onDelete: "restrict" }),
+        transferGroupId: uuid("transfer_group_id"),
+        idempotencyKey: text("idempotency_key").notNull(),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    },
+    (table) => [
+        uniqueIndex("fixed_income_cash_flows_position_idempotency_idx").on(table.positionId, table.idempotencyKey),
+        index("fixed_income_cash_flows_position_date_idx").on(table.positionId, table.occurredAt),
     ],
 );

@@ -21,7 +21,7 @@ export type ForecastAccount = {
     includeInLiquidity: boolean;
 };
 
-export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment";
+export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income";
 
 export type ForecastEvent = {
     id: string;

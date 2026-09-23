@@ -1,0 +1,1 @@
+ALTER TABLE "fixed_income_positions" ADD COLUMN "is_available_on_demand" boolean DEFAULT false NOT NULL;

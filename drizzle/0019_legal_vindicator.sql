@@ -1,0 +1,1 @@
+ALTER TABLE "fixed_income_positions" ALTER COLUMN "matures_at" DROP NOT NULL;

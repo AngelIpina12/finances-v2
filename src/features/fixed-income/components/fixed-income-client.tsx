@@ -1,0 +1,399 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+    Landmark, Pencil, Plus, ReceiptText, Trash2, X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel,
+    AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+    AlertDialogHeader, AlertDialogMedia, AlertDialogTitle,
+} from "@/src/shared/components/ui/alert-dialog";
+import {
+    Dialog, DialogContent, DialogDescription,
+    DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { CardTitle } from "@/src/shared/components/ui/card";
+import { formatAppDate } from "@/src/shared/utils/local-date-time";
+import {
+    cancelFixedIncomePosition, recordDailyFixedIncomeInterest,
+    settleFixedIncomePosition,
+} from "../actions/fixed-income-actions";
+import type { FixedIncomeData } from "../queries/get-fixed-income-data";
+import { toFixedIncomeDraft } from "../utils/fixed-income-draft";
+import { FixedIncomeForm } from "./fixed-income-form";
+
+const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+}).format(amount);
+
+export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData) {
+    const router = useRouter();
+    const [positionToEdit, setPositionToEdit] = useState<FixedIncomeData["positions"][number] | "new" | null>(null);
+    const [positionToCancel, setPositionToCancel] = useState<FixedIncomeData["positions"][number] | null>(null);
+    const [isPending, startTransition] = useTransition();
+    const active = positions.filter((position) => (
+        position.status === "active" || position.status === "matured"
+    ));
+    const total = active.reduce((sum, position) => sum + position.outstandingPrincipal, 0);
+    const accrued = active.reduce((sum, position) => sum + position.estimatedNet, 0);
+    const today = new Date();
+
+    function registerDaily(positionId: string) {
+        startTransition(async () => {
+            const result = await recordDailyFixedIncomeInterest({
+                positionId,
+                occurredAt: today,
+            });
+
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            toast.success(result.message);
+            router.refresh();
+        });
+    }
+
+    function settle(positionId: string) {
+        startTransition(async () => {
+            const result = await settleFixedIncomePosition({
+                positionId,
+                occurredAt: today,
+            });
+
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            toast.success(result.message);
+            router.refresh();
+        });
+    }
+
+    function cancelPosition() {
+        if (!positionToCancel) return;
+
+        startTransition(async () => {
+            const result = await cancelFixedIncomePosition({
+                positionId: positionToCancel.id,
+                occurredAt: today,
+            });
+
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            toast.success(result.message);
+            setPositionToCancel(null);
+            router.refresh();
+        });
+    }
+
+    return (
+        <div className="space-y-7">
+            <motion.header
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between"
+            >
+                <div className="space-y-2">
+                    <p className="font-label text-xs font-semibold uppercase tracking-[0.2em] text-accent-foreground">
+                        Capital protegido y rendimiento calculado
+                    </p>
+                    <CardTitle className="font-serif text-4xl tracking-[-0.04em] sm:text-5xl">
+                        Renta fija
+                    </CardTitle>
+                    <p className="max-w-2xl text-muted-foreground">
+                        El capital se transfiere, no se gasta. El rendimiento se registra como
+                        ingreso sólo cuando llega a tu cuenta líquida.
+                    </p>
+                </div>
+                <Button
+                    size="lg"
+                    onClick={() => setPositionToEdit("new")}
+                    disabled={!liquidAccounts.length}
+                    className="cursor-pointer"
+                >
+                    <Plus />
+                    Nueva inversión
+                </Button>
+            </motion.header>
+
+            <motion.section
+                initial="hidden"
+                animate="visible"
+                variants={{
+                    hidden: {},
+                    visible: { transition: { staggerChildren: 0.06, delayChildren: 0.08 } },
+                }}
+                className="grid gap-4 sm:grid-cols-3"
+            >
+                {[
+                    { label: "Capital invertido", value: total.toLocaleString("es-MX", { maximumFractionDigits: 2 }) },
+                    { label: "Interés neto estimado", value: accrued.toLocaleString("es-MX", { maximumFractionDigits: 2 }) },
+                    { label: "Posiciones activas", value: String(active.length) },
+                ].map((item) => (
+                    <motion.article
+                        key={item.label}
+                        variants={{
+                            hidden: { opacity: 0, y: 16 },
+                            visible: { opacity: 1, y: 0 },
+                        }}
+                        className="rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-md"
+                    >
+                        <p className="text-sm text-muted-foreground">{item.label}</p>
+                        <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+                    </motion.article>
+                ))}
+            </motion.section>
+
+            {!positions.length ? (
+                <motion.section
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.16 }}
+                    className="grid min-h-72 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center"
+                >
+                    <div className="max-w-md">
+                        <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground">
+                            <Landmark />
+                        </span>
+                        <h2 className="mt-5 text-xl font-semibold">Registra tu primera inversión</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Define tasa anual, plazo y la cuenta líquida que recibirá los rendimientos.
+                        </p>
+                        <Button
+                            className="mt-5 cursor-pointer"
+                            onClick={() => setPositionToEdit("new")}
+                            disabled={!liquidAccounts.length}
+                        >
+                            <Plus />
+                            Crear inversión
+                        </Button>
+                    </div>
+                </motion.section>
+            ) : (
+                <motion.section layout className="grid gap-5 xl:grid-cols-2">
+                    <AnimatePresence mode="popLayout">
+                        {positions.map((position, index) => (
+                            <motion.article
+                                layout
+                                key={position.id}
+                                initial={{ opacity: 0, y: 18 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{ duration: 0.3, delay: index * 0.05 }}
+                                className="rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-lg"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h2 className="font-semibold">{position.name}</h2>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {position.institution || "Sin institución"} · {position.accountName}
+                                        </p>
+                                        <p className="mt-2 text-xs font-medium text-primary">
+                                            {position.isAvailableOnDemand
+                                                ? "Cajita disponible al instante"
+                                                : "Inversión a plazo"}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {position.status === "active" && (
+                                            <Button
+                                                size="icon-sm"
+                                                variant="ghost"
+                                                onClick={() => setPositionToEdit(position)}
+                                                aria-label={`Editar ${position.name}`}
+                                                className="cursor-pointer"
+                                            >
+                                                <Pencil />
+                                            </Button>
+                                        )}
+                                        {position.status === "active" && (
+                                            <Button
+                                                size="icon-sm"
+                                                variant="ghost"
+                                                disabled={isPending}
+                                                onClick={() => setPositionToCancel(position)}
+                                                aria-label={`Cancelar ${position.name}`}
+                                                className="cursor-pointer text-destructive hover:text-destructive"
+                                            >
+                                                <Trash2 />
+                                            </Button>
+                                        )}
+                                        <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                            {position.status === "settled"
+                                                ? "Liquidada"
+                                                : position.status === "active"
+                                                    ? "Activa"
+                                                    : position.status}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="mt-5 grid grid-cols-2 gap-4">
+                                    <Metric label="Capital" value={money(position.outstandingPrincipal, position.currency)} />
+                                    <Metric label="Valor estimado" value={money(position.estimatedValue, position.currency)} />
+                                    <Metric
+                                        label="Tasa anual"
+                                        value={`${(position.annualRate * 100).toFixed(2)}% · ${position.dayCountConvention === "actual_360" ? "Actual/360" : "Actual/365"}`}
+                                    />
+                                    <Metric
+                                        label="Vencimiento"
+                                        value={position.maturesAt
+                                            ? formatAppDate(position.maturesAt, {
+                                                day: "numeric",
+                                                month: "short",
+                                                year: "numeric",
+                                            })
+                                            : "Sin vencimiento"}
+                                    />
+                                </div>
+
+                                <p className="mt-4 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+                                    Rendimiento estimado sin confirmar: bruto {money(position.estimatedGross, position.currency)}
+                                    {" · "}retención {money(position.estimatedTax, position.currency)}
+                                    {" · "}neto {money(position.estimatedNet, position.currency)}.
+                                </p>
+
+                                {position.interestFrequency === "daily" && (
+                                    <p className="mt-3 text-xs text-muted-foreground">
+                                        Hoy se estima un abono neto de {money(position.estimatedDailyNet, position.currency)}.
+                                        Confírmalo sólo cuando Nu o tu banco realmente lo deposite.
+                                    </p>
+                                )}
+
+                                {position.status === "active" && (
+                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isPending || position.interestFrequency !== "daily"}
+                                            onClick={() => registerDaily(position.id)}
+                                            className="cursor-pointer"
+                                        >
+                                            <ReceiptText />
+                                            Confirmar abono de hoy
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            disabled={isPending}
+                                            onClick={() => settle(position.id)}
+                                            className="cursor-pointer"
+                                        >
+                                            {position.isAvailableOnDemand ? "Retirar capital" : "Liquidar"}
+                                        </Button>
+                                        {position.interestFrequency !== "daily" && (
+                                            <span className="text-xs text-muted-foreground">
+                                                Los pagos diarios se habilitan al elegir frecuencia diaria.
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </motion.article>
+                        ))}
+                    </AnimatePresence>
+                </motion.section>
+            )}
+
+            <Dialog
+                open={positionToEdit !== null}
+                onOpenChange={(open) => !open && setPositionToEdit(null)}
+            >
+                <DialogContent
+                    className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-none overflow-y-auto p-6 sm:w-[min(92vw,42rem)] sm:max-w-none"
+                    showCloseButton={false}
+                >
+                    <DialogHeader>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <DialogTitle className="font-serif text-2xl">
+                                    {positionToEdit === "new" ? "Nueva inversión de renta fija" : "Editar cajita"}
+                                </DialogTitle>
+                                <DialogDescription className="mt-1">
+                                    {positionToEdit === "new"
+                                        ? "Configura el plazo y la tasa anual. El capital se transferirá sin registrarse como gasto."
+                                        : "Actualiza la información operativa sin alterar los movimientos ya registrados."}
+                                </DialogDescription>
+                            </div>
+                            <Button
+                                type="button"
+                                size="icon-sm"
+                                variant="ghost"
+                                onClick={() => setPositionToEdit(null)}
+                                className="cursor-pointer"
+                            >
+                                <X />
+                                <span className="sr-only">Cerrar</span>
+                            </Button>
+                        </div>
+                    </DialogHeader>
+                    {positionToEdit && (
+                        <FixedIncomeForm
+                            key={positionToEdit === "new" ? "new" : positionToEdit.id}
+                            accounts={liquidAccounts}
+                            initialValues={positionToEdit === "new" ? undefined : toFixedIncomeDraft(positionToEdit)}
+                            positionId={positionToEdit === "new" ? undefined : positionToEdit.id}
+                            onClose={() => {
+                                setPositionToEdit(null);
+                                router.refresh();
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <AlertDialog
+                open={positionToCancel !== null}
+                onOpenChange={(open) => !open && setPositionToCancel(null)}
+            >
+                <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-sm">
+                    <AlertDialogHeader>
+                        <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                            <Trash2 />
+                        </AlertDialogMedia>
+                        <AlertDialogTitle>¿Cancelar esta cajita?</AlertDialogTitle>
+                        <AlertDialogDescription className="min-w-0 break-words">
+                            {positionToCancel
+                                ? `El capital de “${positionToCancel.name}” regresará a tu cuenta receptora. Los abonos que ya confirmaste se conservarán.`
+                                : ""}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="sm:flex-col">
+                        <AlertDialogCancel className="w-full cursor-pointer" disabled={isPending}>
+                            Conservar cajita
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            variant="destructive"
+                            disabled={isPending}
+                            onClick={cancelPosition}
+                            className="w-full cursor-pointer"
+                        >
+                            {isPending ? "Cancelando..." : "Cancelar y devolver capital"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </div>
+    );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="mt-1 font-medium">{value}</p>
+        </div>
+    );
+}

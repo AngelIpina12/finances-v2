@@ -47,6 +47,8 @@ function eventIcon(source: ForecastEventSource) {
                 ? ReceiptText
             : source === "card_payment"
                 ? CreditCard
+                : source === "fixed_income"
+                    ? Landmark
                 : ReceiptText;
 }
 
@@ -501,6 +503,8 @@ export function ForecastClient({
                                                                     ? event.affectsBalance
                                                                         ? " · Pago proyectado de tarjeta"
                                                                         : " · Compromiso manual"
+                                                                    : event.source === "fixed_income"
+                                                                        ? " · Renta fija"
                                                                 : account ? ` · ${account.name}` : ""
                                                         }
                                                         {event.isOverdue ? " · Vencido" : ""}

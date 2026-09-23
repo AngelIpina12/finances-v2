@@ -1,13 +1,14 @@
-import { and, asc, eq, gte, isNull, lt } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
-    financingPlans, recurringRules, scheduledOccurrences, budgets, transactions,
+    financingPlans, recurringRules, scheduledOccurrences, budgets, transactions, fixedIncomePositions,
     creditCardPaymentDismissals,
 } from "@/src/db/schema";
 import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
+import { calculateAccruedInterest, calculateDailyInterest, calculateNetInterest } from "@/src/features/fixed-income/domain/fixed-income-calculator";
 
 const FORECAST_DAYS = 180;
 
@@ -16,7 +17,7 @@ type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
-    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets, completedTransactions, dismissedCardPayments] = await Promise.all([
+    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets, completedTransactions, dismissedCardPayments, fixedIncome] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -127,6 +128,11 @@ export async function getForecastData(userId: string, now = new Date()) {
         })
             .from(creditCardPaymentDismissals)
             .where(eq(creditCardPaymentDismissals.userId, userId)),
+        db.select().from(fixedIncomePositions).where(and(
+            eq(fixedIncomePositions.userId, userId),
+            eq(fixedIncomePositions.status, "active"),
+            lte(fixedIncomePositions.startsAt, until),
+        )),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -234,6 +240,29 @@ export async function getForecastData(userId: string, now = new Date()) {
             if (scheduledAt < now || scheduledAt < anchor) continue;
             if (scheduledAt >= until || (budget.endsAt && scheduledAt >= budget.endsAt)) break;
             events.push({ id: `budget:${budget.id}:${scheduledAt.toISOString()}`, accountId: budget.forecastAccountId, source: "budget", name: `Presupuesto estimado · ${budget.name}`, amount: Number(budget.amount), currency: budget.currency as ForecastEvent["currency"], scheduledAt, transactionType: "expense", affectsBalance: true });
+        }
+    }
+
+    for (const position of fixedIncome) {
+        if (!activeAccountIds.has(position.settlementAccountId)) continue;
+        const principal = Number(position.outstandingPrincipal);
+        const rate = Number(position.annualRate);
+        const withholding = Number(position.withholdingRate ?? 0);
+        const projectionEnd = position.maturesAt && position.maturesAt < until
+            ? position.maturesAt
+            : until;
+        if (position.interestFrequency === "daily") {
+            const daily = calculateNetInterest(calculateDailyInterest(principal, rate, position.dayCountConvention), withholding).net;
+            for (let date = new Date(now); date < projectionEnd; date = new Date(date.getTime() + 86_400_000)) {
+                events.push({ id: `fixed-income-interest:${position.id}:${date.toISOString()}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Rendimiento estimado · ${position.name}`, amount: daily, currency: position.currency as ForecastEvent["currency"], scheduledAt: date, transactionType: "income", affectsBalance: true });
+            }
+        } else if (position.maturesAt) {
+            const gross = calculateAccruedInterest({ principal: Number(position.principal), annualRate: rate, startsAt: position.startsAt, asOf: position.maturesAt, calculationMethod: position.calculationMethod, dayCountConvention: position.dayCountConvention }).gross;
+            const net = calculateNetInterest(gross, withholding).net;
+            events.push({ id: `fixed-income-interest:${position.id}:maturity`, accountId: position.settlementAccountId, source: "fixed_income", name: `Interés estimado al vencimiento · ${position.name}`, amount: net, currency: position.currency as ForecastEvent["currency"], scheduledAt: position.maturesAt, transactionType: "income", affectsBalance: true });
+        }
+        if (position.maturesAt && position.maturesAt < until) {
+            events.push({ id: `fixed-income-principal:${position.id}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Capital al vencimiento · ${position.name}`, amount: principal, currency: position.currency as ForecastEvent["currency"], scheduledAt: position.maturesAt, transactionType: "income", affectsBalance: true });
         }
     }
 

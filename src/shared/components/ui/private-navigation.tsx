@@ -12,6 +12,7 @@ const items = [
     { href: "/financing", label: "Financiamientos" },
     { href: "/budgets", label: "Presupuestos" },
     { href: "/forecast", label: "Previsión" },
+    { href: "/fixed-income", label: "Renta fija" },
     { href: "/categories", label: "Categorías" },
 ] as const;
 

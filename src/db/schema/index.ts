@@ -13,6 +13,9 @@ import {
     transactionTypeEnum, transferDirectionEnum, budgetPeriodEnum,
     rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods,
     creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
+    fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
+    fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
+    fixedIncomePositions, fixedIncomeCashFlows,
 } from "./financial";
 
 export {
@@ -26,4 +29,7 @@ export {
     transactionStatusEnum, transactionTypeEnum, transferDirectionEnum,
     budgetPeriodEnum, rolloverTypeEnum, budgets, budgetAllocations, budgetPeriods,
     creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
+    fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
+    fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
+    fixedIncomePositions, fixedIncomeCashFlows,
 }
