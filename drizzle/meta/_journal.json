@@ -141,6 +141,48 @@
       "when": 1790120493447,
       "tag": "0019_legal_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790198224225,
+      "tag": "0020_remarkable_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790198224226,
+      "tag": "0021_fixed_income_interest_stays_in_box",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790198224227,
+      "tag": "0022_move_fixed_income_capital_out_of_funding_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790198224228,
+      "tag": "0023_reconcile_fixed_income_funding_balances",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790198224229,
+      "tag": "0024_return_settled_revolut_box_capital",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790198224230,
+      "tag": "0025_return_cancelled_fixed_income_capital",
+      "breakpoints": true
     }
   ]
 }

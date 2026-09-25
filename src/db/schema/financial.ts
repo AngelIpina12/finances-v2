@@ -386,7 +386,7 @@ export const fixedIncomePositions = pgTable(
     {
         id: uuid("id").defaultRandom().primaryKey(),
         userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
+        accountId: uuid("account_id").references(() => financialAccounts.id, { onDelete: "restrict" }),
         fundingAccountId: uuid("funding_account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
         settlementAccountId: uuid("settlement_account_id").notNull().references(() => financialAccounts.id, { onDelete: "restrict" }),
         name: text("name").notNull(),

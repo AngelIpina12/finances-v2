@@ -8,6 +8,7 @@ import {
     Landmark, Pencil, Plus, ReceiptText, Trash2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -21,10 +22,11 @@ import { CardTitle } from "@/src/shared/components/ui/card";
 import { formatAppDate } from "@/src/shared/utils/local-date-time";
 import {
     cancelFixedIncomePosition, recordDailyFixedIncomeInterest,
-    settleFixedIncomePosition,
+    settleFixedIncomePosition, withdrawFixedIncomeCapital,
 } from "../actions/fixed-income-actions";
 import type { FixedIncomeData } from "../queries/get-fixed-income-data";
 import { toFixedIncomeDraft } from "../utils/fixed-income-draft";
+import { FixedIncomeFilters, type FixedIncomeFilter } from "./fixed-income-filters";
 import { FixedIncomeForm } from "./fixed-income-form";
 
 const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX", {
@@ -37,6 +39,9 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
     const router = useRouter();
     const [positionToEdit, setPositionToEdit] = useState<FixedIncomeData["positions"][number] | "new" | null>(null);
     const [positionToCancel, setPositionToCancel] = useState<FixedIncomeData["positions"][number] | null>(null);
+    const [positionToWithdraw, setPositionToWithdraw] = useState<FixedIncomeData["positions"][number] | null>(null);
+    const [withdrawAmount, setWithdrawAmount] = useState("");
+    const [statusFilter, setStatusFilter] = useState<FixedIncomeFilter>("active");
     const [isPending, startTransition] = useTransition();
     const active = positions.filter((position) => (
         position.status === "active" || position.status === "matured"
@@ -44,6 +49,11 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
     const total = active.reduce((sum, position) => sum + position.outstandingPrincipal, 0);
     const accrued = active.reduce((sum, position) => sum + position.estimatedNet, 0);
     const today = new Date();
+    const visiblePositions = positions.filter((position) => {
+        if (statusFilter === "all") return true;
+        if (statusFilter === "active") return position.status === "active" || position.status === "matured";
+        return position.status === statusFilter;
+    });
 
     function registerDaily(positionId: string) {
         startTransition(async () => {
@@ -75,6 +85,26 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
             }
 
             toast.success(result.message);
+            router.refresh();
+        });
+    }
+
+    function withdraw() {
+        if (!positionToWithdraw) return;
+        const amount = Number(withdrawAmount);
+        startTransition(async () => {
+            const result = await withdrawFixedIncomeCapital({
+                positionId: positionToWithdraw.id,
+                amount,
+                occurredAt: today,
+            });
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+            toast.success(result.message);
+            setPositionToWithdraw(null);
+            setWithdrawAmount("");
             router.refresh();
         });
     }
@@ -184,9 +214,23 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                     </div>
                 </motion.section>
             ) : (
-                <motion.section layout className="grid gap-5 xl:grid-cols-2">
-                    <AnimatePresence mode="popLayout">
-                        {positions.map((position, index) => (
+                <>
+                    <FixedIncomeFilters value={statusFilter} onChange={setStatusFilter} />
+                    {!visiblePositions.length ? (
+                        <section className="grid min-h-52 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center">
+                            <div>
+                                <h2 className="text-lg font-semibold">
+                                    No hay cajitas {statusFilter === "cancelled" ? "canceladas" : "liquidadas"}
+                                </h2>
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                    Las cajitas con este estado aparecerán aquí.
+                                </p>
+                            </div>
+                        </section>
+                    ) : (
+                        <motion.section layout className="grid gap-5 xl:grid-cols-2">
+                            <AnimatePresence mode="popLayout">
+                                {visiblePositions.map((position, index) => (
                             <motion.article
                                 layout
                                 key={position.id}
@@ -267,7 +311,7 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                     {" · "}neto {money(position.estimatedNet, position.currency)}.
                                 </p>
 
-                                {position.interestFrequency === "daily" && (
+                                {position.interestFrequency === "daily" && !position.hasConfirmedInterestToday && (
                                     <p className="mt-3 text-xs text-muted-foreground">
                                         Hoy se estima un abono neto de {money(position.estimatedDailyNet, position.currency)}.
                                         Confírmalo sólo cuando Nu o tu banco realmente lo deposite.
@@ -279,17 +323,25 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            disabled={isPending || position.interestFrequency !== "daily"}
+                                            disabled={
+                                                isPending
+                                                || position.interestFrequency !== "daily"
+                                                || position.hasConfirmedInterestToday
+                                            }
                                             onClick={() => registerDaily(position.id)}
                                             className="cursor-pointer"
                                         >
                                             <ReceiptText />
-                                            Confirmar abono de hoy
+                                            {position.hasConfirmedInterestToday
+                                                ? "Abono de hoy confirmado"
+                                                : "Confirmar abono de hoy"}
                                         </Button>
                                         <Button
                                             size="sm"
                                             disabled={isPending}
-                                            onClick={() => settle(position.id)}
+                                            onClick={() => position.isAvailableOnDemand
+                                                ? (setPositionToWithdraw(position), setWithdrawAmount(position.outstandingPrincipal.toFixed(2)))
+                                                : settle(position.id)}
                                             className="cursor-pointer"
                                         >
                                             {position.isAvailableOnDemand ? "Retirar capital" : "Liquidar"}
@@ -302,9 +354,11 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                     </div>
                                 )}
                             </motion.article>
-                        ))}
-                    </AnimatePresence>
-                </motion.section>
+                                ))}
+                            </AnimatePresence>
+                        </motion.section>
+                    )}
+                </>
             )}
 
             <Dialog
@@ -350,6 +404,62 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                 router.refresh();
                             }}
                         />
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={positionToWithdraw !== null}
+                onOpenChange={(open) => !open && setPositionToWithdraw(null)}
+            >
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-md p-6" showCloseButton={false}>
+                    <DialogHeader>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <DialogTitle className="font-serif text-2xl">Retirar capital</DialogTitle>
+                                <DialogDescription className="mt-1">
+                                    {positionToWithdraw
+                                        ? `Retira dinero de “${positionToWithdraw.name}” a su cuenta de débito de origen.`
+                                        : ""}
+                                </DialogDescription>
+                            </div>
+                            <Button type="button" size="icon-sm" variant="ghost" onClick={() => setPositionToWithdraw(null)} className="cursor-pointer">
+                                <X />
+                                <span className="sr-only">Cerrar</span>
+                            </Button>
+                        </div>
+                    </DialogHeader>
+                    {positionToWithdraw && (
+                        <form
+                            className="mt-4 space-y-5"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                withdraw();
+                            }}
+                        >
+                            <div className="space-y-2">
+                                <label htmlFor="withdraw-amount" className="text-sm font-medium">Monto a retirar</label>
+                                <Input
+                                    id="withdraw-amount"
+                                    type="number"
+                                    min="0.01"
+                                    max={positionToWithdraw.outstandingPrincipal}
+                                    step="0.01"
+                                    value={withdrawAmount}
+                                    onChange={(event) => setWithdrawAmount(event.target.value)}
+                                    autoFocus
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Disponible: {money(positionToWithdraw.outstandingPrincipal, positionToWithdraw.currency)}
+                                </p>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setPositionToWithdraw(null)} className="cursor-pointer">Cancelar</Button>
+                                <Button type="submit" disabled={isPending} className="cursor-pointer">
+                                    {isPending ? "Retirando..." : "Confirmar retiro"}
+                                </Button>
+                            </div>
+                        </form>
                     )}
                 </DialogContent>
             </Dialog>
