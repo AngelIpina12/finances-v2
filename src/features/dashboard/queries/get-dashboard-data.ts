@@ -5,6 +5,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/src/db";
 import { getBudgets } from "@/src/features/budgets/queries/get-budgets";
+import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import {
     categories, financialAccounts, scheduledOccurrences,
     transactions,
@@ -295,6 +296,7 @@ async function getUpcomingMovements(userId: string, now = new Date()) {
                 eq(scheduledOccurrences.status, "scheduled"),
                 gte(scheduledOccurrences.scheduledAt, now),
                 lte(scheduledOccurrences.scheduledAt, until),
+                occurrenceHasLiveRule,
             ),
         )
         .orderBy(asc(scheduledOccurrences.scheduledAt))

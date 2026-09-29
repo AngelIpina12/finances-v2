@@ -1,5 +1,6 @@
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/src/db";
+import { occurrenceHasLiveRule } from "../infrastructure/live-rule-occurrence";
 import {
     categories, financialAccounts, recurringRules,
     scheduledOccurrences,
@@ -69,7 +70,10 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 categories,
                 eq(scheduledOccurrences.categoryId, categories.id),
             )
-            .where(eq(scheduledOccurrences.userId, userId))
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                or(ne(scheduledOccurrences.status, "scheduled"), occurrenceHasLiveRule),
+            ))
             .orderBy(
                 asc(scheduledOccurrences.status),
                 asc(scheduledOccurrences.scheduledAt),
@@ -121,6 +125,7 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 eq(scheduledOccurrences.userId, userId),
                 eq(scheduledOccurrences.status, "scheduled"),
                 gte(scheduledOccurrences.scheduledAt, now),
+                occurrenceHasLiveRule,
             ))
             .orderBy(asc(scheduledOccurrences.scheduledAt)),
     ]);
