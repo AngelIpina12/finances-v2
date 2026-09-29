@@ -49,6 +49,23 @@ const futureCharge: ForecastEvent = {
 };
 
 describe("credit card payment forecast", () => {
+    it("prioriza el pago calculado desde los movimientos sobre el importe informado", () => {
+        const inputAccounts = accounts(525.82);
+        inputAccounts[1] = { ...inputAccounts[1]!, calculatedStatementBalance: 610.82 };
+
+        const result = buildForecast({
+            accounts: inputAccounts,
+            events: [],
+            settings: [setting("full_statement")],
+            now,
+            days: 30,
+        });
+
+        expect(result.events).toEqual([expect.objectContaining({
+            source: "card_payment", amount: 610.82,
+        })]);
+    });
+
     it.each([
         { strategy: "full_statement" as const, fixedAmount: null, expected: [800, 3200] },
         { strategy: "minimum_payment" as const, fixedAmount: null, expected: [100, 100] },

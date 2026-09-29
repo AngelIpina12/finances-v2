@@ -5,10 +5,13 @@ import {
     financingPlans, recurringRules, scheduledOccurrences, budgets, transactions, fixedIncomePositions,
     creditCardPaymentDismissals,
 } from "@/src/db/schema";
+import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
+import { calculateCardStatement } from "../domain/card-statement-calculator";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
-import { calculateAccruedInterest, calculateDailyInterest, calculateNetInterest } from "@/src/features/fixed-income/domain/fixed-income-calculator";
+import { calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest } from "@/src/features/fixed-income/domain/fixed-income-calculator";
+import { addAppCalendarDays } from "@/src/shared/utils/local-date-time";
 
 const FORECAST_DAYS = 180;
 
@@ -63,6 +66,7 @@ export async function getForecastData(userId: string, now = new Date()) {
                 eq(scheduledOccurrences.userId, userId),
                 gte(scheduledOccurrences.scheduledAt, now),
                 lt(scheduledOccurrences.scheduledAt, until),
+                occurrenceHasLiveRule,
             )),
         db
             .select({
@@ -108,6 +112,8 @@ export async function getForecastData(userId: string, now = new Date()) {
             id: transactions.id,
             accountId: transactions.accountId,
             type: transactions.type,
+            transferDirection: transactions.transferDirection,
+            financingPlanId: transactions.financingPlanId,
             amount: transactions.amount,
             currency: transactions.currency,
             merchant: transactions.merchant,
@@ -117,10 +123,6 @@ export async function getForecastData(userId: string, now = new Date()) {
             .where(and(
                 eq(transactions.userId, userId),
                 eq(transactions.status, "completed"),
-                eq(transactions.type, "expense"),
-                // Las compras financiadas se proyectan mediante sus cuotas;
-                // incluir la compra completa duplicaría el compromiso.
-                isNull(transactions.financingPlanId),
             )),
         db.select({
             creditAccountId: creditCardPaymentDismissals.creditAccountId,
@@ -169,10 +171,43 @@ export async function getForecastData(userId: string, now = new Date()) {
         .filter((account) => account.type === "credit" && account.billingDate !== null)
         .map((account) => [account.id, account]));
 
+    const calculatedStatementBalances = new Map<string, number>();
+    for (const card of creditCardsById.values()) {
+        const { calculatedStatementBalance } = calculateCardStatement({
+            cardId: card.id,
+            billingDate: card.billingDate!,
+            paymentTermDays: cardPaymentSettings.find((setting) => (
+                setting.creditAccountId === card.id
+            ))?.paymentTermDays ?? 0,
+            now,
+            transactions: completedTransactions.map((transaction) => ({
+                accountId: transaction.accountId,
+                type: transaction.type,
+                transferDirection: transaction.transferDirection,
+                financingPlanId: transaction.financingPlanId,
+                amount: Number(transaction.amount),
+                date: transaction.date,
+            })),
+            installmentOccurrences: occurrences.map((occurrence) => ({
+                accountId: occurrence.accountId,
+                source: occurrence.source,
+                status: occurrence.status,
+                scheduledAt: occurrence.scheduledAt,
+                amount: Number(occurrence.amount),
+            })),
+        });
+        if (calculatedStatementBalance !== null) {
+            calculatedStatementBalances.set(card.id, calculatedStatementBalance);
+        }
+    }
+
     events.push(...completedTransactions
         .filter((transaction) => {
             const card = creditCardsById.get(transaction.accountId);
-            return card !== undefined && isAppCalendarDateBefore(
+            return card !== undefined
+                && transaction.type === "expense"
+                && transaction.financingPlanId === null
+                && isAppCalendarDateBefore(
                 getLatestCycleClose(now, card.billingDate!),
                 transaction.date,
             );
@@ -252,10 +287,21 @@ export async function getForecastData(userId: string, now = new Date()) {
             ? position.maturesAt
             : until;
         if (position.interestFrequency === "daily") {
-            const daily = calculateNetInterest(calculateDailyInterest(principal, rate, position.dayCountConvention), withholding).net;
-            for (let date = new Date(now); date < projectionEnd; date = new Date(date.getTime() + 86_400_000)) {
-                events.push({ id: `fixed-income-interest:${position.id}:${date.toISOString()}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Rendimiento estimado · ${position.name}`, amount: daily, currency: position.currency as ForecastEvent["currency"], scheduledAt: date, transactionType: "income", affectsBalance: true });
+            const dates: Date[] = [];
+            for (let date = new Date(now); date < projectionEnd; date = addAppCalendarDays(date, 1)) {
+                dates.push(date);
             }
+            const dailyInterests = calculateProjectedDailyNetInterest({
+                principal,
+                annualRate: rate,
+                convention: position.dayCountConvention,
+                withholdingRate: withholding,
+                days: dates.length,
+            });
+            dates.forEach((date, index) => {
+                const daily = dailyInterests[index] ?? 0;
+                events.push({ id: `fixed-income-interest:${position.id}:${date.toISOString()}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Rendimiento estimado · ${position.name}`, amount: daily, currency: position.currency as ForecastEvent["currency"], scheduledAt: date, transactionType: "income", affectsBalance: true });
+            });
         } else if (position.maturesAt) {
             const gross = calculateAccruedInterest({ principal: Number(position.principal), annualRate: rate, startsAt: position.startsAt, asOf: position.maturesAt, calculationMethod: position.calculationMethod, dayCountConvention: position.dayCountConvention }).gross;
             const net = calculateNetInterest(gross, withholding).net;
@@ -274,6 +320,7 @@ export async function getForecastData(userId: string, now = new Date()) {
             creditLimit: account.creditLimit === null ? null : Number(account.creditLimit),
             statementBalance: account.statementBalance === null ? null : Number(account.statementBalance),
             minimumPayment: account.minimumPayment === null ? null : Number(account.minimumPayment),
+            calculatedStatementBalance: calculatedStatementBalances.get(account.id) ?? null,
             type: account.type as ForecastAccount["type"],
             currency: account.currency as ForecastEvent["currency"],
         })),

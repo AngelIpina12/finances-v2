@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AccountsClient } from "@/src/features/accounts/components/accounts-client";
 import { getFinancialAccounts } from "@/src/features/accounts/queries/get-financial-accounts";
+import { getCreditAccountsStatementData } from "@/src/features/accounts/queries/get-credit-accounts-statement-data";
 import { requireAuth } from "@/src/lib/auth-server";
 import { generatePageTitle } from "@/src/shared/utils/metadata";
 
@@ -13,6 +14,8 @@ export default async function AccountsPage() {
     if (!session) redirect("/auth/login");
 
     const accounts = await getFinancialAccounts(session.user.id);
+    const creditAccounts = accounts.filter((account) => account.type === "credit" && account.isActive);
+    const statementByAccountId = await getCreditAccountsStatementData(session.user.id, creditAccounts);
 
-    return <AccountsClient accounts={accounts} />;
+    return <AccountsClient accounts={accounts} statementByAccountId={statementByAccountId} />;
 }

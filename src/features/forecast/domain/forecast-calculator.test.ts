@@ -1,11 +1,24 @@
 import {
     describe, expect, it
 } from "vitest";
-import { buildCreditDebtActivity, buildForecast } from "./forecast-calculator";
+import { buildCashFlow, buildCreditDebtActivity, buildForecast } from "./forecast-calculator";
 
 const now = new Date("2026-09-05T12:00:00.000Z");
 
 describe("buildForecast", () => {
+    it("agrupa los movimientos por el día calendario de CDMX", () => {
+        const cashFlow = buildCashFlow([{
+            id: "interest", accountId: "cash", source: "fixed_income", name: "Rendimiento",
+            amount: 100, currency: "MXN", scheduledAt: new Date("2026-09-25T01:00:00.000Z"),
+            transactionType: "income", affectsBalance: true,
+            balanceAfter: null, settledBalanceAfter: null, liquidityAfter: null,
+        }], "day");
+
+        expect(cashFlow).toEqual([expect.objectContaining({
+            label: "24 sep 2026", incomes: 100,
+        })]);
+    });
+
     it("proyecta el saldo y alerta cuando un gasto deja una cuenta sin fondos", () => {
         const result = buildForecast({
             now,

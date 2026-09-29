@@ -1,7 +1,10 @@
 import {
     startOfDay, startOfMonth, startOfWeek, subMonths
 } from "date-fns";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 import { getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
+import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
+import { formatAppDate } from "@/src/shared/utils/local-date-time";
 import type { AccountType, Currency } from "@/src/features/transactions/domain/transaction-repository";
 import {
     getCycleCloseForCharge, getLatestCycleClose, getPaymentDueAt,
@@ -19,6 +22,7 @@ export type ForecastAccount = {
     statementBalance: number | null;
     minimumPayment: number | null;
     includeInLiquidity: boolean;
+    calculatedStatementBalance?: number | null;
 };
 
 export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income";
@@ -38,6 +42,7 @@ export type ForecastEvent = {
     cardPaymentDueAt?: Date;
     cardPaymentBreakdown?: {
         statementBalance: number;
+        calculatedStatementBalance?: number | null;
         trackedInstallments: number;
         untrackedStatement: number;
         projectedCharges: number;
@@ -118,7 +123,7 @@ export function buildCardPaymentEvents(input: {
                 && event.scheduledAt <= dueAt
             ))
             .reduce((sum, event) => sum + event.amount, 0);
-        const untrackedStatement = card.statementBalance ?? 0;
+        const untrackedStatement = card.calculatedStatementBalance ?? card.statementBalance ?? 0;
         const currentPayment = expectedPaymentAmount({
             strategy: setting.strategy,
             amount: untrackedStatement,
@@ -143,6 +148,7 @@ export function buildCardPaymentEvents(input: {
                 cardPaymentDueAt: currentDueAt,
                 cardPaymentBreakdown: {
                     statementBalance: card.statementBalance ?? 0,
+                    calculatedStatementBalance: card.calculatedStatementBalance ?? null,
                     trackedInstallments,
                     untrackedStatement,
                     projectedCharges: 0,
@@ -171,6 +177,7 @@ export function buildCardPaymentEvents(input: {
                 cardPaymentDueAt: currentDueAt,
                 cardPaymentBreakdown: {
                     statementBalance: card.statementBalance ?? 0,
+                    calculatedStatementBalance: card.calculatedStatementBalance ?? null,
                     trackedInstallments,
                     untrackedStatement,
                     projectedCharges: 0,
@@ -422,18 +429,21 @@ export function buildForecast(input: {
 export type ForecastGranularity = "day" | "week" | "month";
 
 function getPeriod(date: Date, granularity: ForecastGranularity) {
-    const periodStart = granularity === "day"
-        ? startOfDay(date)
+    const zonedDate = toZonedTime(date, APP_TIME_ZONE);
+    const zonedPeriodStart = granularity === "day"
+        ? startOfDay(zonedDate)
         : granularity === "week"
-            ? startOfWeek(date, { weekStartsOn: 1 })
-            : startOfMonth(date);
+            ? startOfWeek(zonedDate, { weekStartsOn: 1 })
+            : startOfMonth(zonedDate);
+    const periodStart = fromZonedTime(zonedPeriodStart, APP_TIME_ZONE);
+    const key = formatInTimeZone(periodStart, APP_TIME_ZONE, "yyyy-MM-dd");
     const label = granularity === "day"
-        ? date.toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })
+        ? formatAppDate(date, { day: "numeric", month: "short", year: "numeric" })
         : granularity === "week"
-            ? `Semana del ${periodStart.toLocaleDateString("es-MX", { day: "numeric", month: "short" })}`
-            : date.toLocaleDateString("es-MX", { month: "long", year: "numeric" });
+            ? `Semana del ${formatAppDate(periodStart, { day: "numeric", month: "short" })}`
+            : formatAppDate(periodStart, { month: "long", year: "numeric" });
 
-    return { key: periodStart.toISOString(), label };
+    return { key, label };
 }
 
 export function buildCashFlow(events: ProjectedForecastEvent[], granularity: ForecastGranularity) {

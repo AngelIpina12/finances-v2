@@ -1,14 +1,12 @@
 "use client";
 
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import { motion } from "framer-motion";
 import {
     AlertTriangle, CalendarClock, ChevronRight,
     CreditCard, Landmark, ReceiptText, Repeat2, Settings2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,10 +16,11 @@ import {
 import { CreditCardPaymentSettingsForm } from "@/src/features/accounts/components/credit-card-payment-settings-form";
 import { CardTitle } from "@/src/shared/components/ui/card";
 import {
-    addAppCalendarDays, toAppDateInputValue,
+    addAppCalendarDays, formatAppDate, millisecondsUntilNextAppDay, toAppDateInputValue,
 } from "@/src/shared/utils/local-date-time";
 import { CardPaymentBreakdown } from "./card-payment-breakdown";
 import { dismissCardPayment, restoreCardPayment } from "../actions/card-payment-dismissal-actions";
+import { payCardStatement } from "../actions/card-statement-payment-actions";
 import { ForecastControls } from "./forecast-controls";
 import { LiquiditySummary } from "./liquidity-summary";
 import {
@@ -72,6 +71,7 @@ export function ForecastClient({
     const [locallyDismissedPaymentKeys, setLocallyDismissedPaymentKeys] = useState<Set<string>>(new Set());
     const [locallyRestoredPaymentKeys, setLocallyRestoredPaymentKeys] = useState<Set<string>>(new Set());
     const [dismissingPaymentId, setDismissingPaymentId] = useState<string | null>(null);
+    const [payingStatementId, setPayingStatementId] = useState<string | null>(null);
     const startsAt = fromForecastDateInput(startsAtValue) ?? anchorNow;
     const endsAt = fromForecastDateInput(endsAtValue) ?? addAppCalendarDays(anchorNow, 30);
     const forecastDays = Math.min(180, Math.max(
@@ -114,6 +114,20 @@ export function ForecastClient({
     ));
     const selectedAccount = accounts.find((account) => account.id === accountId);
     const isSelectedCredit = selectedAccount?.type === "credit";
+
+    useEffect(() => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const refreshAtNextDay = () => {
+            timeoutId = setTimeout(() => {
+                router.refresh();
+                refreshAtNextDay();
+            }, millisecondsUntilNextAppDay());
+        };
+
+        refreshAtNextDay();
+        return () => clearTimeout(timeoutId);
+    }, [router]);
+
     const cashFlow = selectedAccount
         ? buildCashFlow(
             visibleEvents.filter((event) => event.currency === selectedAccount.currency),
@@ -176,6 +190,24 @@ export function ForecastClient({
             toast.error("No fue posible omitir el pago. Inténtalo de nuevo.");
         } finally {
             setDismissingPaymentId(null);
+        }
+    }
+
+    async function payStatement(eventId: string, creditAccountId: string, sourceAccountId: string) {
+        setPayingStatementId(eventId);
+        try {
+            const result = await payCardStatement({ creditAccountId, sourceAccountId });
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            toast.success(result.message);
+            router.refresh();
+        } catch {
+            toast.error("No fue posible registrar el pago. Inténtalo de nuevo.");
+        } finally {
+            setPayingStatementId(null);
         }
     }
 
@@ -295,7 +327,7 @@ export function ForecastClient({
                                                     {alert.kind === "credit_limit"
                                                         ? `la deuda proyectada excedería el límite por ${money(alert.amount, account?.currency ?? "MXN")}`
                                                         : `podrías quedarte sin saldo; faltarían ${money(alert.amount, account?.currency ?? "MXN")}`
-                                                    } el {format(alert.scheduledAt, "d 'de' MMMM", { locale: es })}.
+                                                    } el {formatAppDate(alert.scheduledAt, { day: "numeric", month: "long" })}.
                                                 </>
                                             }
                                         </p>
@@ -344,7 +376,10 @@ export function ForecastClient({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => setCardToConfigure(account)}
+                                            onClick={() => setCardToConfigure({
+                                                ...account,
+                                                calculatedStatementBalance: account.calculatedStatementBalance ?? null,
+                                            })}
                                             className="mt-4 cursor-pointer"
                                         >
                                             <Settings2 className="size-3.5" />
@@ -451,7 +486,7 @@ export function ForecastClient({
                                 <h2 className="font-serif text-2xl tracking-[-0.03em]">Línea de tiempo</h2>
                                 <p className="mt-1 text-sm text-muted-foreground">
                                     {visibleEvents.length
-                                        ? `${visibleEvents.length} compromiso${visibleEvents.length === 1 ? "" : "s"} entre ${format(startsAt, "d MMM", { locale: es })} y ${format(endsAt, "d MMM yyyy", { locale: es })}.`
+                                        ? `${visibleEvents.length} compromiso${visibleEvents.length === 1 ? "" : "s"} entre ${formatAppDate(startsAt, { day: "numeric", month: "short" })} y ${formatAppDate(endsAt, { day: "numeric", month: "short", year: "numeric" })}.`
                                         : "No hay movimientos previstos en el rango seleccionado."
                                     }
                                 </p>
@@ -492,7 +527,9 @@ export function ForecastClient({
                                                 <div className="min-w-0 flex-1">
                                                     <p className="truncate text-sm font-semibold">{event.name}</p>
                                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                        {format(event.scheduledAt, "EEE d 'de' MMM · HH:mm", { locale: es })}
+                                                        {formatAppDate(event.scheduledAt, {
+                                                            weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                                                        })}
                                                         {event.source === "recurring"
                                                             ? " · Recurrencia"
                                                             : event.source === "financing"
@@ -527,7 +564,18 @@ export function ForecastClient({
                                             </div>
                                             <CardPaymentBreakdown event={event} />
                                             {event.source === "card_payment" && event.settlesAccountId && event.cardPaymentDueAt && (
-                                                <div className="mt-3 flex justify-end">
+                                                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                                                    {event.id.startsWith("card-statement:") && event.affectsBalance && event.accountId && (
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            disabled={payingStatementId === event.id}
+                                                            onClick={() => void payStatement(event.id, event.settlesAccountId!, event.accountId!)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            {payingStatementId === event.id ? "Registrando..." : "Pagar estado de cuenta"}
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         type="button"
                                                         size="sm"
@@ -565,7 +613,7 @@ export function ForecastClient({
                                         <div key={key} className="flex flex-wrap items-center justify-between gap-3 p-3">
                                             <p className="text-sm">
                                                 <span className="font-medium">{card?.name ?? "Tarjeta archivada"}</span>
-                                                <span className="text-muted-foreground"> · vencía el {format(payment.dueAt, "d 'de' MMM", { locale: es })}</span>
+                                                <span className="text-muted-foreground"> · vencía el {formatAppDate(payment.dueAt, { day: "numeric", month: "long" })}</span>
                                             </p>
                                             <Button
                                                 type="button"

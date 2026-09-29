@@ -24,19 +24,22 @@ import { archiveFinancialAccount } from "../actions/financial-account-actions";
 import { FinancialAccountFormData } from "../schemas/financial-account.schema";
 import { AccountPlastic } from "./accounts-plastic";
 import { AccountForm } from "./accounts-form";
+import { CreditStatementIndicator } from "./credit-statement-indicator";
 import { formatMoney } from "../utils/format-account-money";
 import { ACCOUNT_TYPE_LABELS } from "../constants/account.constants";
 import { createFinancialAccountDraft, toFinancialAccountDraft } from "../utils/financial-account-draft";
 import { CardTitle } from "@/src/shared/components/ui/card";
+import type { CreditAccountStatement } from "../queries/get-credit-accounts-statement-data";
 
 type FinancialAccount = typeof financialAccounts.$inferSelect;
 type Filter = "all" | FinancialAccountFormData["type"];
 
 interface Props {
     accounts: FinancialAccount[]
+    statementByAccountId?: Record<string, CreditAccountStatement>
 }
 
-export function AccountsClient({ accounts }: Props) {
+export function AccountsClient({ accounts, statementByAccountId = {} }: Props) {
     const [filter, setFilter] = useState<Filter>("all");
     const [hideBalances, setHideBalances] = useState(false);
     const [accountToEdit, setAccountToEdit] = useState<FinancialAccount | "new" | null>(null);
@@ -189,6 +192,16 @@ export function AccountsClient({ accounts }: Props) {
                                         hideBalance={hideBalances || account.hideBalance}
                                     />
                                 </motion.div>
+                                {account.type === "credit" && (
+                                    <CreditStatementIndicator
+                                        creditAccountId={account.id}
+                                        currency={account.currency}
+                                        creditLimit={account.creditLimit === null ? null : Number(account.creditLimit)}
+                                        owed={Number(account.owedAmount ?? account.currentBalance)}
+                                        statement={statementByAccountId[account.id] ?? null}
+                                        hideBalance={hideBalances || account.hideBalance}
+                                    />
+                                )}
                                 <div className="flex items-start justify-between gap-3 px-2 pb-1 pt-4">
                                     <div>
                                         <p className="font-medium">{account.name}</p>
