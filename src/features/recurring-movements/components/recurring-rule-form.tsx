@@ -12,10 +12,10 @@ import {
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput, FormLabel,
     FormSelect, FormSubmit, SegmentedControl,
 } from "@/src/shared/components/forms";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import { saveRecurringRule } from "../actions/recurring-rule-actions";
 import { recurringRuleFormSchema, type RecurringRuleFormData } from "../schemas/recurring-rule.schema";
 import { createRecurringRuleDraft } from "../utils/recurring-rule-draft";
@@ -283,11 +283,15 @@ export function RecurringRuleForm({ accounts, categories, initialValues, onClose
                     </div>
                     {calendarEntries.fields.map((field, index) => (
                         <div key={field.id} className="grid gap-2 sm:grid-cols-[1fr_9rem_auto]">
-                            <FormInput
-                                type="datetime-local"
-                                {...register(`calendarEntries.${index}.scheduledAt`, {
-                                    setValueAs: fromAppDateTimeInputValue,
-                                })}
+                            <Controller
+                                name={`calendarEntries.${index}.scheduledAt`}
+                                control={control}
+                                render={({ field: calendarField }) => (
+                                    <DateTimePickerField
+                                        value={calendarField.value ? new Date(calendarField.value) : undefined}
+                                        onChange={calendarField.onChange}
+                                    />
+                                )}
                             />
                             <FormInput
                                 type="number"
@@ -325,19 +329,27 @@ export function RecurringRuleForm({ accounts, categories, initialValues, onClose
                     </div>
                     {dateOverrides.fields.map((field, index) => (
                         <div key={field.id} className="grid gap-2 sm:grid-cols-[1fr_1fr_8rem_auto]">
-                            <FormInput
-                                type="datetime-local"
-                                aria-label="Fecha original"
-                                {...register(`dateOverrides.${index}.originalScheduledAt`, {
-                                    setValueAs: fromAppDateTimeInputValue,
-                                })}
+                            <Controller
+                                name={`dateOverrides.${index}.originalScheduledAt`}
+                                control={control}
+                                render={({ field: overrideField }) => (
+                                    <DateTimePickerField
+                                        aria-label="Fecha original"
+                                        value={overrideField.value ? new Date(overrideField.value) : undefined}
+                                        onChange={overrideField.onChange}
+                                    />
+                                )}
                             />
-                            <FormInput
-                                type="datetime-local"
-                                aria-label="Fecha nueva"
-                                {...register(`dateOverrides.${index}.scheduledAt`, {
-                                    setValueAs: fromAppDateTimeInputValue,
-                                })}
+                            <Controller
+                                name={`dateOverrides.${index}.scheduledAt`}
+                                control={control}
+                                render={({ field: overrideField }) => (
+                                    <DateTimePickerField
+                                        aria-label="Fecha nueva"
+                                        value={overrideField.value ? new Date(overrideField.value) : undefined}
+                                        onChange={overrideField.onChange}
+                                    />
+                                )}
                             />
                             <FormInput
                                 type="number"
@@ -373,19 +385,31 @@ export function RecurringRuleForm({ accounts, categories, initialValues, onClose
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="recurring-start">Inicio</FormLabel>
-                    <FormInput
-                        id="recurring-start"
-                        type="datetime-local"
-                        {...register("startsAt", { setValueAs: fromAppDateTimeInputValue })}
+                    <Controller
+                        name="startsAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="recurring-start"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.startsAt && <FormError>{errors.startsAt.message}</FormError>}
                 </div>
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="recurring-end">Finaliza <span className="font-normal text-muted-foreground">(opcional)</span></FormLabel>
-                    <FormInput
-                        id="recurring-end"
-                        type="datetime-local"
-                        {...register("endsAt", { setValueAs: fromAppDateTimeInputValue })}
+                    <Controller
+                        name="endsAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="recurring-end"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.endsAt && <FormError>{errors.endsAt.message}</FormError>}
                 </div>

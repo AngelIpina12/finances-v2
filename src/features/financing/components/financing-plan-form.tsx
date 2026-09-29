@@ -9,10 +9,10 @@ import { useEffect, useTransition } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
 } from "@/src/shared/components/forms";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import { createFinancingPlan } from "../actions/financing-actions";
 import { financingPlanFormSchema, type FinancingPlanFormData } from "../schemas/financing.schema";
 import type { FinancingData } from "../queries/get-financing-data";
@@ -193,10 +193,16 @@ export function FinancingPlanForm({ purchases, paymentAccounts, onClose }: Props
                 </div>
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="financing-start">Primer pago</FormLabel>
-                    <FormInput
-                        id="financing-start"
-                        type="datetime-local"
-                        {...register("startsAt", { setValueAs: fromAppDateTimeInputValue })}
+                    <Controller
+                        name="startsAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="financing-start"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.startsAt && <FormError>{errors.startsAt.message}</FormError>}
                 </div>

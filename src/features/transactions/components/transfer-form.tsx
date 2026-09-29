@@ -9,10 +9,10 @@ import toast from "react-hot-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
 } from "@/src/shared/components/forms";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import { createTransfer } from "../actions/transaction-actions";
 import { transferFormSchema, type TransferFormData } from "../schemas/transfer.schema";
 import { createTransferDraft } from "../utils/transfer-draft";
@@ -138,12 +138,16 @@ export function TransferForm({ accounts, onClose }: Props) {
                 </div>
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="transfer-date">Fecha y hora</FormLabel>
-                    <FormInput
-                        id="transfer-date"
-                        type="datetime-local"
-                        {...register("date", {
-                            setValueAs: fromAppDateTimeInputValue,
-                        })}
+                    <Controller
+                        name="date"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="transfer-date"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.date && <FormError>{errors.date.message}</FormError>}
                 </div>

@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
+    DatePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
 } from "@/src/shared/components/forms";
@@ -281,19 +282,31 @@ export function FixedIncomeForm({ accounts, initialValues, onClose, positionId }
                 className={`grid gap-4 ${hasMaturity ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
             >
                 <Field label="Inicio" error={errors.startsAt?.message} htmlFor="fi-start">
-                    <FormInput
-                        id="fi-start"
-                        type="date"
-                        {...register("startsAt", { valueAsDate: true })}
-                        disabled={isEditing}
+                    <Controller
+                        name="startsAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DatePickerField
+                                id="fi-start"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                                disabled={isEditing}
+                            />
+                        )}
                     />
                 </Field>
                 {hasMaturity && (
                     <Field label="Vencimiento" error={errors.maturesAt?.message} htmlFor="fi-matures">
-                        <FormInput
-                            id="fi-matures"
-                            type="date"
-                            {...register("maturesAt", { valueAsDate: true })}
+                        <Controller
+                            name="maturesAt"
+                            control={control}
+                            render={({ field }) => (
+                                <DatePickerField
+                                    id="fi-matures"
+                                    value={field.value ? new Date(field.value) : undefined}
+                                    onChange={field.onChange}
+                                />
+                            )}
                         />
                     </Field>
                 )}

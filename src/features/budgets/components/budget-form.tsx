@@ -10,10 +10,10 @@ import { Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
 } from "@/src/shared/components/forms";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import { saveBudget } from "../actions/budget-actions";
 import type { BudgetsData } from "../queries/get-budgets";
 import { budgetFormSchema, type BudgetFormData } from "../schemas/budget.schema";
@@ -180,19 +180,31 @@ export function BudgetForm({ initialValues, categories, accounts, onClose }: Pro
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="budget-start">Inicio</FormLabel>
-                    <FormInput
-                        id="budget-start"
-                        type="datetime-local"
-                        {...register("startsAt", { setValueAs: fromAppDateTimeInputValue })}
+                    <Controller
+                        name="startsAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="budget-start"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                 </div>
                 {period === "custom" && (
                     <div className="flex flex-col gap-2">
                         <FormLabel htmlFor="budget-end">Fin</FormLabel>
-                        <FormInput
-                            id="budget-end"
-                            type="datetime-local"
-                            {...register("endsAt", { setValueAs: fromAppDateTimeInputValue })}
+                        <Controller
+                            name="endsAt"
+                            control={control}
+                            render={({ field }) => (
+                                <DateTimePickerField
+                                    id="budget-end"
+                                    value={field.value ? new Date(field.value) : undefined}
+                                    onChange={field.onChange}
+                                />
+                            )}
                         />
                         {errors.endsAt && <FormError>{errors.endsAt.message}</FormError>}
                     </div>

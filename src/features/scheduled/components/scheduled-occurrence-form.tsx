@@ -9,11 +9,11 @@ import {
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
     SegmentedControl,
 } from "@/src/shared/components/forms";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import {
     getBalanceDelta, getCreditLimitImpact,
 } from "@/src/features/transactions/domain/transaction-rules";
@@ -181,12 +181,16 @@ export function ScheduledOccurrenceForm({ accounts, categories, onClose }: Props
 
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="scheduled-date">Fecha y hora</FormLabel>
-                    <FormInput
-                        id="scheduled-date"
-                        type="datetime-local"
-                        {...register("scheduledAt", {
-                            setValueAs: fromAppDateTimeInputValue,
-                        })}
+                    <Controller
+                        name="scheduledAt"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="scheduled-date"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.scheduledAt && (
                         <FormError>{errors.scheduledAt.message}</FormError>

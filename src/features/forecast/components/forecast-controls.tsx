@@ -2,10 +2,19 @@
 
 import { Button } from "@/components/ui/button";
 import {
-    FormInput, FormLabel, FormSelect,
+    DatePickerField, FormLabel, FormSelect,
     SegmentedControl,
 } from "@/src/shared/components/forms";
+import { toAppDateInputValue } from "@/src/shared/utils/local-date-time";
+import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
+import { fromZonedTime } from "date-fns-tz";
 import type { ForecastGranularity } from "../domain/forecast-calculator";
+
+function parseDateInputValue(value: string) {
+    if (!value) return undefined;
+    const date = fromZonedTime(`${value}T00:00`, APP_TIME_ZONE);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+}
 
 type Props = {
     startsAt: string;
@@ -49,24 +58,22 @@ export function ForecastControls({
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="space-y-2">
                     <FormLabel htmlFor="forecast-start">Desde</FormLabel>
-                    <FormInput
+                    <DatePickerField
                         id="forecast-start"
-                        type="date"
-                        value={startsAt}
-                        min={minimumDate}
-                        max={maximumDate}
-                        onChange={(event) => onStartsAtChange(event.target.value)}
+                        value={parseDateInputValue(startsAt)}
+                        min={parseDateInputValue(minimumDate)}
+                        max={parseDateInputValue(maximumDate)}
+                        onChange={(date) => onStartsAtChange(date ? toAppDateInputValue(date) : "")}
                     />
                 </div>
                 <div className="space-y-2">
                     <FormLabel htmlFor="forecast-end">Hasta</FormLabel>
-                    <FormInput
+                    <DatePickerField
                         id="forecast-end"
-                        type="date"
-                        value={endsAt}
-                        min={startsAt}
-                        max={maximumDate}
-                        onChange={(event) => onEndsAtChange(event.target.value)}
+                        value={parseDateInputValue(endsAt)}
+                        min={parseDateInputValue(startsAt)}
+                        max={parseDateInputValue(maximumDate)}
+                        onChange={(date) => onEndsAtChange(date ? toAppDateInputValue(date) : "")}
                     />
                     <p className="text-xs text-muted-foreground">La fecha final no se incluye.</p>
                 </div>

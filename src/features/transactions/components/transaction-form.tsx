@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { TriangleAlert } from "lucide-react";
 import {
+    DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
     SegmentedControl,
@@ -22,7 +23,6 @@ import {
 import { saveTransaction } from "../actions/transaction-actions";
 import { TransactionFormData, transactionFormSchema } from "../schemas/transaction.schema";
 import { createTransactionDraft } from "../utils/transaction-draft";
-import { fromAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 import {
     getBalanceDelta, getCreditLimitImpact,
 } from "../domain/transaction-rules";
@@ -220,12 +220,16 @@ export function TransactionForm({
                 </div>
                 <div className="flex flex-col gap-2">
                     <FormLabel htmlFor="date">Fecha y hora</FormLabel>
-                    <FormInput
-                        id="date"
-                        type="datetime-local"
-                        {...register("date", {
-                            setValueAs: fromAppDateTimeInputValue,
-                        })}
+                    <Controller
+                        name="date"
+                        control={control}
+                        render={({ field }) => (
+                            <DateTimePickerField
+                                id="date"
+                                value={field.value ? new Date(field.value) : undefined}
+                                onChange={field.onChange}
+                            />
+                        )}
                     />
                     {errors.date && <FormError>{errors.date.message}</FormError>}
                 </div>
