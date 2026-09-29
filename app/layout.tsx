@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/src/components/providers/theme-provider";
+import { PaletteProvider } from "@/src/components/providers/palette-provider";
 import { cn } from "@/lib/utils";
 import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 import { THEME_INITIALIZATION_SCRIPT } from "@/src/shared/constants/theme";
+import { PALETTE_INITIALIZATION_SCRIPT } from "@/src/shared/constants/palettes";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -43,12 +45,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body
         className="flex min-h-full flex-col font-sans antialiased"
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <PaletteProvider>{children}</PaletteProvider>
+        </ThemeProvider>
         <Toaster position="top-right" />
         <Script
           id="theme-initialization"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: THEME_INITIALIZATION_SCRIPT }}
+        />
+        <Script
+          id="palette-initialization"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: PALETTE_INITIALIZATION_SCRIPT }}
         />
       </body>
     </html>

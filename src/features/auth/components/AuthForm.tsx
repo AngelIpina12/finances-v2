@@ -24,6 +24,7 @@ import {
 	FormSubmit, SegmentedControl, FormError
 } from '@/components/forms'
 import { useTheme } from '../../../components/providers/theme-provider'
+import { PaletteSwitcher } from '../../../shared/components/ui/palette-switcher'
 import {
 	ForgotPasswordSchema, LoginSchema, SignUpSchema,
 	AuthFormData, LoginFormData, SignUpFormData,
@@ -201,13 +202,16 @@ export function AuthForm({ defaultMode = 'login', resetToken }: AuthFormProps) {
 
 				<section className="flex flex-1 flex-col bg-background px-5 py-8 sm:px-12 sm:py-12 lg:px-14 xl:px-20">
 					<div className="mb-10 flex items-center justify-between lg:justify-end">
-						<button
-							onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-							className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-							aria-label="Cambiar tema"
-						>
-							{resolvedTheme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
-						</button>
+						<div className="flex items-center gap-1">
+							<button
+								onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+								className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+								aria-label="Cambiar tema"
+							>
+								{resolvedTheme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+							</button>
+							<PaletteSwitcher />
+						</div>
 						<div className="flex items-center gap-2 lg:hidden">
 							<span className="grid size-8 place-items-center rounded-lg bg-primary text-primary-foreground">
 								<BarChart3 className="size-4" aria-hidden="true" />
