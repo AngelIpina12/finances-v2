@@ -12,10 +12,10 @@ export default async function TransactionsPage() {
 
     if (!session) redirect("/auth/login");
 
-    const [formData, transactions] = await Promise.all([
+    const [formData, { transactions, hasMore }] = await Promise.all([
         getTransactionFormData(session.user.id),
         getTransactions(session.user.id),
     ]);
 
-    return <TransactionsClient {...formData} transactions={transactions} />;
+    return <TransactionsClient {...formData} transactions={transactions} initialHasMore={hasMore} />;
 }

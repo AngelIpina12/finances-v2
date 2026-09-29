@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/src/lib/auth-server";
+import { getTransactions } from "../queries/get-transaction-data";
 import { CancelTransactionUseCase } from "../application/use-cases/cancel-transaction";
 import { CreateTransactionUseCase } from "../application/use-cases/create-transaction";
 import { CreateTransferUseCase } from "../application/use-cases/create-transfer";
@@ -102,6 +103,16 @@ export async function cancelTransaction(transactionId: string): Promise<ActionRe
     revalidateFinancialViews();
 
     return { success: true, message: "Movimiento cancelado y saldo actualizado." };
+}
+
+export async function loadMoreTransactions(offset: number) {
+    const { session } = await requireAuth();
+
+    if (!session) {
+        return { transactions: [], hasMore: false };
+    }
+
+    return getTransactions(session.user.id, offset);
 }
 
 export async function createTransfer(input: TransferFormData): Promise<ActionResult> {

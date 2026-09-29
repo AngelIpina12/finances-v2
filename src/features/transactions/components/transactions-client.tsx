@@ -6,7 +6,7 @@ import {
     ReceiptText, X, XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { CardTitle } from "@/src/shared/components/ui/card";
 import { bootstrapDefaultCategories } from "../../categories/actions/category-actions";
-import { cancelTransaction } from "../actions/transaction-actions";
+import { cancelTransaction, loadMoreTransactions } from "../actions/transaction-actions";
 import type { TransactionListItem } from "../queries/get-transaction-data";
 import { createTransactionDraft, toTransactionDraft } from "../utils/transaction-draft";
 import { TransactionFilters, type TransactionFilter } from "./transaction-filters";
@@ -38,6 +38,7 @@ type FormData = React.ComponentProps<typeof TransactionForm> extends {
 
 interface TransactionsClientProps extends FormData {
     transactions: TransactionListItem[];
+    initialHasMore: boolean;
 }
 
 interface EmptyStateProps {
@@ -48,7 +49,7 @@ interface EmptyStateProps {
     onAction?: () => void;
 }
 
-export function TransactionsClient({ accounts, categories, transactions }: TransactionsClientProps) {
+export function TransactionsClient({ accounts, categories, transactions, initialHasMore }: TransactionsClientProps) {
     const router = useRouter();
     const [transactionToEdit, setTransactionToEdit] = useState<TransactionListItem | "new" | null>(null);
     const [transferOpen, setTransferOpen] = useState(false);
@@ -57,8 +58,24 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
     const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
     const [isBootstrapping, startBootstrap] = useTransition();
     const [isCancelling, startCancel] = useTransition();
+    const [isLoadingMore, startLoadMore] = useTransition();
+    const [loadedTransactions, setLoadedTransactions] = useState(transactions);
+    const [hasMore, setHasMore] = useState(initialHasMore);
 
-    const visibleTransactions = transactions.filter((item) => {
+    useEffect(() => {
+        setLoadedTransactions(transactions);
+        setHasMore(initialHasMore);
+    }, [transactions, initialHasMore]);
+
+    function loadMore() {
+        startLoadMore(async () => {
+            const result = await loadMoreTransactions(loadedTransactions.length);
+            setLoadedTransactions((current) => [...current, ...result.transactions]);
+            setHasMore(result.hasMore);
+        });
+    }
+
+    const visibleTransactions = loadedTransactions.filter((item) => {
         const matchesAccount = selectedAccountIds.size === 0 || selectedAccountIds.has(item.accountId);
         if (!matchesAccount) return false;
 
@@ -213,6 +230,18 @@ export function TransactionsClient({ accounts, categories, transactions }: Trans
                             onEdit={setTransactionToEdit}
                             onCancel={setTransactionToCancel}
                         />
+                    )}
+                    {hasMore && (
+                        <div className="flex justify-center">
+                            <Button
+                                variant="outline"
+                                onClick={loadMore}
+                                disabled={isLoadingMore}
+                                className="cursor-pointer"
+                            >
+                                {isLoadingMore ? "Cargando..." : "Cargar más movimientos"}
+                            </Button>
+                        </div>
                     )}
                 </>
             )}

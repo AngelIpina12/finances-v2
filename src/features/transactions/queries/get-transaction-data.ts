@@ -53,8 +53,10 @@ export async function getTransactionFormData(userId: string) {
     };
 }
 
-export async function getTransactions(userId: string) {
-    return db
+export const TRANSACTIONS_PAGE_SIZE = 50;
+
+export async function getTransactions(userId: string, offset = 0, pageSize = TRANSACTIONS_PAGE_SIZE) {
+    const rows = await db
         .select({
             id: transactions.id,
             accountId: transactions.accountId,
@@ -87,7 +89,13 @@ export async function getTransactions(userId: string) {
             ),
         )
         .orderBy(desc(transactions.date), desc(transactions.createdAt))
-        .limit(100);
+        .offset(offset)
+        .limit(pageSize + 1);
+
+    return {
+        transactions: rows.slice(0, pageSize),
+        hasMore: rows.length > pageSize,
+    };
 }
 
-export type TransactionListItem = Awaited<ReturnType<typeof getTransactions>>[number];
+export type TransactionListItem = Awaited<ReturnType<typeof getTransactions>>["transactions"][number];
