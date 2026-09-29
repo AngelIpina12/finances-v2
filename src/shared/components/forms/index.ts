@@ -6,9 +6,12 @@ import ActionLink from './ActionLink';
 import SegmentedControl from './SegmentedControl';
 import FormError from './FormError';
 import FormSelect from './FormSelect';
+import DatePickerField from './DatePickerField';
+import DateTimePickerField from './DateTimePickerField';
 
 export {
     Form, FormInput, FormLabel,
     FormSubmit, ActionLink, SegmentedControl,
-    FormError, FormSelect
+    FormError, FormSelect,
+    DatePickerField, DateTimePickerField
 };
