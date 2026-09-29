@@ -273,7 +273,9 @@ export const financingInstallments = pgTable(
     },
     (table) => [
         uniqueIndex("financing_installments_plan_sequence_idx").on(table.financingPlanId, table.sequence),
-        uniqueIndex("financing_installments_payment_transfer_idx")
+        // No único: un pago de estado de cuenta puede liquidar varias cuotas
+        // a la vez junto con los cargos regulares del ciclo.
+        index("financing_installments_payment_transfer_idx")
             .on(table.paymentTransferGroupId)
             .where(sql`${table.paymentTransferGroupId} is not null`),
         index("financing_installments_plan_date_idx").on(table.financingPlanId, table.scheduledAt),

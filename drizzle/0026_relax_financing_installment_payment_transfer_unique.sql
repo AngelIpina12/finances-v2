@@ -1,0 +1,2 @@
+DROP INDEX "financing_installments_payment_transfer_idx";--> statement-breakpoint
+CREATE INDEX "financing_installments_payment_transfer_idx" ON "financing_installments" USING btree ("payment_transfer_group_id") WHERE "financing_installments"."payment_transfer_group_id" is not null;

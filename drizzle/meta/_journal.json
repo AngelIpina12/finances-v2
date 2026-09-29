@@ -183,6 +183,13 @@
       "when": 1790198224230,
       "tag": "0025_return_cancelled_fixed_income_capital",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790528844247,
+      "tag": "0026_relax_financing_installment_payment_transfer_unique",
+      "breakpoints": true
     }
   ]
 }
