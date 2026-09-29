@@ -3,6 +3,7 @@ import { UserMenu } from "@/src/features/auth/components/UserMenu";
 import { requireAuth } from "@/src/lib/auth-server";
 import { PrivateNavigation } from "@/src/shared/components/ui/private-navigation";
 import { ThemeToggle } from "@/src/shared/components/ui/theme-toggle";
+import { PaletteSwitcher } from "@/src/shared/components/ui/palette-switcher";
 
 export default async function PrivateLayout({
   children,
@@ -16,6 +17,7 @@ export default async function PrivateLayout({
         <PrivateNavigation />
         <div className="flex items-center gap-1">
           <ThemeToggle />
+          <PaletteSwitcher />
           <UserMenu name={session?.user.name} email={session?.user.email} />
         </div>
       </header>
