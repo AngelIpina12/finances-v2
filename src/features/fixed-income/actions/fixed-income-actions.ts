@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/src/lib/auth-server";
 import { FixedIncomeError } from "../application/fixed-income-error";
 import { DrizzleFixedIncomeRepository } from "../infrastructure/drizzle-fixed-income-repository";
-import { fixedIncomePositionSchema, recordInterestSchema, settlePositionSchema, withdrawCapitalSchema, type FixedIncomePositionData, type RecordInterestData, type SettlePositionData, type WithdrawCapitalData } from "../schemas/fixed-income.schema";
+import { addCapitalSchema, fixedIncomePositionSchema, recordInterestSchema, settlePositionSchema, withdrawCapitalSchema, type AddCapitalData, type FixedIncomePositionData, type RecordInterestData, type SettlePositionData, type WithdrawCapitalData } from "../schemas/fixed-income.schema";
 
 const repository = new DrizzleFixedIncomeRepository();
 type ActionResult = { success: boolean; message: string };
@@ -69,6 +69,16 @@ export async function withdrawFixedIncomeCapital(input: WithdrawCapitalData): Pr
     try { await repository.withdraw(userId, parsed.data.positionId, parsed.data.amount, parsed.data.occurredAt); } catch (error) { return errorResult(error, "No fue posible retirar el capital."); }
     revalidateViews();
     return { success: true, message: "Capital retirado a tu cuenta de débito." };
+}
+
+export async function addFixedIncomeCapital(input: AddCapitalData): Promise<ActionResult> {
+    const parsed = addCapitalSchema.safeParse(input);
+    if (!parsed.success) return { success: false, message: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    const userId = await authenticatedUser();
+    if (!userId) return { success: false, message: "Tu sesión expiró." };
+    try { await repository.addCapital(userId, parsed.data.positionId, parsed.data.amount, parsed.data.occurredAt); } catch (error) { return errorResult(error, "No fue posible aportar el capital."); }
+    revalidateViews();
+    return { success: true, message: "Capital aportado a tu cajita." };
 }
 
 export async function settleFixedIncomePosition(input: SettlePositionData): Promise<ActionResult> {

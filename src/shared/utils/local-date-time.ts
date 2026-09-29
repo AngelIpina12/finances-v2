@@ -1,5 +1,5 @@
 import {
-    addDays, addMonths, startOfMonth,
+    addDays, addMonths, startOfDay, startOfMonth,
     subMilliseconds, subMonths,
 } from "date-fns";
 import {
@@ -90,4 +90,10 @@ export function addAppCalendarDays(date: Date, amount: number) {
     const zonedDate = toZonedTime(date, APP_TIME_ZONE);
 
     return fromZonedTime(addDays(zonedDate, amount), APP_TIME_ZONE);
+}
+
+export function millisecondsUntilNextAppDay(now = new Date()) {
+    const zonedNow = toZonedTime(now, APP_TIME_ZONE);
+    const nextDay = startOfDay(addDays(zonedNow, 1));
+    return Math.max(1_000, fromZonedTime(nextDay, APP_TIME_ZONE).getTime() - now.getTime());
 }

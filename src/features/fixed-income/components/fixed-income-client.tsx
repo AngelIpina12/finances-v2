@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { z } from "zod";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    Landmark, Pencil, Plus, ReceiptText, Trash2, X,
+    CalendarClock, Landmark, Pencil, Plus, ReceiptText, Trash2, Wallet, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel,
     AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -19,9 +24,9 @@ import {
     DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { CardTitle } from "@/src/shared/components/ui/card";
-import { formatAppDate } from "@/src/shared/utils/local-date-time";
+import { formatAppDate, millisecondsUntilNextAppDay, toAppDateInputValue } from "@/src/shared/utils/local-date-time";
 import {
-    cancelFixedIncomePosition, recordDailyFixedIncomeInterest,
+    addFixedIncomeCapital, cancelFixedIncomePosition, recordDailyFixedIncomeInterest,
     settleFixedIncomePosition, withdrawFixedIncomeCapital,
 } from "../actions/fixed-income-actions";
 import type { FixedIncomeData } from "../queries/get-fixed-income-data";
@@ -35,13 +40,28 @@ const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX
     maximumFractionDigits: 2,
 }).format(amount);
 
+const addCapitalAmountSchema = (availableBalance: number) => z.coerce.number({
+    error: "Ingresa un monto válido.",
+}).finite("Ingresa un monto válido.")
+    .positive("El aporte debe ser mayor que cero.")
+    .max(availableBalance, "El aporte no puede superar el saldo disponible en la cuenta de fondeo.");
+
 export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData) {
     const router = useRouter();
     const [positionToEdit, setPositionToEdit] = useState<FixedIncomeData["positions"][number] | "new" | null>(null);
     const [positionToCancel, setPositionToCancel] = useState<FixedIncomeData["positions"][number] | null>(null);
     const [positionToWithdraw, setPositionToWithdraw] = useState<FixedIncomeData["positions"][number] | null>(null);
     const [withdrawAmount, setWithdrawAmount] = useState("");
+    const [positionToAddCapital, setPositionToAddCapital] = useState<FixedIncomeData["positions"][number] | null>(null);
+    const [addCapitalAmount, setAddCapitalAmount] = useState("");
+    const addCapitalFundingAccount = liquidAccounts.find((account) => account.id === positionToAddCapital?.fundingAccountId);
+    const addCapitalError = useMemo(() => {
+        if (!positionToAddCapital || !addCapitalAmount) return null;
+        const result = addCapitalAmountSchema(addCapitalFundingAccount?.currentBalance ?? 0).safeParse(addCapitalAmount);
+        return result.success ? null : result.error.issues[0]?.message ?? "Monto inválido.";
+    }, [addCapitalAmount, addCapitalFundingAccount, positionToAddCapital]);
     const [statusFilter, setStatusFilter] = useState<FixedIncomeFilter>("active");
+    const [backdatePositionId, setBackdatePositionId] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
     const active = positions.filter((position) => (
         position.status === "active" || position.status === "matured"
@@ -55,11 +75,24 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
         return position.status === statusFilter;
     });
 
-    function registerDaily(positionId: string) {
+    useEffect(() => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const refreshAtNextDay = () => {
+            timeoutId = setTimeout(() => {
+                router.refresh();
+                refreshAtNextDay();
+            }, millisecondsUntilNextAppDay());
+        };
+
+        refreshAtNextDay();
+        return () => clearTimeout(timeoutId);
+    }, [router]);
+
+    function registerDaily(positionId: string, occurredAt: Date = today) {
         startTransition(async () => {
             const result = await recordDailyFixedIncomeInterest({
                 positionId,
-                occurredAt: today,
+                occurredAt,
             });
 
             if (!result.success) {
@@ -68,6 +101,7 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
             }
 
             toast.success(result.message);
+            setBackdatePositionId(null);
             router.refresh();
         });
     }
@@ -105,6 +139,26 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
             toast.success(result.message);
             setPositionToWithdraw(null);
             setWithdrawAmount("");
+            router.refresh();
+        });
+    }
+
+    function addCapital() {
+        if (!positionToAddCapital || addCapitalError) return;
+        const amount = Number(addCapitalAmount);
+        startTransition(async () => {
+            const result = await addFixedIncomeCapital({
+                positionId: positionToAddCapital.id,
+                amount,
+                occurredAt: today,
+            });
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+            toast.success(result.message);
+            setPositionToAddCapital(null);
+            setAddCapitalAmount("");
             router.refresh();
         });
     }
@@ -336,6 +390,54 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                                 ? "Abono de hoy confirmado"
                                                 : "Confirmar abono de hoy"}
                                         </Button>
+                                        {position.interestFrequency === "daily" && (
+                                            <Popover
+                                                open={backdatePositionId === position.id}
+                                                onOpenChange={(open) => setBackdatePositionId(open ? position.id : null)}
+                                            >
+                                                <PopoverTrigger
+                                                    render={
+                                                        <Button
+                                                            size="icon-sm"
+                                                            variant="outline"
+                                                            disabled={isPending}
+                                                            aria-label={`Confirmar abono de un día anterior para ${position.name}`}
+                                                            className="cursor-pointer"
+                                                        />
+                                                    }
+                                                >
+                                                    <CalendarClock />
+                                                </PopoverTrigger>
+                                                <PopoverContent align="start" className="w-72 p-0">
+                                                    <div className="border-b p-3">
+                                                        <p className="text-sm font-medium">Confirmar abono de otro día</p>
+                                                        <p className="mt-1 text-xs text-muted-foreground">
+                                                            Elige el día pendiente en que Nu o tu banco realmente depositó el rendimiento.
+                                                        </p>
+                                                    </div>
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={undefined}
+                                                        onSelect={(date) => date && registerDaily(position.id, date)}
+                                                        disabled={(date) => date < startOfDay(position.startsAt)
+                                                            || date > startOfDay(today)
+                                                            || position.confirmedInterestDates.includes(toAppDateInputValue(date))}
+                                                        defaultMonth={today}
+                                                        autoFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        )}
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={isPending}
+                                            onClick={() => (setPositionToAddCapital(position), setAddCapitalAmount(""))}
+                                            className="cursor-pointer"
+                                        >
+                                            <Wallet />
+                                            Aportar capital
+                                        </Button>
                                         <Button
                                             size="sm"
                                             disabled={isPending}
@@ -464,6 +566,89 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                 </DialogContent>
             </Dialog>
 
+            <Dialog
+                open={positionToAddCapital !== null}
+                onOpenChange={(open) => !open && setPositionToAddCapital(null)}
+            >
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-md p-6" showCloseButton={false}>
+                    <DialogHeader>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <DialogTitle className="font-serif text-2xl">Aportar capital</DialogTitle>
+                                <DialogDescription className="mt-1">
+                                    {positionToAddCapital
+                                        ? `Agrega dinero a “${positionToAddCapital.name}” desde su cuenta de fondeo de origen.`
+                                        : ""}
+                                </DialogDescription>
+                            </div>
+                            <Button type="button" size="icon-sm" variant="ghost" onClick={() => setPositionToAddCapital(null)} className="cursor-pointer">
+                                <X />
+                                <span className="sr-only">Cerrar</span>
+                            </Button>
+                        </div>
+                    </DialogHeader>
+                    {positionToAddCapital && (
+                        <form
+                            className="mt-4 space-y-5"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                addCapital();
+                            }}
+                        >
+                            <div className="space-y-2 rounded-xl border bg-muted/30 p-3 text-sm">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Saldo actual de la cajita</span>
+                                    <span className="font-medium">
+                                        {money(positionToAddCapital.outstandingPrincipal, positionToAddCapital.currency)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Cuenta de fondeo</span>
+                                    <span className="font-medium">
+                                        {addCapitalFundingAccount?.name ?? "Cuenta no disponible"}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-muted-foreground">Saldo disponible</span>
+                                    <span className="font-medium">
+                                        {addCapitalFundingAccount
+                                            ? money(addCapitalFundingAccount.currentBalance, addCapitalFundingAccount.currency)
+                                            : "—"}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label htmlFor="add-capital-amount" className="text-sm font-medium">Monto a aportar</label>
+                                <Input
+                                    id="add-capital-amount"
+                                    type="number"
+                                    min="0.01"
+                                    max={addCapitalFundingAccount?.currentBalance}
+                                    step="0.01"
+                                    value={addCapitalAmount}
+                                    onChange={(event) => setAddCapitalAmount(event.target.value)}
+                                    aria-invalid={Boolean(addCapitalError)}
+                                    autoFocus
+                                />
+                                {addCapitalError && (
+                                    <p className="text-xs text-destructive">{addCapitalError}</p>
+                                )}
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button type="button" variant="outline" onClick={() => setPositionToAddCapital(null)} className="cursor-pointer">Cancelar</Button>
+                                <Button
+                                    type="submit"
+                                    disabled={isPending || !addCapitalAmount || Boolean(addCapitalError) || !addCapitalFundingAccount}
+                                    className="cursor-pointer"
+                                >
+                                    {isPending ? "Aportando..." : "Confirmar aporte"}
+                                </Button>
+                            </div>
+                        </form>
+                    )}
+                </DialogContent>
+            </Dialog>
+
             <AlertDialog
                 open={positionToCancel !== null}
                 onOpenChange={(open) => !open && setPositionToCancel(null)}
@@ -497,6 +682,12 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
             </AlertDialog>
         </div>
     );
+}
+
+function startOfDay(date: Date) {
+    const copy = new Date(date);
+    copy.setHours(0, 0, 0, 0);
+    return copy;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

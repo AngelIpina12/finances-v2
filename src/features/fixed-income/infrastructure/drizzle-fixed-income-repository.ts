@@ -56,6 +56,37 @@ export class DrizzleFixedIncomeRepository {
         });
     }
 
+    async addCapital(userId: string, positionId: string, amount: number, occurredAt: Date) {
+        return db.transaction(async (tx) => {
+            const [position] = await tx.select().from(fixedIncomePositions).where(and(
+                eq(fixedIncomePositions.id, positionId),
+                eq(fixedIncomePositions.userId, userId),
+                eq(fixedIncomePositions.status, "active"),
+            )).limit(1).for("update");
+            if (!position) throw new FixedIncomeError("Sólo puedes aportar capital a una cajita activa.");
+            const [funding] = await tx.select().from(financialAccounts).where(and(
+                eq(financialAccounts.id, position.fundingAccountId),
+                eq(financialAccounts.userId, userId),
+                eq(financialAccounts.isActive, true),
+                isNull(financialAccounts.deletedAt),
+            )).limit(1).for("update");
+            if (!funding) throw new FixedIncomeError("La cuenta de origen ya no está disponible.");
+            if (asNumber(funding.currentBalance) < amount) throw new FixedIncomeError("La cuenta de origen no tiene saldo suficiente para este aporte.");
+            await tx.update(financialAccounts).set({ currentBalance: sql`${financialAccounts.currentBalance} - ${amount}` }).where(eq(financialAccounts.id, funding.id));
+            await tx.update(fixedIncomePositions).set({
+                outstandingPrincipal: sql`${fixedIncomePositions.outstandingPrincipal} + ${amount}`,
+            }).where(eq(fixedIncomePositions.id, position.id));
+            await tx.insert(fixedIncomeCashFlows).values({
+                positionId: position.id,
+                type: "contribution",
+                grossAmount: String(amount),
+                netAmount: String(amount),
+                occurredAt,
+                idempotencyKey: `topup:${position.id}:${dateKey(occurredAt)}:${amount}:${crypto.randomUUID()}`,
+            });
+        });
+    }
+
     async create(userId: string, input: FixedIncomePositionData) {
         return db.transaction(async (tx) => {
             const accounts = await tx

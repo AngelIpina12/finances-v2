@@ -44,3 +44,24 @@ export function calculateNetInterest(grossAmount: number, withholdingRate = 0) {
     const tax = roundMoney(grossAmount * withholdingRate);
     return { tax, net: roundMoney(grossAmount - tax) };
 }
+
+export function calculateProjectedDailyNetInterest(input: {
+    principal: number;
+    annualRate: number;
+    convention: DayCountConvention;
+    withholdingRate?: number;
+    days: number;
+}) {
+    let outstandingPrincipal = input.principal;
+
+    return Array.from({ length: input.days }, () => {
+        const gross = calculateDailyInterest(
+            outstandingPrincipal,
+            input.annualRate,
+            input.convention,
+        );
+        const { net } = calculateNetInterest(gross, input.withholdingRate);
+        outstandingPrincipal = roundMoney(outstandingPrincipal + net);
+        return net;
+    });
+}

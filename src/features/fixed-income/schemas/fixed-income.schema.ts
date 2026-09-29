@@ -37,7 +37,14 @@ export const withdrawCapitalSchema = z.object({
     occurredAt: z.coerce.date(),
 });
 
+export const addCapitalSchema = z.object({
+    positionId: z.uuid("La posición no es válida."),
+    amount: z.coerce.number().finite("Ingresa un monto válido.").positive("El aporte debe ser mayor que cero."),
+    occurredAt: z.coerce.date(),
+});
+
 export type FixedIncomePositionData = z.infer<typeof fixedIncomePositionSchema>;
 export type RecordInterestData = z.infer<typeof recordInterestSchema>;
 export type SettlePositionData = z.infer<typeof settlePositionSchema>;
 export type WithdrawCapitalData = z.infer<typeof withdrawCapitalSchema>;
+export type AddCapitalData = z.infer<typeof addCapitalSchema>;

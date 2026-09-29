@@ -91,6 +91,7 @@ export async function getFixedIncomeData(userId: string) {
             hasConfirmedInterestToday: positionFlows.some((flow) => (
                 toAppDateInputValue(flow.occurredAt) === today
             )),
+            confirmedInterestDates: positionFlows.map((flow) => toAppDateInputValue(flow.occurredAt)),
             estimatedValue: Number(position.outstandingPrincipal) + estimatedNet,
         };
     });

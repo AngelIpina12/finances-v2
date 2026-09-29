@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateAccruedInterest, calculateDailyInterest, calculateNetInterest } from "./fixed-income-calculator";
+import { calculateAccruedInterest, calculateDailyInterest, calculateNetInterest, calculateProjectedDailyNetInterest } from "./fixed-income-calculator";
 
 describe("fixed income calculator", () => {
     it("uses the selected annual day-count convention", () => {
@@ -15,5 +15,14 @@ describe("fixed income calculator", () => {
 
     it("separates withholding from gross interest", () => {
         expect(calculateNetInterest(100, 0.1)).toEqual({ tax: 10, net: 90 });
+    });
+
+    it("projects each daily yield with the balance accumulated on the prior day", () => {
+        expect(calculateProjectedDailyNetInterest({
+            principal: 1_000,
+            annualRate: 1,
+            convention: "actual_360",
+            days: 2,
+        })).toEqual([2.78, 2.79]);
     });
 });
