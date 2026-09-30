@@ -4,6 +4,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Posición del dock de navegación, definida por data-dock en <html> (abajo por defecto) */
+@custom-variant dock-bottom (&:where(html:not([data-dock="top"], [data-dock="left"], [data-dock="right"]) *));
+@custom-variant dock-top (&:where([data-dock="top"] *));
+@custom-variant dock-left (&:where([data-dock="left"] *));
+@custom-variant dock-right (&:where([data-dock="right"] *));
+@custom-variant dock-autohide (&:where([data-dock-autohide] *));
+@custom-variant dock-theme (&:where([data-dock-background="theme"] *));
+
 :root,
 .light {
   --background: oklch(0.975 0.008 250);
@@ -135,4 +143,30 @@ body {
   html {
     @apply font-sans;
   }
+}
+
+/* Dock con ocultado automático (solo escritorio): se esconde tras su borde hasta que el cursor se acerca */
+@media (width >= 40rem) {
+  [data-dock-autohide] [data-dock-shelf]:not([data-revealed]) {
+    translate: 0 calc(100% + 1.5rem);
+  }
+  [data-dock-autohide][data-dock="top"] [data-dock-shelf]:not([data-revealed]) {
+    translate: 0 calc(-100% - 1.5rem);
+  }
+  [data-dock-autohide][data-dock="left"] [data-dock-shelf]:not([data-revealed]) {
+    translate: calc(-100% - 1.5rem) 0;
+  }
+  [data-dock-autohide][data-dock="right"] [data-dock-shelf]:not([data-revealed]) {
+    translate: calc(100% + 1.5rem) 0;
+  }
+}
+
+/* Fondo del dock: neutro o color primario del tema, con la transparencia y el desenfoque elegidos */
+[data-dock-shelf] {
+  background-color: color-mix(in oklab, var(--background) var(--dock-opacity, 60%), transparent);
+  -webkit-backdrop-filter: blur(var(--dock-blur, 4px));
+  backdrop-filter: blur(var(--dock-blur, 4px));
+}
+[data-dock-background="theme"] [data-dock-shelf] {
+  background-color: color-mix(in oklab, var(--primary) var(--dock-opacity, 60%), transparent);
 }

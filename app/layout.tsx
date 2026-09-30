@@ -8,6 +8,7 @@ import { Toaster } from "react-hot-toast";
 import Script from "next/script";
 import { THEME_INITIALIZATION_SCRIPT } from "@/src/shared/constants/theme";
 import { PALETTE_INITIALIZATION_SCRIPT } from "@/src/shared/constants/palettes";
+import { DOCK_INITIALIZATION_SCRIPT } from "@/src/shared/constants/dock";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -58,6 +59,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           id="palette-initialization"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: PALETTE_INITIALIZATION_SCRIPT }}
+        />
+        <Script
+          id="dock-initialization"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: DOCK_INITIALIZATION_SCRIPT }}
         />
       </body>
     </html>
