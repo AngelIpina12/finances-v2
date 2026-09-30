@@ -23,6 +23,7 @@ export type ForecastAccount = {
     minimumPayment: number | null;
     includeInLiquidity: boolean;
     calculatedStatementBalance?: number | null;
+    linkedSavingsBalance?: number;
 };
 
 export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income";
@@ -39,6 +40,10 @@ export type ForecastEvent = {
     affectsBalance: boolean;
     settlesAccountId?: string | null;
     isOverdue?: boolean;
+    linkedSavings?: {
+        positionId: string;
+        kind: "yield" | "principal";
+    };
     cardPaymentDueAt?: Date;
     cardPaymentBreakdown?: {
         statementBalance: number;
@@ -62,7 +67,7 @@ export type CardPaymentSetting = {
 
 export type ForecastAlert = {
     accountId: string;
-    kind: "insufficient_funds" | "credit_limit" | "overdue_payment";
+    kind: "credit_limit" | "overdue_payment";
     scheduledAt: Date;
     amount: number;
 };
@@ -325,7 +330,7 @@ export function buildForecast(input: {
         scheduledAt: Date,
     ) {
         const currentBalance = balances.get(account.id) ?? account.currentBalance;
-        const delta = getBalanceDelta({ ...account, owedAmount: null }, transactionType, amount);
+        const delta = getBalanceDelta(account, transactionType, amount);
         const balanceAfter = currentBalance + delta;
         balances.set(account.id, balanceAfter);
 
@@ -335,15 +340,6 @@ export function buildForecast(input: {
                 kind: "credit_limit",
                 scheduledAt,
                 amount: balanceAfter - account.creditLimit,
-            });
-        }
-
-        if (account.type !== "credit" && balanceAfter < 0) {
-            alerts.push({
-                accountId: account.id,
-                kind: "insufficient_funds",
-                scheduledAt,
-                amount: Math.abs(balanceAfter),
             });
         }
 

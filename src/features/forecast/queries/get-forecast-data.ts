@@ -10,6 +10,7 @@ import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-c
 import { calculateCardStatement } from "../domain/card-statement-calculator";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
+import type { LinkedSavings } from "../domain/linked-savings";
 import { calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest } from "@/src/features/fixed-income/domain/fixed-income-calculator";
 import { addAppCalendarDays } from "@/src/shared/utils/local-date-time";
 
@@ -278,9 +279,26 @@ export async function getForecastData(userId: string, now = new Date()) {
         }
     }
 
+    const linkedSavings: LinkedSavings[] = [];
     for (const position of fixedIncome) {
         if (!activeAccountIds.has(position.settlementAccountId)) continue;
         const principal = Number(position.outstandingPrincipal);
+        // Una cajita disponible al instante vive dentro de su cuenta de fondeo:
+        // de ahí sale el capital y ahí regresan los retiros. Su rendimiento
+        // diario se reinvierte en la cajita, no se deposita en la cuenta.
+        const fundingAccount = accounts.find((account) => account.id === position.fundingAccountId);
+        const isLinkedSavings = position.isAvailableOnDemand
+            && fundingAccount !== undefined
+            && fundingAccount.currency === position.currency;
+        if (isLinkedSavings) {
+            linkedSavings.push({
+                positionId: position.id,
+                accountId: position.fundingAccountId,
+                name: position.name,
+                currency: position.currency as ForecastEvent["currency"],
+                balance: principal,
+            });
+        }
         const rate = Number(position.annualRate);
         const withholding = Number(position.withholdingRate ?? 0);
         const projectionEnd = position.maturesAt && position.maturesAt < until
@@ -300,7 +318,18 @@ export async function getForecastData(userId: string, now = new Date()) {
             });
             dates.forEach((date, index) => {
                 const daily = dailyInterests[index] ?? 0;
-                events.push({ id: `fixed-income-interest:${position.id}:${date.toISOString()}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Rendimiento estimado · ${position.name}`, amount: daily, currency: position.currency as ForecastEvent["currency"], scheduledAt: date, transactionType: "income", affectsBalance: true });
+                events.push({
+                    id: `fixed-income-interest:${position.id}:${date.toISOString()}`,
+                    accountId: isLinkedSavings ? position.fundingAccountId : position.settlementAccountId,
+                    source: "fixed_income",
+                    name: `Rendimiento estimado · ${position.name}`,
+                    amount: daily,
+                    currency: position.currency as ForecastEvent["currency"],
+                    scheduledAt: date,
+                    transactionType: "income",
+                    affectsBalance: true,
+                    linkedSavings: isLinkedSavings ? { positionId: position.id, kind: "yield" } : undefined,
+                });
             });
         } else if (position.maturesAt) {
             const gross = calculateAccruedInterest({ principal: Number(position.principal), annualRate: rate, startsAt: position.startsAt, asOf: position.maturesAt, calculationMethod: position.calculationMethod, dayCountConvention: position.dayCountConvention }).gross;
@@ -308,7 +337,18 @@ export async function getForecastData(userId: string, now = new Date()) {
             events.push({ id: `fixed-income-interest:${position.id}:maturity`, accountId: position.settlementAccountId, source: "fixed_income", name: `Interés estimado al vencimiento · ${position.name}`, amount: net, currency: position.currency as ForecastEvent["currency"], scheduledAt: position.maturesAt, transactionType: "income", affectsBalance: true });
         }
         if (position.maturesAt && position.maturesAt < until) {
-            events.push({ id: `fixed-income-principal:${position.id}`, accountId: position.settlementAccountId, source: "fixed_income", name: `Capital al vencimiento · ${position.name}`, amount: principal, currency: position.currency as ForecastEvent["currency"], scheduledAt: position.maturesAt, transactionType: "income", affectsBalance: true });
+            events.push({
+                id: `fixed-income-principal:${position.id}`,
+                accountId: position.settlementAccountId,
+                source: "fixed_income",
+                name: `Capital al vencimiento · ${position.name}`,
+                amount: principal,
+                currency: position.currency as ForecastEvent["currency"],
+                scheduledAt: position.maturesAt,
+                transactionType: "income",
+                affectsBalance: true,
+                linkedSavings: isLinkedSavings ? { positionId: position.id, kind: "principal" } : undefined,
+            });
         }
     }
 
@@ -338,6 +378,7 @@ export async function getForecastData(userId: string, now = new Date()) {
             `${payment.creditAccountId}:${payment.dueAt.toISOString()}`
         )),
         dismissedCardPayments,
+        linkedSavings,
         events,
     };
 }

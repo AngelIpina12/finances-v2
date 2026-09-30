@@ -21,13 +21,19 @@ import {
 import { CardPaymentBreakdown } from "./card-payment-breakdown";
 import { dismissCardPayment, restoreCardPayment } from "../actions/card-payment-dismissal-actions";
 import { payCardStatement } from "../actions/card-statement-payment-actions";
+import { InsufficientFundsDialog } from "@/src/features/transactions/components/insufficient-funds-dialog";
+import type { FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 import { ForecastControls } from "./forecast-controls";
+import {
+    ForecastAccountFilters, matchesAccountKind, type ForecastAccountKind,
+} from "./forecast-account-filters";
 import { LiquiditySummary } from "./liquidity-summary";
 import {
     buildCashFlow, buildCreditDebtActivity,
     buildForecast, type ForecastEventSource, type ForecastGranularity,
 } from "../domain/forecast-calculator";
 import { buildLiquidityRangeSummaries } from "../domain/liquidity-calculator";
+import { applyLinkedSavings, type LinkedSavingsMode } from "../domain/linked-savings";
 import type { ForecastData } from "../queries/get-forecast-data";
 import { fromForecastDateInput, isInsideForecastRange } from "../utils/forecast-filters";
 
@@ -53,7 +59,7 @@ function eventIcon(source: ForecastEventSource) {
 
 export function ForecastClient({
     accounts, cardPaymentSettings, events, dismissedCardPaymentKeys: savedDismissedCardPaymentKeys,
-    dismissedCardPayments, now,
+    dismissedCardPayments, linkedSavings, now,
 }: ForecastData) {
     const router = useRouter();
     const anchorNow = useMemo(() => new Date(now), [now]);
@@ -65,13 +71,21 @@ export function ForecastClient({
     );
     const [activePreset, setActivePreset] = useState<number | null>(30);
     const [currency, setCurrency] = useState<string>("all");
-    const [accountId, setAccountId] = useState<string>("all");
+    const [accountKind, setAccountKind] = useState<ForecastAccountKind>("all");
+    const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
     const [granularity, setGranularity] = useState<ForecastGranularity>("week");
+    const [savingsMode, setSavingsMode] = useState<LinkedSavingsMode>("exclude");
     const [cardToConfigure, setCardToConfigure] = useState<ForecastData["accounts"][number] | null>(null);
     const [locallyDismissedPaymentKeys, setLocallyDismissedPaymentKeys] = useState<Set<string>>(new Set());
     const [locallyRestoredPaymentKeys, setLocallyRestoredPaymentKeys] = useState<Set<string>>(new Set());
     const [dismissingPaymentId, setDismissingPaymentId] = useState<string | null>(null);
     const [payingStatementId, setPayingStatementId] = useState<string | null>(null);
+    const [statementAwaitingFunds, setStatementAwaitingFunds] = useState<{
+        eventId: string;
+        creditAccountId: string;
+        sourceAccountId: string;
+        kind: FundsImpact["kind"];
+    } | null>(null);
     const startsAt = fromForecastDateInput(startsAtValue) ?? anchorNow;
     const endsAt = fromForecastDateInput(endsAtValue) ?? addAppCalendarDays(anchorNow, 30);
     const forecastDays = Math.min(180, Math.max(
@@ -87,32 +101,46 @@ export function ForecastClient({
     const visibleDismissedCardPayments = dismissedCardPayments.filter((payment) => (
         !locallyRestoredPaymentKeys.has(`${payment.creditAccountId}:${payment.dueAt.toISOString()}`)
     ));
+    const projection = useMemo(
+        () => applyLinkedSavings({ accounts, events, savings: linkedSavings, mode: savingsMode }),
+        [accounts, events, linkedSavings, savingsMode],
+    );
     const forecast = useMemo(
         () => buildForecast({
-            accounts,
-            events,
+            accounts: projection.accounts,
+            events: projection.events,
             settings: cardPaymentSettings,
             dismissedCardPaymentKeys,
             now: anchorNow,
             days: forecastDays,
         }),
-        [accounts, cardPaymentSettings, events, dismissedCardPaymentKeys, anchorNow, forecastDays],
+        [projection, cardPaymentSettings, dismissedCardPaymentKeys, anchorNow, forecastDays],
     );
+    const selectableAccounts = accounts.filter((account) => (
+        (currency === "all" || account.currency === currency)
+        && matchesAccountKind(account.type, accountKind)
+    ));
+    const scopedAccountIds = new Set(selectableAccounts
+        .filter((account) => selectedAccountIds.size === 0 || selectedAccountIds.has(account.id))
+        .map((account) => account.id));
+    const isScopedToAccounts = accountKind !== "all" || selectedAccountIds.size > 0;
     const visibleEvents = forecast.events.filter((event) => (
         isInsideForecastRange(event.scheduledAt, startsAt, endsAt)
         && (currency === "all" || event.currency === currency)
-        && (accountId === "all" || event.accountId === accountId || event.settlesAccountId === accountId)
+        && (!isScopedToAccounts
+            || (event.accountId !== null && scopedAccountIds.has(event.accountId))
+            || (event.settlesAccountId != null && scopedAccountIds.has(event.settlesAccountId)))
     ));
-    const visibleAccounts = forecast.accounts.filter((account) => (
-        (currency === "all" || account.currency === currency)
-        && (accountId === "all" || account.id === accountId)
-    ));
+    const visibleAccounts = forecast.accounts.filter((account) => scopedAccountIds.has(account.id));
     const visibleAlerts = forecast.alerts.filter((alert) => (
         isInsideForecastRange(alert.scheduledAt, startsAt, endsAt)
-        && (accountId === "all" || alert.accountId === accountId)
-        && (currency === "all" || accounts.find((account) => account.id === alert.accountId)?.currency === currency)
+        && scopedAccountIds.has(alert.accountId)
     ));
-    const selectedAccount = accounts.find((account) => account.id === accountId);
+    // El flujo detallado sólo tiene sentido para una cuenta: mezclar varias
+    // combinaría monedas o deuda con saldo disponible.
+    const selectedAccount = selectedAccountIds.size === 1
+        ? selectableAccounts.find((account) => selectedAccountIds.has(account.id))
+        : undefined;
     const isSelectedCredit = selectedAccount?.type === "credit";
 
     useEffect(() => {
@@ -138,7 +166,7 @@ export function ForecastClient({
         ? buildCreditDebtActivity(visibleEvents, selectedAccount.id, granularity)
         : [];
     const liquiditySummaries = buildLiquidityRangeSummaries({
-        accounts,
+        accounts: projection.accounts,
         events: forecast.events,
         startsAt,
         endsAt,
@@ -151,9 +179,24 @@ export function ForecastClient({
         setActivePreset(days);
     }
 
+    function keepSelectableAccounts(nextCurrency: string, nextKind: ForecastAccountKind) {
+        setSelectedAccountIds((current) => new Set(accounts
+            .filter((account) => (
+                current.has(account.id)
+                && (nextCurrency === "all" || account.currency === nextCurrency)
+                && matchesAccountKind(account.type, nextKind)
+            ))
+            .map((account) => account.id)));
+    }
+
     function selectCurrency(value: string) {
         setCurrency(value);
-        if (value !== "all" && selectedAccount?.currency !== value) setAccountId("all");
+        keepSelectableAccounts(value, accountKind);
+    }
+
+    function selectAccountKind(value: ForecastAccountKind) {
+        setAccountKind(value);
+        keepSelectableAccounts(currency, value);
     }
 
     function selectStartsAt(value: string) {
@@ -193,10 +236,23 @@ export function ForecastClient({
         }
     }
 
-    async function payStatement(eventId: string, creditAccountId: string, sourceAccountId: string) {
+    async function payStatement(
+        eventId: string,
+        creditAccountId: string,
+        sourceAccountId: string,
+        allowInsufficientFunds = false,
+    ) {
+        setStatementAwaitingFunds(null);
         setPayingStatementId(eventId);
         try {
-            const result = await payCardStatement({ creditAccountId, sourceAccountId });
+            const result = await payCardStatement({ creditAccountId, sourceAccountId, allowInsufficientFunds });
+            if (result.insufficientFunds) {
+                setStatementAwaitingFunds({
+                    eventId, creditAccountId, sourceAccountId, kind: result.insufficientFunds,
+                });
+                return;
+            }
+
             if (!result.success) {
                 toast.error(result.message);
                 return;
@@ -274,37 +330,22 @@ export function ForecastClient({
                 onCurrencyChange={selectCurrency}
                 onGranularityChange={setGranularity}
                 onPresetChange={selectPreset}
+                hasLinkedSavings={linkedSavings.length > 0}
+                savingsMode={savingsMode}
+                onSavingsModeChange={setSavingsMode}
             />
 
             {!accounts.length ? (
                 <EmptyState />
             ) : (
                 <>
-                    <div className="flex gap-2 overflow-x-auto pb-1">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant={accountId === "all" ? "default" : "outline"}
-                            onClick={() => setAccountId("all")}
-                            className="shrink-0 cursor-pointer"
-                        >
-                            Todas las cuentas
-                        </Button>
-                        {accounts
-                            .filter((account) => currency === "all" || account.currency === currency)
-                            .map((account) => (
-                            <Button
-                                key={account.id}
-                                type="button"
-                                size="sm"
-                                variant={accountId === account.id ? "default" : "outline"}
-                                onClick={() => setAccountId(account.id)}
-                                className="shrink-0 cursor-pointer"
-                            >
-                                {account.name} · {account.currency}
-                            </Button>
-                            ))}
-                    </div>
+                    <ForecastAccountFilters
+                        kind={accountKind}
+                        onKindChange={selectAccountKind}
+                        accounts={selectableAccounts}
+                        selectedAccountIds={selectedAccountIds}
+                        onSelectedAccountIdsChange={setSelectedAccountIds}
+                    />
 
                     {visibleAlerts.length > 0 && (
                         <section className="space-y-3">
@@ -323,12 +364,7 @@ export function ForecastClient({
                                             <span className="font-semibold">{account?.name}: </span>
                                             {alert.kind === "overdue_payment"
                                                 ? `hay un pago vencido por ${money(alert.amount, account?.currency ?? "MXN")} que se considera exigible desde hoy.`
-                                                : <>
-                                                    {alert.kind === "credit_limit"
-                                                        ? `la deuda proyectada excedería el límite por ${money(alert.amount, account?.currency ?? "MXN")}`
-                                                        : `podrías quedarte sin saldo; faltarían ${money(alert.amount, account?.currency ?? "MXN")}`
-                                                    } el {formatAppDate(alert.scheduledAt, { day: "numeric", month: "long" })}.
-                                                </>
+                                                : `la deuda proyectada excedería el límite por ${money(alert.amount, account?.currency ?? "MXN")} el ${formatAppDate(alert.scheduledAt, { day: "numeric", month: "long" })}.`
                                             }
                                         </p>
                                     </motion.article>
@@ -337,7 +373,7 @@ export function ForecastClient({
                         </section>
                     )}
 
-                    {accountId === "all" && <LiquiditySummary summaries={liquiditySummaries} />}
+                    {selectedAccountIds.size === 0 && accountKind !== "credit" && <LiquiditySummary summaries={liquiditySummaries} />}
 
                     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {visibleAccounts.map((account, index) => {
@@ -371,6 +407,11 @@ export function ForecastClient({
                                             : ""
                                         }
                                     </p>
+                                    {account.linkedSavingsBalance !== undefined && (
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            Incluye {money(account.linkedSavingsBalance, account.currency)} en cajitas
+                                        </p>
+                                    )}
                                     {isCredit && (
                                         <Button
                                             type="button"
@@ -402,7 +443,7 @@ export function ForecastClient({
                                         ? isSelectedCredit
                                             ? `Cargos y pagos que modifican la deuda de ${selectedAccount.name}.`
                                             : `Ingresos y gastos previstos en ${selectedAccount.name}.`
-                                        : "Selecciona una cuenta para no mezclar monedas ni saldos."
+                                        : "Selecciona una sola cuenta para no mezclar monedas ni saldos."
                                     }
                                 </p>
                             </div>
@@ -671,6 +712,17 @@ export function ForecastClient({
                     )}
                 </DialogContent>
             </Dialog>
+
+            <InsufficientFundsDialog
+                kind={statementAwaitingFunds?.kind ?? null}
+                isPending={payingStatementId !== null}
+                onCancel={() => setStatementAwaitingFunds(null)}
+                onConfirm={() => {
+                    if (!statementAwaitingFunds) return;
+                    const { eventId, creditAccountId, sourceAccountId } = statementAwaitingFunds;
+                    void payStatement(eventId, creditAccountId, sourceAccountId, true);
+                }}
+            />
         </div>
     );
 }

@@ -9,6 +9,7 @@ import { toAppDateInputValue } from "@/src/shared/utils/local-date-time";
 import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
 import { fromZonedTime } from "date-fns-tz";
 import type { ForecastGranularity } from "../domain/forecast-calculator";
+import type { LinkedSavingsMode } from "../domain/linked-savings";
 
 function parseDateInputValue(value: string) {
     if (!value) return undefined;
@@ -25,18 +26,22 @@ type Props = {
     currencies: string[];
     granularity: ForecastGranularity;
     activePreset: number | null;
+    hasLinkedSavings: boolean;
+    savingsMode: LinkedSavingsMode;
     onStartsAtChange: (value: string) => void;
     onEndsAtChange: (value: string) => void;
     onCurrencyChange: (value: string) => void;
     onGranularityChange: (value: ForecastGranularity) => void;
     onPresetChange: (days: number) => void;
+    onSavingsModeChange: (value: LinkedSavingsMode) => void;
 };
 
 export function ForecastControls({
     startsAt, endsAt, minimumDate, maximumDate,
     currency, currencies, granularity, activePreset,
+    hasLinkedSavings, savingsMode,
     onStartsAtChange, onEndsAtChange, onCurrencyChange,
-    onGranularityChange, onPresetChange,
+    onGranularityChange, onPresetChange, onSavingsModeChange,
 }: Props) {
     return (
         <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
@@ -98,6 +103,26 @@ export function ForecastControls({
                     />
                 </div>
             </div>
+
+            {hasLinkedSavings && (
+                <div className="flex flex-col gap-2 md:max-w-xl">
+                    <FormLabel>Cajitas</FormLabel>
+                    <SegmentedControl
+                        items={["exclude", "principal", "with_yield"] as const}
+                        labels={{ exclude: "Sin cajitas", principal: "Con cajitas", with_yield: "Con cajitas y rendimiento" }}
+                        value={savingsMode}
+                        onChange={onSavingsModeChange}
+                        className="mb-0"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                        {savingsMode === "exclude"
+                            ? "Las cuentas muestran sólo su propio saldo; lo guardado en cajitas no se contempla."
+                            : savingsMode === "principal"
+                                ? "El saldo de cada cajita se suma a su cuenta de fondeo, sin rendimiento futuro."
+                                : "El saldo de cada cajita y su rendimiento diario estimado se suman a su cuenta de fondeo."}
+                    </p>
+                </div>
+            )}
         </section>
     );
 }

@@ -19,7 +19,7 @@ describe("buildForecast", () => {
         })]);
     });
 
-    it("proyecta el saldo y alerta cuando un gasto deja una cuenta sin fondos", () => {
+    it("proyecta el saldo negativo sin alertar por fondos insuficientes", () => {
         const result = buildForecast({
             now,
             days: 30,
@@ -37,9 +37,7 @@ describe("buildForecast", () => {
 
         expect(result.accounts[0]?.projectedBalance).toBe(-200);
         expect(result.events[0]?.balanceAfter).toBe(-200);
-        expect(result.alerts).toEqual([expect.objectContaining({
-            accountId: "cash", kind: "insufficient_funds", amount: 200,
-        })]);
+        expect(result.alerts).toEqual([]);
     });
 
     it("no descuenta una cuota de financiamiento hasta conocer su cuenta de pago", () => {
