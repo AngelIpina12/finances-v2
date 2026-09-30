@@ -15,6 +15,7 @@ export async function getTransactionFormData(userId: string) {
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
                 availableCredit: financialAccounts.availableCredit,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(
@@ -48,6 +49,7 @@ export async function getTransactionFormData(userId: string) {
             availableCredit: account.availableCredit === null
                 ? null
                 : Number(account.availableCredit),
+            currentBalance: Number(account.currentBalance),
         })),
         categories: userCategories,
     };

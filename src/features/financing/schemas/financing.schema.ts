@@ -33,6 +33,7 @@ export const financingPlanFormSchema = z.object({
 export const completeFinancingInstallmentSchema = z.object({
     installmentId: z.uuid("La cuota no es válida."),
     sourceAccountId: z.uuid("Selecciona una cuenta de origen válida."),
+    allowInsufficientFunds: z.boolean().optional(),
 });
 
 export type FinancingPlanFormData = z.infer<typeof financingPlanFormSchema>;

@@ -54,6 +54,7 @@ class DrizzleCardStatementScope implements CardStatementScope {
                 currency: financialAccounts.currency,
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(and(...conditions))
@@ -65,6 +66,7 @@ class DrizzleCardStatementScope implements CardStatementScope {
                 ...account,
                 creditLimit: account.creditLimit === null ? null : Number(account.creditLimit),
                 owedAmount: account.owedAmount === null ? null : Number(account.owedAmount),
+                currentBalance: Number(account.currentBalance),
             } as TransactionAccount
             : undefined;
     }

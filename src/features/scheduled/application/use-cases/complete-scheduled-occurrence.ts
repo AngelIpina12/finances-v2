@@ -1,5 +1,5 @@
 import {
-    getBalanceDelta, requiresCreditOverLimitApproval,
+    assertFundsApproved, getBalanceDelta,
 } from "@/src/features/transactions/domain/transaction-rules";
 import type { ScheduledOccurrenceRepository } from "../../domain/scheduled-occurrence-repository";
 import { ScheduledOccurrenceError } from "../scheduled-occurrence-error";
@@ -10,7 +10,7 @@ export class CompleteScheduledOccurrenceUseCase {
     async execute(
         userId: string,
         occurrenceId: string,
-        options: { allowCreditOverLimit?: boolean } = {},
+        options: { allowInsufficientFunds?: boolean } = {},
         executedAt = new Date(),
     ) {
         await this.occurrences.withinTransaction(async (scope) => {
@@ -50,14 +50,7 @@ export class CompleteScheduledOccurrenceUseCase {
                 occurrence.amount,
             );
 
-            if (
-                requiresCreditOverLimitApproval(account, balanceDelta)
-                && !options.allowCreditOverLimit
-            ) {
-                throw new ScheduledOccurrenceError(
-                    "El movimiento excede el límite de crédito. Confirma que deseas registrarlo de todos modos.",
-                );
-            }
+            assertFundsApproved(account, balanceDelta, options.allowInsufficientFunds);
 
             await scope.insertCompletedTransaction({ userId, occurrence, executedAt });
 

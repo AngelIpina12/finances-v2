@@ -34,6 +34,7 @@ class DrizzleTransactionScope implements TransactionScope {
                 currency: financialAccounts.currency,
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(and(...conditions))
@@ -49,6 +50,7 @@ class DrizzleTransactionScope implements TransactionScope {
                 owedAmount: account.owedAmount === null
                     ? null
                     : Number(account.owedAmount),
+                currentBalance: Number(account.currentBalance),
             } as TransactionAccount
             : undefined;
     }

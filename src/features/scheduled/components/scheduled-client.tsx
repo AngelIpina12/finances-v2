@@ -5,6 +5,8 @@ import {
     CalendarPlus, CheckCircle2, Forward,
     Plus, X, XCircle,
 } from "lucide-react";
+import { DateTimePickerField, FormLabel } from "@/src/shared/components/forms";
+import { addAppCalendarDays, formatAppDateTime } from "@/src/shared/utils/local-date-time";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
@@ -20,11 +22,12 @@ import {
 } from "@/components/ui/dialog";
 import { CardTitle } from "@/src/shared/components/ui/card";
 import {
-    getBalanceDelta, getCreditLimitImpact,
+    getBalanceDelta, getFundsImpact,
 } from "@/src/features/transactions/domain/transaction-rules";
-import { CreditLimitWarning } from "@/src/features/transactions/components/credit-limit-warning";
+import { FundsWarning } from "@/src/features/transactions/components/funds-warning";
 import {
-    cancelScheduledOccurrence, completeScheduledOccurrence, skipScheduledOccurrence,
+    cancelScheduledOccurrence, completeScheduledOccurrence, rescheduleScheduledOccurrence,
+    skipScheduledOccurrence,
 } from "../actions/scheduled-occurrence-actions";
 import type { ScheduledOccurrenceListItem } from "../queries/get-scheduled-occurrence-data";
 import type { RecurringRuleListItem } from "../queries/get-scheduled-occurrence-data";
@@ -54,6 +57,15 @@ const filters: Array<{ value: ScheduledFilter; label: string }> = [
     { value: "all", label: "Todos" },
 ];
 
+type ConfirmableAction = Exclude<ScheduledAction, "reschedule">;
+
+// Propone la misma hora del movimiento en el primer día que aún no ha pasado.
+function suggestRescheduleDate(scheduledAt: Date, now: Date) {
+    let next = scheduledAt;
+    while (next <= now) next = addAppCalendarDays(next, 1);
+    return next;
+}
+
 const actionCopy = {
     complete: {
         title: "¿Completar este movimiento?",
@@ -82,8 +94,14 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
     const [view, setView] = useState<"occurrences" | "rules">("occurrences");
     const [selection, setSelection] = useState<{
         occurrence: ScheduledOccurrenceListItem;
-        action: ScheduledAction;
+        action: ConfirmableAction;
     } | null>(null);
+    const [rescheduling, setRescheduling] = useState<{
+        occurrence: ScheduledOccurrenceListItem;
+        scheduledAt: Date | undefined;
+    } | null>(null);
+    // Mensaje del servidor cuando el saldo cambió y ahora requiere confirmación.
+    const [fundsApprovalMessage, setFundsApprovalMessage] = useState<string | null>(null);
     const [isMutating, startMutation] = useTransition();
     const canCreate = accounts.length > 0 && categories.length > 0;
     const copy = selection ? actionCopy[selection.action] : null;
@@ -91,7 +109,7 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
         ? accounts.find((account) => account.id === selection.occurrence.accountId)
         : undefined;
     const completionImpact = completionAccount && selection?.action === "complete"
-        ? getCreditLimitImpact(
+        ? getFundsImpact(
             completionAccount,
             getBalanceDelta(
                 completionAccount,
@@ -100,11 +118,47 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
             ),
         )
         : null;
-    const exceedsCreditLimit = (completionImpact?.newlyOverLimit ?? 0) > 0;
+    const needsFundsApproval = (completionImpact?.newShortfall ?? 0) > 0
+        || fundsApprovalMessage !== null;
+
+    function selectAction(next: typeof selection) {
+        setFundsApprovalMessage(null);
+        setSelection(next);
+    }
 
     function closeForm() {
         setFormOpen(false);
         router.refresh();
+    }
+
+    function selectListAction(occurrence: ScheduledOccurrenceListItem, action: ScheduledAction) {
+        if (action === "reschedule") {
+            setRescheduling({
+                occurrence,
+                scheduledAt: suggestRescheduleDate(occurrence.scheduledAt, new Date()),
+            });
+            return;
+        }
+
+        selectAction({ occurrence, action });
+    }
+
+    function confirmReschedule() {
+        if (!rescheduling?.scheduledAt) return;
+        const { occurrence, scheduledAt } = rescheduling;
+
+        startMutation(async () => {
+            const result = await rescheduleScheduledOccurrence(occurrence.id, scheduledAt);
+
+            if (!result.success) {
+                toast.error(result.message);
+                return;
+            }
+
+            toast.success(result.message);
+            setRescheduling(null);
+            router.refresh();
+        });
     }
 
     function confirmAction() {
@@ -114,11 +168,16 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
             const result = selection.action === "complete"
                 ? await completeScheduledOccurrence(
                     selection.occurrence.id,
-                    exceedsCreditLimit,
+                    needsFundsApproval,
                 )
                 : selection.action === "skip"
                     ? await skipScheduledOccurrence(selection.occurrence.id)
                     : await cancelScheduledOccurrence(selection.occurrence.id);
+
+            if (result.insufficientFunds) {
+                setFundsApprovalMessage(result.message);
+                return;
+            }
 
             if (!result.success) {
                 toast.error(result.message);
@@ -126,7 +185,7 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
             }
 
             toast.success(result.message);
-            setSelection(null);
+            selectAction(null);
             router.refresh();
         });
     }
@@ -222,9 +281,7 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
                                 occurrences={occurrences}
                                 filter={filter}
                                 now={now}
-                                onAction={(occurrence, action) => (
-                                    setSelection({ occurrence, action })
-                                )}
+                                onAction={selectListAction}
                             />
                         </>
                     )}
@@ -266,9 +323,72 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
                 </DialogContent>
             </Dialog>
 
+            <Dialog
+                open={rescheduling !== null}
+                onOpenChange={(open) => !open && !isMutating && setRescheduling(null)}
+            >
+                <DialogContent className="w-[calc(100vw-2rem)] p-6 sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="font-serif text-2xl">Reagendar movimiento</DialogTitle>
+                        <DialogDescription className="mt-1">
+                            <strong className="font-medium text-foreground">
+                                {rescheduling?.occurrence.name}.
+                            </strong>{" "}
+                            La fecha original se conserva como registro de cuándo lo tenías contemplado.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {rescheduling && (
+                        <div className="space-y-4">
+                            <dl className="grid gap-1 rounded-xl bg-muted/50 p-3 text-sm">
+                                <div className="flex justify-between gap-3">
+                                    <dt className="text-muted-foreground">Fecha original</dt>
+                                    <dd className="text-right">{formatAppDateTime(rescheduling.occurrence.originalScheduledAt)}</dd>
+                                </div>
+                                {rescheduling.occurrence.originalScheduledAt.getTime() !== rescheduling.occurrence.scheduledAt.getTime() && (
+                                    <div className="flex justify-between gap-3">
+                                        <dt className="text-muted-foreground">Fecha actual</dt>
+                                        <dd className="text-right">{formatAppDateTime(rescheduling.occurrence.scheduledAt)}</dd>
+                                    </div>
+                                )}
+                            </dl>
+                            <div className="flex flex-col gap-2">
+                                <FormLabel htmlFor="reschedule-date">Nueva fecha y hora</FormLabel>
+                                <DateTimePickerField
+                                    id="reschedule-date"
+                                    value={rescheduling.scheduledAt}
+                                    min={now}
+                                    onChange={(scheduledAt) => setRescheduling((current) => (
+                                        current ? { ...current, scheduledAt } : current
+                                    ))}
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    disabled={isMutating}
+                                    onClick={() => setRescheduling(null)}
+                                    className="cursor-pointer"
+                                >
+                                    Volver
+                                </Button>
+                                <Button
+                                    type="button"
+                                    disabled={isMutating || !rescheduling.scheduledAt}
+                                    onClick={confirmReschedule}
+                                    className="cursor-pointer"
+                                >
+                                    {isMutating ? "Procesando..." : "Reagendar"}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
             <AlertDialog
                 open={selection !== null}
-                onOpenChange={(open) => !open && setSelection(null)}
+                onOpenChange={(open) => !open && selectAction(null)}
             >
                 <AlertDialogContent>
                     {copy && (
@@ -288,11 +408,18 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
                                     {copy.description}
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            {exceedsCreditLimit && completionImpact && completionAccount && (
-                                <CreditLimitWarning
+                            {completionImpact && completionImpact.newShortfall > 0 && completionAccount ? (
+                                <FundsWarning
                                     impact={completionImpact}
                                     currency={completionAccount.currency}
                                 />
+                            ) : fundsApprovalMessage && (
+                                <p
+                                    role="status"
+                                    className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3 text-sm text-amber-950 dark:text-amber-100"
+                                >
+                                    {fundsApprovalMessage}
+                                </p>
                             )}
                             <AlertDialogFooter>
                                 <AlertDialogCancel
@@ -311,7 +438,7 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
                                 >
                                     {isMutating
                                         ? "Procesando..."
-                                        : exceedsCreditLimit
+                                        : needsFundsApproval
                                             ? "Registrar de todos modos"
                                             : copy.button}
                                 </AlertDialogAction>

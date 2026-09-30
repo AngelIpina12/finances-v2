@@ -1,7 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    categories, financialAccounts, scheduledOccurrences,
+    categories, financialAccounts, recurringRules, scheduledOccurrences,
     transactions,
 } from "@/src/db/schema";
 import type { TransactionAccount } from "@/src/features/transactions/domain/transaction-repository";
@@ -9,6 +9,12 @@ import { applyAccountBalanceDelta, type DatabaseTransaction } from "@/src/featur
 import type {
     ScheduledOccurrence, ScheduledOccurrenceRepository, ScheduledOccurrenceScope,
 } from "../domain/scheduled-occurrence-repository";
+
+type StoredDateOverride = {
+    originalScheduledAt: string;
+    scheduledAt: string;
+    amount?: number;
+};
 
 class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
     constructor(private readonly tx: DatabaseTransaction) { }
@@ -31,6 +37,7 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
                 currency: financialAccounts.currency,
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(and(...conditions))
@@ -46,6 +53,7 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
                 owedAmount: account.owedAmount === null
                     ? null
                     : Number(account.owedAmount),
+                currentBalance: Number(account.currentBalance),
             } as TransactionAccount
             : undefined;
     }
@@ -80,6 +88,7 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
             .select({
                 id: scheduledOccurrences.id,
                 source: scheduledOccurrences.source,
+                recurringRuleId: scheduledOccurrences.recurringRuleId,
                 accountId: scheduledOccurrences.accountId,
                 categoryId: scheduledOccurrences.categoryId,
                 transactionType: scheduledOccurrences.transactionType,
@@ -88,6 +97,7 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
                 amount: scheduledOccurrences.amount,
                 currency: scheduledOccurrences.currency,
                 notes: scheduledOccurrences.notes,
+                originalScheduledAt: scheduledOccurrences.originalScheduledAt,
                 scheduledAt: scheduledOccurrences.scheduledAt,
             })
             .from(scheduledOccurrences)
@@ -142,6 +152,67 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
 
     async applyBalanceDelta(account: TransactionAccount, userId: string, delta: number) {
         return applyAccountBalanceDelta(this.tx, account, userId, delta);
+    }
+
+    async rescheduleOccurrence(userId: string, occurrenceId: string, scheduledAt: Date) {
+        const [updated] = await this.tx
+            .update(scheduledOccurrences)
+            .set({ scheduledAt })
+            .where(
+                and(
+                    eq(scheduledOccurrences.id, occurrenceId),
+                    eq(scheduledOccurrences.userId, userId),
+                    eq(scheduledOccurrences.status, "scheduled"),
+                ),
+            )
+            .returning({ id: scheduledOccurrences.id });
+
+        return Boolean(updated);
+    }
+
+    async recordRuleDateOverride(input: Parameters<ScheduledOccurrenceScope["recordRuleDateOverride"]>[0]) {
+        const [rule] = await this.tx
+            .select({
+                startsAt: recurringRules.startsAt,
+                endsAt: recurringRules.endsAt,
+                dateOverrides: recurringRules.dateOverrides,
+            })
+            .from(recurringRules)
+            .where(and(
+                eq(recurringRules.id, input.ruleId),
+                eq(recurringRules.userId, input.userId),
+            ))
+            .limit(1)
+            .for("update");
+
+        if (!rule) return false;
+        // La recurrencia descarta las fechas fuera de su vigencia al regenerarse.
+        if (input.scheduledAt < rule.startsAt || (rule.endsAt && input.scheduledAt > rule.endsAt)) {
+            return false;
+        }
+
+        const originalKey = input.originalScheduledAt.toISOString();
+        const overrides = rule.dateOverrides as StoredDateOverride[];
+        const existing = overrides.find((entry) => (
+            new Date(entry.originalScheduledAt).getTime() === input.originalScheduledAt.getTime()
+        ));
+        const others = overrides.filter((entry) => entry !== existing);
+        const returnsToOriginalDate = input.scheduledAt.getTime() === input.originalScheduledAt.getTime();
+        // Si vuelve a su fecha original sólo se conserva el ajuste de monto.
+        const next = returnsToOriginalDate && existing?.amount === undefined
+            ? others
+            : [...others, {
+                originalScheduledAt: originalKey,
+                scheduledAt: input.scheduledAt.toISOString(),
+                ...(existing?.amount === undefined ? {} : { amount: existing.amount }),
+            }];
+
+        await this.tx
+            .update(recurringRules)
+            .set({ dateOverrides: next })
+            .where(eq(recurringRules.id, input.ruleId));
+
+        return true;
     }
 
     async transitionOccurrence(

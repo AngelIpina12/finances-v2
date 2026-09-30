@@ -21,6 +21,7 @@ export const transferFormSchema = z
             .max(500, "Las notas no pueden superar 500 caracteres.")
             .optional()
             .or(z.literal("")),
+        allowInsufficientFunds: z.boolean().optional(),
     })
     .refine(
         (data) => data.sourceAccountId !== data.destinationAccountId,

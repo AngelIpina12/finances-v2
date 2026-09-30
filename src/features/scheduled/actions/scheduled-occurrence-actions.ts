@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/src/lib/auth-server";
 import { CreateScheduledOccurrenceUseCase } from "../application/use-cases/create-scheduled-occurrence";
 import { CompleteScheduledOccurrenceUseCase } from "../application/use-cases/complete-scheduled-occurrence";
+import { RescheduleScheduledOccurrenceUseCase } from "../application/use-cases/reschedule-scheduled-occurrence";
 import { TransitionScheduledOccurrenceUseCase } from "../application/use-cases/transition-scheduled-occurrence";
 import { ScheduledOccurrenceError } from "../application/scheduled-occurrence-error";
+import { InsufficientFundsError, type FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 import { DrizzleScheduledOccurrenceRepository } from "../infrastructure/drizzle-scheduled-occurrence-repository";
 import {
-    completeScheduledOccurrenceSchema, scheduledOccurrenceFormSchema,
+    completeScheduledOccurrenceSchema, rescheduleScheduledOccurrenceSchema, scheduledOccurrenceFormSchema,
     scheduledOccurrenceIdSchema, type ScheduledOccurrenceFormData,
 } from "../schemas/scheduled-occurrence.schema";
 
@@ -17,10 +19,12 @@ const createUseCase = new CreateScheduledOccurrenceUseCase(repository);
 const completeUseCase = new CompleteScheduledOccurrenceUseCase(repository);
 const skipUseCase = new TransitionScheduledOccurrenceUseCase(repository, "skipped");
 const cancelUseCase = new TransitionScheduledOccurrenceUseCase(repository, "cancelled");
+const rescheduleUseCase = new RescheduleScheduledOccurrenceUseCase(repository);
 
 type ActionResult = {
     success: boolean;
     message: string;
+    insufficientFunds?: FundsImpact["kind"];
 };
 
 function revalidateFinancialViews() {
@@ -32,6 +36,10 @@ function revalidateFinancialViews() {
 }
 
 function mutationError(error: unknown, fallback: string): ActionResult {
+    if (error instanceof InsufficientFundsError) {
+        return { success: false, message: error.message, insufficientFunds: error.kind };
+    }
+
     return {
         success: false,
         message: error instanceof ScheduledOccurrenceError
@@ -105,11 +113,11 @@ async function runOccurrenceAction(
 
 export async function completeScheduledOccurrence(
     occurrenceId: string,
-    allowCreditOverLimit = false,
+    allowInsufficientFunds = false,
 ): Promise<ActionResult> {
     const parsed = completeScheduledOccurrenceSchema.safeParse({
         occurrenceId,
-        allowCreditOverLimit,
+        allowInsufficientFunds,
     });
 
     if (!parsed.success) {
@@ -127,7 +135,7 @@ export async function completeScheduledOccurrence(
 
     try {
         await completeUseCase.execute(userId, parsed.data.occurrenceId, {
-            allowCreditOverLimit: parsed.data.allowCreditOverLimit,
+            allowInsufficientFunds: parsed.data.allowInsufficientFunds,
         });
     } catch (error) {
         return mutationError(error, "No fue posible completar el movimiento.");
@@ -155,6 +163,29 @@ export async function cancelScheduledOccurrence(occurrenceId: string) {
         {
             success: "Movimiento programado cancelado.",
             fallback: "No fue posible cancelar el movimiento.",
+        },
+    );
+}
+
+export async function rescheduleScheduledOccurrence(
+    occurrenceId: string,
+    scheduledAt: Date,
+): Promise<ActionResult> {
+    const parsed = rescheduleScheduledOccurrenceSchema.safeParse({ occurrenceId, scheduledAt });
+
+    if (!parsed.success) {
+        return {
+            success: false,
+            message: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+        };
+    }
+
+    return runOccurrenceAction(
+        parsed.data.occurrenceId,
+        (userId, id) => rescheduleUseCase.execute(userId, id, parsed.data.scheduledAt),
+        {
+            success: "Movimiento reagendado. Su fecha original queda registrada.",
+            fallback: "No fue posible reagendar el movimiento.",
         },
     );
 }

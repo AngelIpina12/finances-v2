@@ -1,10 +1,10 @@
 import type {
-    LedgerTransactionType, TransactionAccount, TransactionType,
+    AccountType, LedgerTransactionType, TransactionAccount, TransactionType,
     TransferDirection,
 } from "./transaction-repository";
 
 export function getBalanceDelta(
-    account: TransactionAccount,
+    account: Pick<TransactionAccount, "type">,
     type: LedgerTransactionType,
     amount: number,
     transferDirection?: TransferDirection | null,
@@ -55,9 +55,105 @@ export function getCreditLimitImpact(
     };
 }
 
-export function requiresCreditOverLimitApproval(
-    account: Pick<TransactionAccount, "type" | "creditLimit" | "owedAmount">,
-    debtDelta: number,
+// Cuentas de activo que no deberían quedar en negativo sin que el usuario lo confirme.
+const BALANCE_GUARDED_ACCOUNT_TYPES: ReadonlySet<AccountType> = new Set([
+    "cash", "debit", "wallet", "investment", "fixed_income",
+]);
+
+export type NegativeBalanceImpact = {
+    currentBalance: number;
+    projectedBalance: number;
+    projectedShortfall: number;
+    newShortfall: number;
+};
+
+function roundCents(value: number) {
+    return Math.round(value * 100) / 100;
+}
+
+export function getNegativeBalanceImpact(
+    account: Pick<TransactionAccount, "type" | "currentBalance">,
+    balanceDelta: number,
+): NegativeBalanceImpact | null {
+    if (!BALANCE_GUARDED_ACCOUNT_TYPES.has(account.type)) {
+        return null;
+    }
+
+    const currentBalance = account.currentBalance;
+    const projectedBalance = roundCents(currentBalance + balanceDelta);
+    const currentShortfall = Math.max(0, -currentBalance);
+    const projectedShortfall = Math.max(0, -projectedBalance);
+
+    return {
+        currentBalance,
+        projectedBalance,
+        projectedShortfall,
+        newShortfall: roundCents(Math.max(0, projectedShortfall - currentShortfall)),
+    };
+}
+
+export type FundsImpact =
+    | { kind: "credit_limit"; projectedShortfall: number; newShortfall: number }
+    | { kind: "negative_balance"; projectedShortfall: number; newShortfall: number };
+
+export type FundsAccount = Pick<
+    TransactionAccount,
+    "type" | "creditLimit" | "owedAmount" | "currentBalance"
+>;
+
+/**
+ * Normaliza el faltante de fondos que produciría un movimiento: exceso del
+ * límite en tarjetas de crédito o saldo negativo en cuentas de activo.
+ */
+export function getFundsImpact(
+    account: FundsAccount,
+    balanceDelta: number,
+): FundsImpact | null {
+    if (account.type === "credit") {
+        const impact = getCreditLimitImpact(account, balanceDelta);
+
+        return impact && {
+            kind: "credit_limit",
+            projectedShortfall: impact.projectedOverLimit,
+            newShortfall: impact.newlyOverLimit,
+        };
+    }
+
+    const impact = getNegativeBalanceImpact(account, balanceDelta);
+
+    return impact && {
+        kind: "negative_balance",
+        projectedShortfall: impact.projectedShortfall,
+        newShortfall: impact.newShortfall,
+    };
+}
+
+export function requiresFundsApproval(account: FundsAccount, balanceDelta: number) {
+    return (getFundsImpact(account, balanceDelta)?.newShortfall ?? 0) > 0;
+}
+
+export class InsufficientFundsError extends Error {
+    readonly kind: FundsImpact["kind"];
+
+    constructor(account: Pick<TransactionAccount, "type">, action = "registrarlo") {
+        super(
+            account.type === "credit"
+                ? `El movimiento excede el límite de crédito. Confirma que deseas ${action} de todos modos.`
+                : `El movimiento dejaría la cuenta con saldo negativo. Confirma que deseas ${action} de todos modos.`,
+        );
+        this.name = "InsufficientFundsError";
+        this.kind = account.type === "credit" ? "credit_limit" : "negative_balance";
+    }
+}
+
+/** Lanza `InsufficientFundsError` si el movimiento requiere confirmación y no se otorgó. */
+export function assertFundsApproved(
+    account: FundsAccount,
+    balanceDelta: number,
+    approved: boolean | undefined,
+    action?: string,
 ) {
-    return (getCreditLimitImpact(account, debtDelta)?.newlyOverLimit ?? 0) > 0;
+    if (!approved && requiresFundsApproval(account, balanceDelta)) {
+        throw new InsufficientFundsError(account, action);
+    }
 }

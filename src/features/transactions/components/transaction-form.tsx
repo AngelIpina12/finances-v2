@@ -9,12 +9,6 @@ import toast from "react-hot-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
-    AlertDialog, AlertDialogAction, AlertDialogCancel,
-    AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-    AlertDialogHeader, AlertDialogMedia, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { TriangleAlert } from "lucide-react";
-import {
     DateTimePickerField,
     Form, FormError, FormInput,
     FormLabel, FormSelect, FormSubmit,
@@ -24,9 +18,10 @@ import { saveTransaction } from "../actions/transaction-actions";
 import { TransactionFormData, transactionFormSchema } from "../schemas/transaction.schema";
 import { createTransactionDraft } from "../utils/transaction-draft";
 import {
-    getBalanceDelta, getCreditLimitImpact,
+    getBalanceDelta, getFundsImpact, type FundsImpact,
 } from "../domain/transaction-rules";
-import { CreditLimitWarning } from "./credit-limit-warning";
+import { FundsWarning } from "./funds-warning";
+import { InsufficientFundsDialog } from "./insufficient-funds-dialog";
 
 type AccountOption = {
     id: string;
@@ -36,6 +31,7 @@ type AccountOption = {
     creditLimit: number | null;
     owedAmount: number | null;
     availableCredit: number | null;
+    currentBalance: number;
 };
 
 type CategoryOption = {
@@ -59,7 +55,10 @@ export function TransactionForm({
     onClose,
 }: Props) {
     const [isPending, startTransition] = useTransition();
-    const [pendingSubmission, setPendingSubmission] = useState<TransactionFormData | null>(null);
+    const [pendingSubmission, setPendingSubmission] = useState<{
+        data: TransactionFormData;
+        kind: FundsImpact["kind"];
+    } | null>(null);
 
     const {
         register, handleSubmit, formState: { errors },
@@ -78,8 +77,8 @@ export function TransactionForm({
         [categories, transactionType],
     );
     const selectedAccount = accounts.find((account) => account.id === accountId);
-    const creditImpact = selectedAccount && Number.isFinite(Number(amount))
-        ? getFormCreditImpact(selectedAccount, {
+    const fundsImpact = selectedAccount && Number.isFinite(Number(amount))
+        ? getFormFundsImpact(selectedAccount, {
             type: transactionType,
             amount: Number(amount),
             accountId,
@@ -97,6 +96,13 @@ export function TransactionForm({
         startTransition(async () => {
             const result = await saveTransaction(data);
 
+            if (result.insufficientFunds) {
+                // El saldo cambió desde que se cargó el formulario: pide la
+                // misma confirmación que habríamos mostrado de antemano.
+                setPendingSubmission({ data, kind: result.insufficientFunds });
+                return;
+            }
+
             if (!result.success) {
                 toast.error(result.message);
                 return;
@@ -110,23 +116,23 @@ export function TransactionForm({
     function onSubmit(data: TransactionFormData) {
         const account = accounts.find((item) => item.id === data.accountId);
         const impact = account
-            ? getFormCreditImpact(account, data, initialValues)
+            ? getFormFundsImpact(account, data, initialValues)
             : null;
 
-        if (impact?.newlyOverLimit && !data.allowCreditOverLimit) {
-            setPendingSubmission(data);
+        if (impact?.newShortfall && !data.allowInsufficientFunds) {
+            setPendingSubmission({ data, kind: impact.kind });
             return;
         }
 
         persistTransaction(data);
     }
 
-    function confirmOverLimit() {
+    function confirmInsufficientFunds() {
         if (!pendingSubmission) return;
 
         const data = {
-            ...pendingSubmission,
-            allowCreditOverLimit: true,
+            ...pendingSubmission.data,
+            allowInsufficientFunds: true,
         };
 
         setPendingSubmission(null);
@@ -234,9 +240,9 @@ export function TransactionForm({
                     {errors.date && <FormError>{errors.date.message}</FormError>}
                 </div>
             </div>
-            {creditImpact && creditImpact.newlyOverLimit > 0 && selectedAccount && (
-                <CreditLimitWarning
-                    impact={creditImpact}
+            {fundsImpact && fundsImpact.newShortfall > 0 && selectedAccount && (
+                <FundsWarning
+                    impact={fundsImpact}
                     currency={selectedAccount.currency}
                 />
             )}
@@ -289,48 +295,17 @@ export function TransactionForm({
                 </FormSubmit>
             </div>
 
-            <AlertDialog
-                open={pendingSubmission !== null}
-                onOpenChange={(open) => !open && setPendingSubmission(null)}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogMedia className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                            <TriangleAlert />
-                        </AlertDialogMedia>
-                        <AlertDialogTitle>
-                            ¿Registrar aunque exceda el límite?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            La deuda proyectada superará el límite de la tarjeta.
-                            Esto puede representar un sobregiro, comisión o un
-                            movimiento que el banco autorizó excepcionalmente.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel
-                            type="button"
-                            disabled={isPending}
-                            className="cursor-pointer"
-                        >
-                            Revisar monto
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            type="button"
-                            disabled={isPending}
-                            onClick={confirmOverLimit}
-                            className="cursor-pointer bg-amber-600 text-white hover:bg-amber-700"
-                        >
-                            Registrar de todos modos
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <InsufficientFundsDialog
+                kind={pendingSubmission?.kind ?? null}
+                isPending={isPending}
+                onCancel={() => setPendingSubmission(null)}
+                onConfirm={confirmInsufficientFunds}
+            />
         </Form>
     );
 }
 
-function getFormCreditImpact(
+function getFormFundsImpact(
     account: AccountOption,
     next: Pick<TransactionFormData, "accountId" | "type" | "amount">,
     initialValues?: Partial<TransactionFormData>,
@@ -343,5 +318,5 @@ function getFormCreditImpact(
         ? getBalanceDelta(account, initialValues.type, initialValues.amount)
         : 0;
 
-    return getCreditLimitImpact(account, nextDelta - originalDelta);
+    return getFundsImpact(account, nextDelta - originalDelta);
 }

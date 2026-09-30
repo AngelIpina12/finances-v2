@@ -3,12 +3,14 @@
 import { motion } from "framer-motion";
 import { differenceInCalendarDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { payCardStatement } from "@/src/features/forecast/actions/card-statement-payment-actions";
+import { InsufficientFundsDialog } from "@/src/features/transactions/components/insufficient-funds-dialog";
+import type { FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 import type { CreditAccountStatement } from "../queries/get-credit-accounts-statement-data";
 
 function money(value: number, currency: string) {
@@ -31,6 +33,7 @@ export function CreditStatementIndicator({
 }: Props) {
     const router = useRouter();
     const [isPaying, startPaying] = useTransition();
+    const [fundsApprovalKind, setFundsApprovalKind] = useState<FundsImpact["kind"] | null>(null);
 
     const consumedPercent = creditLimit && creditLimit > 0
         ? Math.min(100, Math.round((Math.max(0, owed) / creditLimit) * 100))
@@ -45,14 +48,18 @@ export function CreditStatementIndicator({
         ? "healthy"
         : daysUntilDue <= 1 ? "exceeded" : daysUntilDue <= 5 ? "warning" : "healthy";
 
-    function pay() {
+    function pay(allowInsufficientFunds = false) {
         if (!statement?.sourceAccountId) return;
+        setFundsApprovalKind(null);
         startPaying(async () => {
             const result = await payCardStatement({
                 creditAccountId,
                 sourceAccountId: statement.sourceAccountId!,
+                allowInsufficientFunds,
             });
-            if (result.success) {
+            if (result.insufficientFunds) {
+                setFundsApprovalKind(result.insufficientFunds);
+            } else if (result.success) {
                 toast.success(result.message);
                 router.refresh();
             } else {
@@ -123,7 +130,7 @@ export function CreditStatementIndicator({
                             size="sm"
                             variant={dueStatus === "exceeded" ? "destructive" : "default"}
                             disabled={isPaying}
-                            onClick={pay}
+                            onClick={() => pay()}
                             className="cursor-pointer shrink-0"
                         >
                             {isPaying ? "Pagando..." : "Pagar"}
@@ -140,6 +147,13 @@ export function CreditStatementIndicator({
                     Sin saldo pendiente en el ciclo actual.
                 </div>
             )}
+
+            <InsufficientFundsDialog
+                kind={fundsApprovalKind}
+                isPending={isPaying}
+                onCancel={() => setFundsApprovalKind(null)}
+                onConfirm={() => pay(true)}
+            />
         </div>
     );
 }

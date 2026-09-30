@@ -1,11 +1,17 @@
-import { getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
+import { assertFundsApproved, getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
 import type { FinancingRepository } from "../../domain/financing-repository";
 import { FinancingError } from "../financing-error";
 
 export class CompleteFinancingInstallmentUseCase {
     constructor(private readonly financing: FinancingRepository) { }
 
-    async execute(userId: string, installmentId: string, sourceAccountId: string, paidAt = new Date()) {
+    async execute(
+        userId: string,
+        installmentId: string,
+        sourceAccountId: string,
+        options: { allowInsufficientFunds?: boolean } = {},
+        paidAt = new Date(),
+    ) {
         await this.financing.withinTransaction(async (scope) => {
             const installment = await scope.findInstallmentForUpdate(userId, installmentId);
 
@@ -30,6 +36,10 @@ export class CompleteFinancingInstallmentUseCase {
                 throw new FinancingError("Las cuentas y la cuota deben usar la misma moneda.");
             }
 
+            const sourceDelta = getBalanceDelta(sourceAccount, "transfer", installment.amount, "out");
+
+            assertFundsApproved(sourceAccount, sourceDelta, options.allowInsufficientFunds, "pagarla");
+
             const transferGroupId = crypto.randomUUID();
             await scope.insertPaymentTransfer({
                 userId,
@@ -41,11 +51,7 @@ export class CompleteFinancingInstallmentUseCase {
             });
 
             const [sourceUpdated, creditUpdated] = await Promise.all([
-                scope.applyBalanceDelta(
-                    sourceAccount,
-                    userId,
-                    getBalanceDelta(sourceAccount, "transfer", installment.amount, "out"),
-                ),
+                scope.applyBalanceDelta(sourceAccount, userId, sourceDelta),
                 scope.applyBalanceDelta(
                     creditAccount,
                     userId,

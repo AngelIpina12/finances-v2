@@ -7,6 +7,7 @@ export type OccurrenceStatus = "scheduled" | "completed" | "skipped" | "cancelle
 export type ScheduledOccurrence = {
     id: string;
     source: "manual" | "recurring_rule" | "financing_installment";
+    recurringRuleId: string | null;
     accountId: string;
     categoryId: string | null;
     transactionType: TransactionType;
@@ -15,6 +16,7 @@ export type ScheduledOccurrence = {
     amount: number;
     currency: Currency;
     notes: string | null;
+    originalScheduledAt: Date;
     scheduledAt: Date;
 };
 
@@ -71,6 +73,22 @@ export interface ScheduledOccurrenceScope {
         userId: string,
         delta: number,
     ): Promise<boolean>;
+    rescheduleOccurrence(
+        userId: string,
+        occurrenceId: string,
+        scheduledAt: Date,
+    ): Promise<boolean>;
+    /**
+     * Guarda el cambio de fecha en la regla para que sobreviva cuando sus
+     * ocurrencias pendientes se regeneren. Devuelve false si la regla ya no
+     * admite esa fecha (por ejemplo, porque termina antes).
+     */
+    recordRuleDateOverride(input: {
+        userId: string;
+        ruleId: string;
+        originalScheduledAt: Date;
+        scheduledAt: Date;
+    }): Promise<boolean>;
     transitionOccurrence(
         userId: string,
         occurrenceId: string,

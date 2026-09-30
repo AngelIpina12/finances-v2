@@ -20,7 +20,7 @@ export function createTransactionDraft(
         date: toAppDateTimeInputValue() as unknown as Date,
         merchant: "",
         notes: "",
-        allowCreditOverLimit: false,
+        allowInsufficientFunds: false,
     };
 }
 
@@ -45,6 +45,6 @@ export function toTransactionDraft(transaction: {
         date: toAppDateTimeInputValue(transaction.date) as unknown as Date,
         merchant: transaction.merchant ?? "",
         notes: transaction.notes ?? "",
-        allowCreditOverLimit: false,
+        allowInsufficientFunds: false,
     };
 }

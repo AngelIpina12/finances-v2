@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
-    ArrowDownLeft, ArrowUpRight, Check,
+    ArrowDownLeft, ArrowUpRight, CalendarClock, Check,
     Clock3, Ellipsis, Forward,
     XCircle,
 } from "lucide-react";
@@ -25,7 +25,7 @@ export type ScheduledFilter =
     | "cancelled"
     | "all";
 
-export type ScheduledAction = "complete" | "skip" | "cancel";
+export type ScheduledAction = "complete" | "skip" | "cancel" | "reschedule";
 
 interface Props {
     occurrences: ScheduledOccurrenceListItem[];
@@ -133,6 +133,8 @@ export function ScheduledOccurrenceList({ occurrences, filter, now, onAction }: 
                                 const overdue = occurrence.status === "scheduled"
                                     && occurrence.scheduledAt.getTime() < nowTimestamp;
                                 const terminal = occurrence.status !== "scheduled";
+                                const rescheduled = occurrence.originalScheduledAt.getTime()
+                                    !== occurrence.scheduledAt.getTime();
                                 const Icon = income ? ArrowUpRight : ArrowDownLeft;
 
                                 return (
@@ -170,6 +172,11 @@ export function ScheduledOccurrenceList({ occurrences, filter, now, onAction }: 
                                                         ? "Vencido"
                                                         : statusLabels[occurrence.status]}
                                                 </span>
+                                                {rescheduled && (
+                                                    <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">
+                                                        Reagendado
+                                                    </span>
+                                                )}
                                             </div>
                                             <p className="mt-1 truncate text-xs text-muted-foreground">
                                                 {occurrence.categoryName ?? "Sin categoría"}
@@ -178,6 +185,11 @@ export function ScheduledOccurrenceList({ occurrences, filter, now, onAction }: 
                                                 {" · "}
                                                 {formatAppDateTime(occurrence.scheduledAt)}
                                             </p>
+                                            {rescheduled && (
+                                                <p className="mt-1 truncate text-xs text-muted-foreground">
+                                                    Fecha original: {formatAppDateTime(occurrence.originalScheduledAt)}
+                                                </p>
+                                            )}
                                             {occurrence.notes && (
                                                 <p className="mt-1 truncate text-xs text-muted-foreground/80">
                                                     {occurrence.notes}
@@ -227,6 +239,13 @@ export function ScheduledOccurrenceList({ occurrences, filter, now, onAction }: 
                                                     >
                                                         <Check />
                                                         Marcar completado
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => onAction(occurrence, "reschedule")}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        <CalendarClock />
+                                                        Reagendar
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={() => onAction(occurrence, "skip")}

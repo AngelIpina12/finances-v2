@@ -7,6 +7,7 @@ import { CancelFinancingPlanUseCase } from "../application/use-cases/cancel-fina
 import { CreateFinancingPlanUseCase } from "../application/use-cases/create-financing-plan";
 import { CompleteFinancingInstallmentUseCase } from "../application/use-cases/complete-financing-installment";
 import { FinancingError } from "../application/financing-error";
+import { InsufficientFundsError, type FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 import { DrizzleFinancingRepository } from "../infrastructure/drizzle-financing-repository";
 import {
     completeFinancingInstallmentSchema, financingPlanFormSchema, type CompleteFinancingInstallmentData,
@@ -18,7 +19,7 @@ const createPlan = new CreateFinancingPlanUseCase(repository);
 const completeInstallment = new CompleteFinancingInstallmentUseCase(repository);
 const cancelPlan = new CancelFinancingPlanUseCase(repository);
 
-type ActionResult = { success: boolean; message: string };
+type ActionResult = { success: boolean; message: string; insufficientFunds?: FundsImpact["kind"] };
 
 function revalidateFinancialViews() {
     revalidatePath("/financing");
@@ -30,6 +31,10 @@ function revalidateFinancialViews() {
 }
 
 function errorResult(error: unknown, fallback: string): ActionResult {
+    if (error instanceof InsufficientFundsError) {
+        return { success: false, message: error.message, insufficientFunds: error.kind };
+    }
+
     if (!(error instanceof FinancingError)) {
         console.error("[financing] Unexpected server action error", error);
     }
@@ -81,6 +86,7 @@ export async function payFinancingInstallment(input: CompleteFinancingInstallmen
             authenticatedUserId,
             parsed.data.installmentId,
             parsed.data.sourceAccountId,
+            { allowInsufficientFunds: parsed.data.allowInsufficientFunds },
         );
     } catch (error) {
         return errorResult(error, "No fue posible registrar el pago de la cuota.");

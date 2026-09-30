@@ -17,6 +17,7 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
                 availableCredit: financialAccounts.availableCredit,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(
@@ -57,6 +58,7 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
                 amount: scheduledOccurrences.amount,
                 currency: scheduledOccurrences.currency,
                 notes: scheduledOccurrences.notes,
+                originalScheduledAt: scheduledOccurrences.originalScheduledAt,
                 scheduledAt: scheduledOccurrences.scheduledAt,
                 executedAt: scheduledOccurrences.executedAt,
                 createdAt: scheduledOccurrences.createdAt,
@@ -149,6 +151,7 @@ export async function getScheduledOccurrenceData(userId: string, now = new Date(
             availableCredit: account.availableCredit === null
                 ? null
                 : Number(account.availableCredit),
+            currentBalance: Number(account.currentBalance),
         })),
         categories: userCategories,
         occurrences,

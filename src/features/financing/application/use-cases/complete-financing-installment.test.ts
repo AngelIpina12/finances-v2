@@ -1,37 +1,42 @@
 import { describe, expect, it, vi } from "vitest";
+import { InsufficientFundsError } from "@/src/features/transactions/domain/transaction-rules";
 import type { FinancingRepository, FinancingScope } from "../../domain/financing-repository";
 import { CompleteFinancingInstallmentUseCase } from "./complete-financing-installment";
 
+function createScope(sourceBalance: number) {
+    return {
+        findInstallmentForUpdate: vi.fn().mockResolvedValue({
+            id: "installment-1",
+            financingPlanId: "plan-1",
+            sequence: 1,
+            scheduledAt: new Date(),
+            amount: 760,
+            isBalloon: false,
+            paidAt: null,
+            scheduledOccurrenceId: "occurrence-1",
+            creditAccountId: "credit-1",
+            currency: "MXN",
+            planName: "Laptop",
+            planStatus: "active",
+        }),
+        findAccount: vi.fn()
+            .mockResolvedValueOnce({ id: "cash-1", type: "debit", currency: "MXN", creditLimit: null, owedAmount: null, currentBalance: sourceBalance })
+            .mockResolvedValueOnce({ id: "credit-1", type: "credit", currency: "MXN", creditLimit: 10000, owedAmount: 5000, currentBalance: 5000 }),
+        insertPaymentTransfer: vi.fn().mockResolvedValue(undefined),
+        applyBalanceDelta: vi.fn().mockResolvedValue(true),
+        markInstallmentPaid: vi.fn().mockResolvedValue(true),
+        completeScheduledOccurrence: vi.fn().mockResolvedValue(true),
+        completePlanIfPaid: vi.fn().mockResolvedValue(undefined),
+    } as unknown as FinancingScope;
+}
+
 describe("CompleteFinancingInstallmentUseCase", () => {
     it("registra una transferencia y reduce la deuda una sola vez", async () => {
-        const scope = {
-            findInstallmentForUpdate: vi.fn().mockResolvedValue({
-                id: "installment-1",
-                financingPlanId: "plan-1",
-                sequence: 1,
-                scheduledAt: new Date(),
-                amount: 760,
-                isBalloon: false,
-                paidAt: null,
-                scheduledOccurrenceId: "occurrence-1",
-                creditAccountId: "credit-1",
-                currency: "MXN",
-                planName: "Laptop",
-                planStatus: "active",
-            }),
-            findAccount: vi.fn()
-                .mockResolvedValueOnce({ id: "cash-1", type: "debit", currency: "MXN", creditLimit: null, owedAmount: null })
-                .mockResolvedValueOnce({ id: "credit-1", type: "credit", currency: "MXN", creditLimit: 10000, owedAmount: 5000 }),
-            insertPaymentTransfer: vi.fn().mockResolvedValue(undefined),
-            applyBalanceDelta: vi.fn().mockResolvedValue(true),
-            markInstallmentPaid: vi.fn().mockResolvedValue(true),
-            completeScheduledOccurrence: vi.fn().mockResolvedValue(true),
-            completePlanIfPaid: vi.fn().mockResolvedValue(undefined),
-        } as unknown as FinancingScope;
+        const scope = createScope(1000);
         const repository: FinancingRepository = { withinTransaction: (work) => work(scope) };
         const useCase = new CompleteFinancingInstallmentUseCase(repository);
 
-        await useCase.execute("user-1", "installment-1", "cash-1", new Date("2026-09-03T12:00:00.000Z"));
+        await useCase.execute("user-1", "installment-1", "cash-1", {}, new Date("2026-09-03T12:00:00.000Z"));
 
         expect(scope.insertPaymentTransfer).toHaveBeenCalledOnce();
         expect(scope.applyBalanceDelta).toHaveBeenCalledTimes(2);
@@ -53,5 +58,25 @@ describe("CompleteFinancingInstallmentUseCase", () => {
             "occurrence-1",
             expect.any(Date),
         );
+    });
+
+    it("pide confirmación si la cuenta de origen quedaría en negativo", async () => {
+        const scope = createScope(500);
+        const repository: FinancingRepository = { withinTransaction: (work) => work(scope) };
+        const useCase = new CompleteFinancingInstallmentUseCase(repository);
+
+        await expect(useCase.execute("user-1", "installment-1", "cash-1"))
+            .rejects.toBeInstanceOf(InsufficientFundsError);
+        expect(scope.applyBalanceDelta).not.toHaveBeenCalled();
+    });
+
+    it("registra el pago en negativo cuando el usuario lo confirma", async () => {
+        const scope = createScope(500);
+        const repository: FinancingRepository = { withinTransaction: (work) => work(scope) };
+        const useCase = new CompleteFinancingInstallmentUseCase(repository);
+
+        await useCase.execute("user-1", "installment-1", "cash-1", { allowInsufficientFunds: true });
+
+        expect(scope.applyBalanceDelta).toHaveBeenCalledTimes(2);
     });
 });

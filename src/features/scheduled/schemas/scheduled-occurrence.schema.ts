@@ -31,6 +31,10 @@ export const scheduledOccurrenceFormSchema = z.object({
 export const scheduledOccurrenceIdSchema = z.uuid("El movimiento programado no es válido.");
 export const completeScheduledOccurrenceSchema = z.object({
     occurrenceId: scheduledOccurrenceIdSchema,
-    allowCreditOverLimit: z.boolean(),
+    allowInsufficientFunds: z.boolean(),
+});
+export const rescheduleScheduledOccurrenceSchema = z.object({
+    occurrenceId: scheduledOccurrenceIdSchema,
+    scheduledAt: z.coerce.date({ error: "Selecciona una fecha y hora válidas." }),
 });
 export type ScheduledOccurrenceFormData = z.infer<typeof scheduledOccurrenceFormSchema>;

@@ -4,7 +4,7 @@ import {
     Controller, type Resolver, useForm
 } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,8 @@ import { payFinancingInstallment } from "../actions/financing-actions";
 import { completeFinancingInstallmentSchema, type CompleteFinancingInstallmentData } from "../schemas/financing.schema";
 import type { FinancingData } from "../queries/get-financing-data";
 import { createFinancingPaymentDraft } from "../utils/financing-draft";
+import { InsufficientFundsDialog } from "@/src/features/transactions/components/insufficient-funds-dialog";
+import type { FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 
 interface Props {
     installmentId: string;
@@ -24,6 +26,10 @@ interface Props {
 
 export function FinancingPaymentForm({ installmentId, accounts, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
+    const [pendingSubmission, setPendingSubmission] = useState<{
+        data: CompleteFinancingInstallmentData;
+        kind: FundsImpact["kind"];
+    } | null>(null);
     const {
         control, handleSubmit, formState: { errors }
     } = useForm<CompleteFinancingInstallmentData>({
@@ -36,6 +42,11 @@ export function FinancingPaymentForm({ installmentId, accounts, onClose }: Props
         startTransition(async () => {
             const result = await payFinancingInstallment(data);
 
+            if (result.insufficientFunds) {
+                setPendingSubmission({ data, kind: result.insufficientFunds });
+                return;
+            }
+
             if (!result.success) {
                 toast.error(result.message);
                 return;
@@ -44,6 +55,15 @@ export function FinancingPaymentForm({ installmentId, accounts, onClose }: Props
             toast.success(result.message);
             onClose();
         });
+    }
+
+    function confirmInsufficientFunds() {
+        if (!pendingSubmission) return;
+
+        const data = { ...pendingSubmission.data, allowInsufficientFunds: true };
+
+        setPendingSubmission(null);
+        onSubmit(data);
     }
 
     return (
@@ -86,6 +106,13 @@ export function FinancingPaymentForm({ installmentId, accounts, onClose }: Props
                     {isPending ? "Registrando..." : "Registrar pago"}
                 </FormSubmit>
             </div>
+
+            <InsufficientFundsDialog
+                kind={pendingSubmission?.kind ?? null}
+                isPending={isPending}
+                onCancel={() => setPendingSubmission(null)}
+                onConfirm={confirmInsufficientFunds}
+            />
         </Form>
     );
 }

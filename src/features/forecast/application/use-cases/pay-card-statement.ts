@@ -1,5 +1,5 @@
 import { subMonths } from "date-fns";
-import { getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
+import { assertFundsApproved, getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
 import type { CardStatementRepository } from "../../domain/card-statement-repository";
 import { getLatestCycleClose, getPaymentDueAt } from "../../domain/credit-card-cycle";
 import { ForecastError } from "../forecast-error";
@@ -9,7 +9,7 @@ export class PayCardStatementUseCase {
 
     async execute(
         userId: string,
-        input: { creditAccountId: string; sourceAccountId: string },
+        input: { creditAccountId: string; sourceAccountId: string; allowInsufficientFunds?: boolean },
         now = new Date(),
     ) {
         return this.repository.withinTransaction(async (scope) => {
@@ -61,6 +61,10 @@ export class PayCardStatementUseCase {
                 throw new ForecastError("No hay saldo pendiente para este estado de cuenta.");
             }
 
+            const sourceDelta = getBalanceDelta(sourceAccount, "transfer", amount, "out");
+
+            assertFundsApproved(sourceAccount, sourceDelta, input.allowInsufficientFunds, "pagarlo");
+
             const transferGroupId = crypto.randomUUID();
             const paidAt = now;
 
@@ -69,11 +73,7 @@ export class PayCardStatementUseCase {
             });
 
             const [sourceUpdated, creditUpdated] = await Promise.all([
-                scope.applyBalanceDelta(
-                    sourceAccount,
-                    userId,
-                    getBalanceDelta(sourceAccount, "transfer", amount, "out"),
-                ),
+                scope.applyBalanceDelta(sourceAccount, userId, sourceDelta),
                 scope.applyBalanceDelta(
                     creditAccount,
                     userId,

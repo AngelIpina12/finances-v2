@@ -8,6 +8,7 @@ import { CreateTransactionUseCase } from "../application/use-cases/create-transa
 import { CreateTransferUseCase } from "../application/use-cases/create-transfer";
 import { UpdateTransactionUseCase } from "../application/use-cases/update-transaction";
 import { TransactionError } from "../application/transaction-error";
+import { InsufficientFundsError, type FundsImpact } from "../domain/transaction-rules";
 import { DrizzleTransactionRepository } from "../infrastructure/drizzle-transaction-repository";
 import {
     transactionFormSchema, transactionIdSchema, type TransactionFormData,
@@ -23,6 +24,7 @@ const createTransferUseCase = new CreateTransferUseCase(repository);
 type ActionResult = {
     success: boolean;
     message: string;
+    insufficientFunds?: FundsImpact["kind"];
 };
 
 function revalidateFinancialViews() {
@@ -34,6 +36,10 @@ function revalidateFinancialViews() {
 }
 
 function mutationError(error: unknown, fallback: string): ActionResult {
+    if (error instanceof InsufficientFundsError) {
+        return { success: false, message: error.message, insufficientFunds: error.kind };
+    }
+
     return {
         success: false,
         message: error instanceof TransactionError ? error.message : fallback,

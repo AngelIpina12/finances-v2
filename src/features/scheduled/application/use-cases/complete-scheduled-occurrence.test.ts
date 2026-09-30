@@ -9,6 +9,7 @@ describe("CompleteScheduledOccurrenceUseCase", () => {
         const occurrence: ScheduledOccurrence = {
             id: "occurrence-1",
             source: "manual",
+            recurringRuleId: null,
             accountId: "account-1",
             categoryId: "category-1",
             transactionType: "expense",
@@ -17,6 +18,7 @@ describe("CompleteScheduledOccurrenceUseCase", () => {
             amount: 1200,
             currency: "MXN",
             notes: null,
+            originalScheduledAt: new Date("2026-09-03T15:00:00.000Z"),
             scheduledAt: new Date("2026-09-03T15:00:00.000Z"),
         };
         let insertedTransactions = 0;
@@ -30,6 +32,7 @@ describe("CompleteScheduledOccurrenceUseCase", () => {
                 currency: "MXN" as const,
                 creditLimit: null,
                 owedAmount: null,
+                currentBalance: 5000,
             }),
             categoryBelongsToType: async () => true,
             insertCompletedTransaction: async () => {

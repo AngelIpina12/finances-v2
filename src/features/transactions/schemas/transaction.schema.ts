@@ -32,7 +32,7 @@ export const transactionFormSchema = z.object({
         .max(500, "Las notas no pueden superar 500 caracteres.")
         .optional()
         .or(z.literal("")),
-    allowCreditOverLimit: z.boolean().optional(),
+    allowInsufficientFunds: z.boolean().optional(),
 }).superRefine((data, context) => {
     if (data.budgetAmount !== undefined && data.budgetAmount > data.amount) {
         context.addIssue({

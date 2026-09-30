@@ -20,7 +20,7 @@ export type TransactionValues = {
     date: Date;
     merchant?: string;
     notes?: string;
-    allowCreditOverLimit?: boolean;
+    allowInsufficientFunds?: boolean;
 };
 
 export type CreateTransactionCommand = TransactionValues;
@@ -39,6 +39,7 @@ export type CreateTransferCommand = {
     financingPlanId?: string;
     financingInstallmentId?: string;
     scheduledOccurrenceId?: string;
+    allowInsufficientFunds?: boolean;
 };
 
 export type TransactionAccount = {
@@ -47,6 +48,7 @@ export type TransactionAccount = {
     currency: Currency;
     creditLimit: number | null;
     owedAmount: number | null;
+    currentBalance: number;
 };
 
 export type LedgerTransaction = {

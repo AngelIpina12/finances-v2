@@ -15,9 +15,9 @@ import {
     SegmentedControl,
 } from "@/src/shared/components/forms";
 import {
-    getBalanceDelta, getCreditLimitImpact,
+    getBalanceDelta, getFundsImpact,
 } from "@/src/features/transactions/domain/transaction-rules";
-import { CreditLimitWarning } from "@/src/features/transactions/components/credit-limit-warning";
+import { FundsWarning } from "@/src/features/transactions/components/funds-warning";
 import { createScheduledOccurrence } from "../actions/scheduled-occurrence-actions";
 import { scheduledOccurrenceFormSchema, type ScheduledOccurrenceFormData } from "../schemas/scheduled-occurrence.schema";
 import { createScheduledOccurrenceDraft } from "../utils/scheduled-occurrence-draft";
@@ -30,6 +30,7 @@ type AccountOption = {
     creditLimit: number | null;
     owedAmount: number | null;
     availableCredit: number | null;
+    currentBalance: number;
 };
 
 type CategoryOption = {
@@ -62,8 +63,8 @@ export function ScheduledOccurrenceForm({ accounts, categories, onClose }: Props
         [categories, transactionType],
     );
     const selectedAccount = accounts.find((account) => account.id === accountId);
-    const creditImpact = selectedAccount && Number.isFinite(Number(amount))
-        ? getCreditLimitImpact(
+    const fundsImpact = selectedAccount && Number.isFinite(Number(amount))
+        ? getFundsImpact(
             selectedAccount,
             getBalanceDelta(selectedAccount, transactionType, Number(amount)),
         )
@@ -198,9 +199,9 @@ export function ScheduledOccurrenceForm({ accounts, categories, onClose }: Props
                 </div>
             </div>
 
-            {creditImpact && creditImpact.newlyOverLimit > 0 && selectedAccount && (
-                <CreditLimitWarning
-                    impact={creditImpact}
+            {fundsImpact && fundsImpact.newShortfall > 0 && selectedAccount && (
+                <FundsWarning
+                    impact={fundsImpact}
                     currency={selectedAccount.currency}
                     scheduled
                 />

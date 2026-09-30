@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
     Controller, Resolver, useForm,
     useWatch
@@ -16,12 +16,20 @@ import {
 import { createTransfer } from "../actions/transaction-actions";
 import { transferFormSchema, type TransferFormData } from "../schemas/transfer.schema";
 import { createTransferDraft } from "../utils/transfer-draft";
+import {
+    getBalanceDelta, getFundsImpact, type FundsImpact,
+} from "../domain/transaction-rules";
+import { FundsWarning } from "./funds-warning";
+import { InsufficientFundsDialog } from "./insufficient-funds-dialog";
 
 type AccountOption = {
     id: string;
     name: string;
-    type: string;
+    type: "cash" | "debit" | "credit" | "wallet" | "investment" | "fixed_income" | "loan";
     currency: "MXN" | "USD" | "EUR" | "GBP";
+    creditLimit: number | null;
+    owedAmount: number | null;
+    currentBalance: number;
 };
 
 interface Props {
@@ -31,6 +39,10 @@ interface Props {
 
 export function TransferForm({ accounts, onClose }: Props) {
     const [isPending, startTransition] = useTransition();
+    const [pendingSubmission, setPendingSubmission] = useState<{
+        data: TransferFormData;
+        kind: FundsImpact["kind"];
+    } | null>(null);
     const {
         register, control, handleSubmit,
         setValue, formState: { errors }
@@ -40,7 +52,11 @@ export function TransferForm({ accounts, onClose }: Props) {
         mode: "all",
     });
     const sourceAccountId = useWatch({ control, name: "sourceAccountId" });
+    const amount = useWatch({ control, name: "amount" });
     const sourceAccount = accounts.find((account) => account.id === sourceAccountId);
+    const fundsImpact = sourceAccount && Number.isFinite(Number(amount))
+        ? getSourceFundsImpact(sourceAccount, Number(amount))
+        : null;
     const destinationAccounts = useMemo(
         () => accounts.filter(
             (account) => account.id !== sourceAccountId
@@ -49,9 +65,14 @@ export function TransferForm({ accounts, onClose }: Props) {
         [accounts, sourceAccount, sourceAccountId],
     );
 
-    function onSubmit(data: TransferFormData) {
+    function persistTransfer(data: TransferFormData) {
         startTransition(async () => {
             const result = await createTransfer(data);
+
+            if (result.insufficientFunds) {
+                setPendingSubmission({ data, kind: result.insufficientFunds });
+                return;
+            }
 
             if (!result.success) {
                 toast.error(result.message);
@@ -61,6 +82,27 @@ export function TransferForm({ accounts, onClose }: Props) {
             toast.success(result.message);
             onClose();
         });
+    }
+
+    function onSubmit(data: TransferFormData) {
+        const source = accounts.find((account) => account.id === data.sourceAccountId);
+        const impact = source ? getSourceFundsImpact(source, data.amount) : null;
+
+        if (impact?.newShortfall && !data.allowInsufficientFunds) {
+            setPendingSubmission({ data, kind: impact.kind });
+            return;
+        }
+
+        persistTransfer(data);
+    }
+
+    function confirmInsufficientFunds() {
+        if (!pendingSubmission) return;
+
+        const data = { ...pendingSubmission.data, allowInsufficientFunds: true };
+
+        setPendingSubmission(null);
+        persistTransfer(data);
     }
 
     const accountOptions = (options: AccountOption[]) => options.map((account) => ({
@@ -153,6 +195,13 @@ export function TransferForm({ accounts, onClose }: Props) {
                 </div>
             </div>
 
+            {fundsImpact && fundsImpact.newShortfall > 0 && sourceAccount && (
+                <FundsWarning
+                    impact={fundsImpact}
+                    currency={sourceAccount.currency}
+                />
+            )}
+
             <div className="flex flex-col gap-2">
                 <FormLabel htmlFor="transfer-description">
                     Descripción
@@ -190,6 +239,17 @@ export function TransferForm({ accounts, onClose }: Props) {
                     {isPending ? "Transfiriendo..." : "Realizar transferencia"}
                 </FormSubmit>
             </div>
+
+            <InsufficientFundsDialog
+                kind={pendingSubmission?.kind ?? null}
+                isPending={isPending}
+                onCancel={() => setPendingSubmission(null)}
+                onConfirm={confirmInsufficientFunds}
+            />
         </Form>
     );
+}
+
+function getSourceFundsImpact(account: AccountOption, amount: number) {
+    return getFundsImpact(account, getBalanceDelta(account, "transfer", amount, "out"));
 }

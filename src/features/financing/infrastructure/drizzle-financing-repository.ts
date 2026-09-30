@@ -212,6 +212,7 @@ class DrizzleFinancingScope implements FinancingScope {
                 currency: financialAccounts.currency,
                 creditLimit: financialAccounts.creditLimit,
                 owedAmount: financialAccounts.owedAmount,
+                currentBalance: financialAccounts.currentBalance,
             })
             .from(financialAccounts)
             .where(and(...conditions))
@@ -223,6 +224,7 @@ class DrizzleFinancingScope implements FinancingScope {
                 ...account,
                 creditLimit: account.creditLimit === null ? null : Number(account.creditLimit),
                 owedAmount: account.owedAmount === null ? null : Number(account.owedAmount),
+                currentBalance: Number(account.currentBalance),
             } as TransactionAccount
             : undefined;
     }

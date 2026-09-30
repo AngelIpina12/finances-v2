@@ -1,4 +1,4 @@
-import { getBalanceDelta } from "../../domain/transaction-rules";
+import { assertFundsApproved, getBalanceDelta } from "../../domain/transaction-rules";
 import type { CreateTransferCommand, TransactionRepository } from "../../domain/transaction-repository";
 import { TransactionError } from "../transaction-error";
 
@@ -26,6 +26,10 @@ export class CreateTransferUseCase {
                 );
             }
 
+            const sourceDelta = getBalanceDelta(sourceAccount, "transfer", command.amount, "out");
+
+            assertFundsApproved(sourceAccount, sourceDelta, command.allowInsufficientFunds);
+
             const transferGroupId = crypto.randomUUID();
 
             await scope.insertCompletedTransfer({
@@ -39,7 +43,7 @@ export class CreateTransferUseCase {
             const sourceUpdated = await scope.applyBalanceDelta(
                 sourceAccount,
                 userId,
-                getBalanceDelta(sourceAccount, "transfer", command.amount, "out"),
+                sourceDelta,
             );
             const destinationUpdated = await scope.applyBalanceDelta(
                 destinationAccount,
