@@ -81,8 +81,18 @@ export function AccountPlastic({ account, hideBalance = false, preview = false }
                     {account.type === "credit" ? "Deuda actual" : "Saldo disponible"}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tracking-tight">
-                    {formatMoney(Math.abs(balance), account.currency, hideBalance)}
+                    {/* La deuda se muestra en positivo; un saldo de activo conserva su signo. */}
+                    {formatMoney(
+                        account.type === "credit" ? Math.abs(balance) : balance,
+                        account.currency,
+                        hideBalance,
+                    )}
                 </p>
+                {account.type !== "credit" && balance < 0 && !hideBalance && (
+                    <p className="mt-1 text-xs font-semibold text-amber-100">
+                        Saldo negativo
+                    </p>
+                )}
                 {overLimit > 0 && !hideBalance && (
                     <p className="mt-1 text-xs font-semibold text-amber-100">
                         Exceso del límite: {new Intl.NumberFormat("es-MX", {

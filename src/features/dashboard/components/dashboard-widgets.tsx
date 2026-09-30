@@ -218,7 +218,7 @@ export function AccountsSummary({ account }: { account: DashboardData["account"]
                                 {isCredit ? "Deuda actual" : "Saldo actual"}
                             </p>
                             <p className="text-2xl font-semibold">
-                                {money.format(Math.abs(account.balance))}
+                                {money.format(isCredit ? Math.abs(account.balance) : account.balance)}
                             </p>
                         </div>
                         {isCredit && (
