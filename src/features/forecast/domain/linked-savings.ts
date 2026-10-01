@@ -1,4 +1,5 @@
 import type { Currency } from "@/src/features/transactions/domain/transaction-repository";
+import type { DayCountConvention } from "@/src/features/fixed-income/domain/fixed-income-calculator";
 import type { ForecastAccount, ForecastEvent } from "./forecast-calculator";
 
 export type LinkedSavings = {
@@ -7,17 +8,41 @@ export type LinkedSavings = {
     name: string;
     currency: Currency;
     balance: number;
+    annualRate: number;
+    dayCountConvention: DayCountConvention;
+    withholdingRate: number;
+    /** Sólo las cajitas con rendimiento diario pueden simular ahorro automático. */
+    hasDailyInterest: boolean;
 };
 
 export type LinkedSavingsMode = "exclude" | "principal" | "with_yield";
 
+export function linkedSavingsAccountId(positionId: string) {
+    return `linked-savings:${positionId}`;
+}
+
+/** Proyecta una cajita como cuenta propia, ligada a su cuenta de fondeo. */
+export function toSavingsAccount(saving: LinkedSavings, id: string, name: string): ForecastAccount {
+    return {
+        id,
+        name,
+        type: "fixed_income",
+        currency: saving.currency,
+        currentBalance: saving.balance,
+        creditLimit: null,
+        billingDate: null,
+        statementBalance: null,
+        minimumPayment: null,
+        includeInLiquidity: true,
+        fundingAccountId: saving.accountId,
+    };
+}
+
 /**
- * Ajusta cuentas y eventos según cómo se quieran contemplar las cajitas
- * ligadas a cada cuenta de fondeo:
- * - exclude: la cuenta sólo muestra su propio saldo; el rendimiento se queda
- *   en la cajita y no mueve la cuenta.
- * - principal: el saldo actual de la cajita se suma a la cuenta.
- * - with_yield: además, el rendimiento diario proyectado se suma a la cuenta.
+ * Ajusta cuentas y eventos según cómo se quieran contemplar las cajitas:
+ * - exclude: las cajitas no aparecen; las cuentas muestran sólo su dinero.
+ * - principal: cada cajita aparece como cuenta propia con su saldo actual.
+ * - with_yield: además, cada cajita genera su rendimiento diario proyectado.
  */
 export function applyLinkedSavings(input: {
     accounts: ForecastAccount[];
@@ -25,30 +50,50 @@ export function applyLinkedSavings(input: {
     savings: LinkedSavings[];
     mode: LinkedSavingsMode;
 }) {
-    const includeSavings = input.mode !== "exclude";
-    const balancesByAccount = new Map<string, number>();
-    for (const saving of input.savings) {
-        balancesByAccount.set(saving.accountId, (balancesByAccount.get(saving.accountId) ?? 0) + saving.balance);
+    if (input.mode === "exclude") {
+        // El rendimiento se queda en la cajita; sólo el capital que vence llega a una cuenta.
+        return {
+            accounts: input.accounts,
+            events: input.events.filter((event) => event.linkedSavings?.kind !== "yield"),
+        };
     }
 
-    const accounts = input.accounts.map((account) => {
-        const linkedSavingsBalance = balancesByAccount.get(account.id);
-        if (!includeSavings || linkedSavingsBalance === undefined) return account;
+    const savingsAccountIds = new Map(input.savings.map((saving) => [
+        saving.positionId, linkedSavingsAccountId(saving.positionId),
+    ]));
+    const events = input.events.flatMap((event): ForecastEvent[] => {
+        const savingsAccountId = event.linkedSavings
+            ? savingsAccountIds.get(event.linkedSavings.positionId)
+            : undefined;
+        if (!event.linkedSavings || !savingsAccountId) return [event];
 
-        return {
-            ...account,
-            currentBalance: account.currentBalance + linkedSavingsBalance,
-            linkedSavingsBalance,
-        };
+        if (event.linkedSavings.kind === "yield") {
+            return input.mode === "with_yield" ? [{ ...event, accountId: savingsAccountId }] : [];
+        }
+
+        // Al vencer, el capital sale de la cajita hacia la cuenta que lo recibe.
+        return [{
+            ...event,
+            accountId: savingsAccountId,
+            settlesAccountId: event.accountId,
+            transactionType: "expense",
+        }];
     });
 
-    const events = input.events.filter((event) => {
-        if (!event.linkedSavings) return true;
-        if (event.linkedSavings.kind === "yield") return input.mode === "with_yield";
-        // Al contemplar la cajita, su capital ya se sumó a la cuenta de fondeo;
-        // proyectar también su devolución al vencimiento lo contaría dos veces.
-        return !includeSavings;
-    });
+    return {
+        accounts: [
+            ...input.accounts,
+            ...input.savings.map((saving) => toSavingsAccount(saving, savingsAccountIds.get(saving.positionId)!, saving.name)),
+        ],
+        events,
+    };
+}
 
-    return { accounts, events };
+/** Las cajitas acompañan a su cuenta de fondeo cuando ésta se filtra. */
+export function withSavingsAccounts(accountIds: Set<string>, accounts: Array<Pick<ForecastAccount, "id" | "fundingAccountId">>) {
+    const scoped = new Set(accountIds);
+    for (const account of accounts) {
+        if (account.fundingAccountId && accountIds.has(account.fundingAccountId)) scoped.add(account.id);
+    }
+    return scoped;
 }

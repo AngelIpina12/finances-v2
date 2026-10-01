@@ -22,9 +22,16 @@ function liquidDelta(
     if (!event.affectsBalance || !event.accountId) return 0;
 
     const account = accountsById.get(event.accountId);
-    if (!account?.includeInLiquidity || account.currency !== event.currency) return 0;
+    const accountDelta = account?.includeInLiquidity && account.currency === event.currency
+        ? event.transactionType === "income" ? event.amount : -event.amount
+        : 0;
+    // Un traspaso entre dos cuentas líquidas no cambia la liquidez total.
+    const settledAccount = event.settlesAccountId ? accountsById.get(event.settlesAccountId) : undefined;
+    const settledDelta = settledAccount?.includeInLiquidity && settledAccount.currency === event.currency
+        ? event.amount
+        : 0;
 
-    return event.transactionType === "income" ? event.amount : -event.amount;
+    return accountDelta + settledDelta;
 }
 
 export function buildLiquidityRangeSummaries(input: {

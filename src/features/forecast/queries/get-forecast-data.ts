@@ -3,7 +3,7 @@ import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
     financingPlans, recurringRules, scheduledOccurrences, budgets, transactions, fixedIncomePositions,
-    creditCardPaymentDismissals,
+    creditCardPaymentDismissals, forecastSavingsSimulations,
 } from "@/src/db/schema";
 import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
@@ -21,7 +21,10 @@ type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
-    const [accounts, occurrences, cardPaymentSettings, rules, forecastBudgets, completedTransactions, dismissedCardPayments, fixedIncome] = await Promise.all([
+    const [
+        accounts, occurrences, cardPaymentSettings, rules, forecastBudgets,
+        completedTransactions, dismissedCardPayments, fixedIncome, savedSimulations,
+    ] = await Promise.all([
         db
             .select({
                 id: financialAccounts.id,
@@ -136,6 +139,17 @@ export async function getForecastData(userId: string, now = new Date()) {
             eq(fixedIncomePositions.status, "active"),
             lte(fixedIncomePositions.startsAt, until),
         )),
+        db.select({
+            id: forecastSavingsSimulations.id,
+            name: forecastSavingsSimulations.name,
+            accountId: forecastSavingsSimulations.accountId,
+            positionId: forecastSavingsSimulations.positionId,
+            minimumBalance: forecastSavingsSimulations.minimumBalance,
+            isDefault: forecastSavingsSimulations.isDefault,
+        })
+            .from(forecastSavingsSimulations)
+            .where(eq(forecastSavingsSimulations.userId, userId))
+            .orderBy(asc(forecastSavingsSimulations.name)),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -283,6 +297,8 @@ export async function getForecastData(userId: string, now = new Date()) {
     for (const position of fixedIncome) {
         if (!activeAccountIds.has(position.settlementAccountId)) continue;
         const principal = Number(position.outstandingPrincipal);
+        const rate = Number(position.annualRate);
+        const withholding = Number(position.withholdingRate ?? 0);
         // Una cajita disponible al instante vive dentro de su cuenta de fondeo:
         // de ahí sale el capital y ahí regresan los retiros. Su rendimiento
         // diario se reinvierte en la cajita, no se deposita en la cuenta.
@@ -297,10 +313,12 @@ export async function getForecastData(userId: string, now = new Date()) {
                 name: position.name,
                 currency: position.currency as ForecastEvent["currency"],
                 balance: principal,
+                annualRate: rate,
+                dayCountConvention: position.dayCountConvention,
+                withholdingRate: withholding,
+                hasDailyInterest: position.interestFrequency === "daily",
             });
         }
-        const rate = Number(position.annualRate);
-        const withholding = Number(position.withholdingRate ?? 0);
         const projectionEnd = position.maturesAt && position.maturesAt < until
             ? position.maturesAt
             : until;
@@ -329,6 +347,7 @@ export async function getForecastData(userId: string, now = new Date()) {
                     transactionType: "income",
                     affectsBalance: true,
                     linkedSavings: isLinkedSavings ? { positionId: position.id, kind: "yield" } : undefined,
+                    dailyYieldGroup: `fixed-income:${position.id}`,
                 });
             });
         } else if (position.maturesAt) {
@@ -379,6 +398,14 @@ export async function getForecastData(userId: string, now = new Date()) {
         )),
         dismissedCardPayments,
         linkedSavings,
+        // Una simulación cuya cajita ya no está activa o ligada no se puede proyectar.
+        savingsSimulations: savedSimulations
+            .filter((simulation) => linkedSavings.some((saving) => (
+                saving.positionId === simulation.positionId
+                && saving.accountId === simulation.accountId
+                && saving.hasDailyInterest
+            )))
+            .map((simulation) => ({ ...simulation, minimumBalance: Number(simulation.minimumBalance) })),
         events,
     };
 }

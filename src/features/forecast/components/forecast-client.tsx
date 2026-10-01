@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import {
     AlertTriangle, CalendarClock, ChevronRight,
-    CreditCard, Landmark, ReceiptText, Repeat2, Settings2,
+    CreditCard, Landmark, PiggyBank, ReceiptText, Repeat2, Settings2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -33,7 +33,16 @@ import {
     buildForecast, type ForecastEventSource, type ForecastGranularity,
 } from "../domain/forecast-calculator";
 import { buildLiquidityRangeSummaries } from "../domain/liquidity-calculator";
-import { applyLinkedSavings, type LinkedSavingsMode } from "../domain/linked-savings";
+import {
+    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts, type LinkedSavingsMode,
+} from "../domain/linked-savings";
+import { applySavingsSweep, simulatedSavingsAccountId } from "../domain/savings-sweep";
+import { ForecastSavingsSimulation, type SavingsSimulationDraft } from "./forecast-savings-simulation";
+import {
+    buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts, summarizeTimelinePeriod,
+    type ForecastPeriodAccountSummary,
+} from "../domain/forecast-timeline";
+import { ForecastChart, type ForecastChartView, type ForecastSavingsPoint } from "./forecast-chart";
 import type { ForecastData } from "../queries/get-forecast-data";
 import { fromForecastDateInput, isInsideForecastRange } from "../utils/forecast-filters";
 
@@ -54,12 +63,14 @@ function eventIcon(source: ForecastEventSource) {
                 ? CreditCard
                 : source === "fixed_income"
                     ? Landmark
+                : source === "savings_simulation"
+                    ? PiggyBank
                 : ReceiptText;
 }
 
 export function ForecastClient({
     accounts, cardPaymentSettings, events, dismissedCardPaymentKeys: savedDismissedCardPaymentKeys,
-    dismissedCardPayments, linkedSavings, now,
+    dismissedCardPayments, linkedSavings, savingsSimulations, now,
 }: ForecastData) {
     const router = useRouter();
     const anchorNow = useMemo(() => new Date(now), [now]);
@@ -75,6 +86,23 @@ export function ForecastClient({
     const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
     const [granularity, setGranularity] = useState<ForecastGranularity>("week");
     const [savingsMode, setSavingsMode] = useState<LinkedSavingsMode>("exclude");
+    const [chartView, setChartView] = useState<ForecastChartView>("balance");
+    // Los periodos de la línea de tiempo empiezan contraídos.
+    const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
+    const [simulation, setSimulation] = useState<SavingsSimulationDraft | null>(() => {
+        const preferred = savingsSimulations.find((item) => item.isDefault);
+        return preferred ? { ...preferred } : null;
+    });
+    // El nombre o la opción predeterminada no cambian la proyección; sólo estos campos.
+    const sweepAccountId = simulation?.accountId;
+    const sweepPositionId = simulation?.positionId;
+    const sweepMinimumBalance = simulation?.minimumBalance || 0;
+    const sweepRule = useMemo(
+        () => sweepAccountId && sweepPositionId
+            ? { accountId: sweepAccountId, positionId: sweepPositionId, minimumBalance: sweepMinimumBalance }
+            : null,
+        [sweepAccountId, sweepPositionId, sweepMinimumBalance],
+    );
     const [cardToConfigure, setCardToConfigure] = useState<ForecastData["accounts"][number] | null>(null);
     const [locallyDismissedPaymentKeys, setLocallyDismissedPaymentKeys] = useState<Set<string>>(new Set());
     const [locallyRestoredPaymentKeys, setLocallyRestoredPaymentKeys] = useState<Set<string>>(new Set());
@@ -102,8 +130,23 @@ export function ForecastClient({
         !locallyRestoredPaymentKeys.has(`${payment.creditAccountId}:${payment.dueAt.toISOString()}`)
     ));
     const projection = useMemo(
-        () => applyLinkedSavings({ accounts, events, savings: linkedSavings, mode: savingsMode }),
-        [accounts, events, linkedSavings, savingsMode],
+        () => sweepRule
+            ? applySavingsSweep({
+                accounts,
+                events,
+                savings: linkedSavings,
+                mode: savingsMode,
+                rule: sweepRule,
+                settings: cardPaymentSettings,
+                dismissedCardPaymentKeys,
+                now: anchorNow,
+                days: forecastDays,
+            })
+            : applyLinkedSavings({ accounts, events, savings: linkedSavings, mode: savingsMode }),
+        [
+            accounts, events, linkedSavings, savingsMode, cardPaymentSettings, dismissedCardPaymentKeys,
+            anchorNow, forecastDays, sweepRule,
+        ],
     );
     const forecast = useMemo(
         () => buildForecast({
@@ -120,9 +163,17 @@ export function ForecastClient({
         (currency === "all" || account.currency === currency)
         && matchesAccountKind(account.type, accountKind)
     ));
-    const scopedAccountIds = new Set(selectableAccounts
-        .filter((account) => selectedAccountIds.size === 0 || selectedAccountIds.has(account.id))
-        .map((account) => account.id));
+    // Las cajitas se proyectan como cuentas propias y acompañan a su cuenta de
+    // fondeo en los filtros, en cualquiera de los modos que se comparen.
+    const scopedAccountIds = withSavingsAccounts(
+        new Set(selectableAccounts
+            .filter((account) => selectedAccountIds.size === 0 || selectedAccountIds.has(account.id))
+            .map((account) => account.id)),
+        linkedSavings.flatMap((saving) => [
+            { id: linkedSavingsAccountId(saving.positionId), fundingAccountId: saving.accountId },
+            { id: simulatedSavingsAccountId(saving.positionId), fundingAccountId: saving.accountId },
+        ]),
+    );
     const isScopedToAccounts = accountKind !== "all" || selectedAccountIds.size > 0;
     const visibleEvents = forecast.events.filter((event) => (
         isInsideForecastRange(event.scheduledAt, startsAt, endsAt)
@@ -158,13 +209,101 @@ export function ForecastClient({
 
     const cashFlow = selectedAccount
         ? buildCashFlow(
-            visibleEvents.filter((event) => event.currency === selectedAccount.currency),
+            visibleEvents.filter((event) => (
+                event.currency === selectedAccount.currency
+                && (event.accountId === selectedAccount.id || event.settlesAccountId === selectedAccount.id)
+            )),
             granularity,
+            selectedAccount.id,
         )
         : [];
     const debtActivity = isSelectedCredit
         ? buildCreditDebtActivity(visibleEvents, selectedAccount.id, granularity)
         : [];
+    const chartCurrencies = new Set(selectTimelineAccounts(visibleAccounts).accounts.map((account) => account.currency));
+    const chartCurrency = chartCurrencies.size === 1 ? [...chartCurrencies][0] : null;
+    const hasScopedSavings = linkedSavings.some((saving) => scopedAccountIds.has(saving.accountId));
+    const timeline = buildForecastTimeline({
+        accounts: projection.accounts,
+        events: forecast.events,
+        accountIds: scopedAccountIds,
+        startsAt,
+        endsAt,
+        granularity,
+    });
+    // Comparar los tres modos requiere proyectar la previsión una vez por modo;
+    // sólo se hace cuando esa vista está abierta.
+    function buildSavingsPoints(): ForecastSavingsPoint[] {
+        const modes: LinkedSavingsMode[] = ["exclude", "principal", "with_yield"];
+        const projections = modes.map((mode) => applyLinkedSavings({ accounts, events, savings: linkedSavings, mode }));
+        // La simulación se compara contra contemplar todas las cajitas con rendimiento.
+        if (sweepRule) {
+            projections.push(applySavingsSweep({
+                accounts,
+                events,
+                savings: linkedSavings,
+                mode: "with_yield",
+                rule: sweepRule,
+                settings: cardPaymentSettings,
+                dismissedCardPaymentKeys,
+                now: anchorNow,
+                days: forecastDays,
+            }));
+        }
+        const timelines = projections.map((modeProjection) => {
+            const modeForecast = buildForecast({
+                accounts: modeProjection.accounts,
+                events: modeProjection.events,
+                settings: cardPaymentSettings,
+                dismissedCardPaymentKeys,
+                now: anchorNow,
+                days: forecastDays,
+            });
+            return buildForecastTimeline({
+                accounts: modeProjection.accounts,
+                events: modeForecast.events,
+                accountIds: scopedAccountIds,
+                startsAt,
+                endsAt,
+                granularity,
+            }).points;
+        });
+
+        return timelines[0].map((point, index) => ({
+            key: point.key,
+            label: point.label,
+            tooltipLabel: point.tooltipLabel,
+            exclude: point.balance,
+            principal: timelines[1][index]?.balance ?? point.balance,
+            with_yield: timelines[2][index]?.balance ?? point.balance,
+            ...(timelines[3] ? { sweep: timelines[3][index]?.balance ?? point.balance } : {}),
+            changes: {
+                exclude: point.balanceChange,
+                principal: timelines[1][index]?.balanceChange ?? null,
+                with_yield: timelines[2][index]?.balanceChange ?? null,
+                ...(timelines[3] ? { sweep: timelines[3][index]?.balanceChange ?? null } : {}),
+            },
+        }));
+    }
+    const savingsPoints = chartView === "savings" && hasScopedSavings ? buildSavingsPoints() : null;
+    const timelineGroups = groupTimelineEvents(visibleEvents, granularity);
+    const accountTypes = new Map(forecast.accounts.map((account) => [account.id, account.type]));
+    // En los resúmenes, la cuenta del ahorro automático sólo es un paso hacia su
+    // cajita: se fusiona con ella y la cajita se muestra con su nombre normal.
+    const sweepSavingsAccountId = sweepRule ? simulatedSavingsAccountId(sweepRule.positionId) : null;
+    const summaryMerges = new Map(sweepRule && sweepSavingsAccountId ? [[sweepRule.accountId, sweepSavingsAccountId]] : []);
+    const summaryNames = new Map(sweepRule && sweepSavingsAccountId
+        ? [[sweepSavingsAccountId, linkedSavings.find((saving) => saving.positionId === sweepRule.positionId)?.name ?? ""]]
+        : []);
+
+    function togglePeriod(periodKey: string) {
+        setExpandedPeriods((current) => {
+            const next = new Set(current);
+            if (next.has(periodKey)) next.delete(periodKey);
+            else next.add(periodKey);
+            return next;
+        });
+    }
     const liquiditySummaries = buildLiquidityRangeSummaries({
         accounts: projection.accounts,
         events: forecast.events,
@@ -292,6 +431,105 @@ export function ForecastClient({
         }
     }
 
+    function renderTimelineEvent(event: (typeof forecast.events)[number], dateText?: string) {
+        const Icon = eventIcon(event.source);
+        const isIncome = event.transactionType === "income";
+        const account = event.accountId
+            ? forecast.accounts.find((item) => item.id === event.accountId)
+            : null;
+        const settledAccount = event.settlesAccountId
+            ? forecast.accounts.find((item) => item.id === event.settlesAccountId)
+            : null;
+        const balanceDescription = event.balanceAfter === null
+            ? event.source === "card_payment"
+                ? "Pago manual por confirmar"
+                : "Cuenta de pago por definir"
+            : [
+                `${account?.type === "credit" ? "Deuda" : "Saldo"} ${account?.name ?? ""}: ${money(event.balanceAfter, event.currency)}`,
+                settledAccount && event.settledBalanceAfter !== null
+                    ? `${settledAccount.type === "credit" ? "Deuda" : "Saldo"} ${settledAccount.name}: ${money(event.settledBalanceAfter, event.currency)}`
+                    : null,
+            ].filter(Boolean).join(" · ");
+
+        return (
+            <article key={event.id} className="p-4 sm:p-5">
+                <div className="flex items-center gap-3">
+                    <span className={isIncome
+                        ? "grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600"
+                        : "grid size-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-600"
+                    }>
+                        <Icon className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{event.name}</p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {dateText ?? formatAppDate(event.scheduledAt, {
+                                weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                            })}
+                            {event.source === "recurring"
+                                ? " · Recurrencia"
+                                : event.source === "financing"
+                                    ? " · Cuota por cubrir"
+                                    : event.source === "budget"
+                                        ? " · Presupuesto estimado"
+                                    : event.source === "card_payment"
+                                        ? event.affectsBalance
+                                            ? " · Pago proyectado de tarjeta"
+                                            : " · Compromiso manual"
+                                        : event.source === "fixed_income"
+                                            ? " · Renta fija"
+                                        : event.source === "savings_simulation"
+                                            ? " · Ahorro automático (simulado)"
+                                    : account ? ` · ${account.name}` : ""
+                            }
+                            {event.isOverdue ? " · Vencido" : ""}
+                        </p>
+                    </div>
+                    <div className="text-right">
+                        <p className={isIncome
+                            ? "text-sm font-semibold text-emerald-600"
+                            : "text-sm font-semibold"
+                        }>
+                            {isIncome ? "+" : "-"}{money(event.amount, event.currency)}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            {balanceDescription}
+                        </p>
+                    </div>
+                    {event.cardPaymentBreakdown && (
+                        <ChevronRight className="hidden size-4 text-muted-foreground sm:block" />
+                    )}
+                </div>
+                <CardPaymentBreakdown event={event} />
+                {event.source === "card_payment" && event.settlesAccountId && event.cardPaymentDueAt && (
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                        {event.id.startsWith("card-statement:") && event.affectsBalance && event.accountId && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                disabled={payingStatementId === event.id}
+                                onClick={() => void payStatement(event.id, event.settlesAccountId!, event.accountId!)}
+                                className="cursor-pointer"
+                            >
+                                {payingStatementId === event.id ? "Registrando..." : "Pagar estado de cuenta"}
+                            </Button>
+                        )}
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={dismissingPaymentId === event.id}
+                            onClick={() => void dismissPayment(event.id, event.settlesAccountId!, event.cardPaymentDueAt!)}
+                            className="cursor-pointer"
+                        >
+                            Omitir este pago
+                        </Button>
+                    </div>
+                )}
+            </article>
+        );
+    }
+
     return (
         <div className="space-y-7">
             <motion.header
@@ -335,6 +573,14 @@ export function ForecastClient({
                 onSavingsModeChange={setSavingsMode}
             />
 
+            <ForecastSavingsSimulation
+                accounts={accounts}
+                linkedSavings={linkedSavings}
+                simulations={savingsSimulations}
+                value={simulation}
+                onChange={setSimulation}
+            />
+
             {!accounts.length ? (
                 <EmptyState />
             ) : (
@@ -375,6 +621,17 @@ export function ForecastClient({
 
                     {selectedAccountIds.size === 0 && accountKind !== "credit" && <LiquiditySummary summaries={liquiditySummaries} />}
 
+                    <ForecastChart
+                        view={chartView}
+                        onViewChange={setChartView}
+                        hasSavings={hasScopedSavings}
+                        measure={timeline.measure}
+                        points={timeline.points}
+                        savingsPoints={savingsPoints}
+                        currency={chartCurrency}
+                        emptyMessage={visibleAccounts.length ? null : "No hay cuentas con estos filtros."}
+                    />
+
                     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                         {visibleAccounts.map((account, index) => {
                             const hasAlert = visibleAlerts.some((alert) => alert.accountId === account.id);
@@ -407,9 +664,9 @@ export function ForecastClient({
                                             : ""
                                         }
                                     </p>
-                                    {account.linkedSavingsBalance !== undefined && (
+                                    {account.fundingAccountId && (
                                         <p className="mt-1 text-xs text-muted-foreground">
-                                            Incluye {money(account.linkedSavingsBalance, account.currency)} en cajitas
+                                            Cajita de {accounts.find((item) => item.id === account.fundingAccountId)?.name ?? "otra cuenta"}
                                         </p>
                                     )}
                                     {isCredit && (
@@ -534,106 +791,54 @@ export function ForecastClient({
                             </div>
                             <CalendarClock className="size-5 text-muted-foreground" />
                         </div>
-                        {visibleEvents.length > 0 && (
-                            <div className="divide-y">
-                                {visibleEvents.map((event) => {
-                                    const Icon = eventIcon(event.source);
-                                    const isIncome = event.transactionType === "income";
-                                    const account = event.accountId
-                                        ? accounts.find((item) => item.id === event.accountId)
-                                        : null;
-                                    const settledAccount = event.settlesAccountId
-                                        ? accounts.find((item) => item.id === event.settlesAccountId)
-                                        : null;
-                                    const balanceDescription = event.balanceAfter === null
-                                        ? event.source === "card_payment"
-                                            ? "Pago manual por confirmar"
-                                            : "Cuenta de pago por definir"
-                                        : [
-                                            `${account?.type === "credit" ? "Deuda" : "Saldo"} ${account?.name ?? ""}: ${money(event.balanceAfter, event.currency)}`,
-                                            settledAccount && event.settledBalanceAfter !== null
-                                                ? `Deuda ${settledAccount.name}: ${money(event.settledBalanceAfter, event.currency)}`
-                                                : null,
-                                        ].filter(Boolean).join(" · ");
+                        {visibleEvents.length > 0 && timelineGroups.map((group) => {
+                            const periodKey = `${granularity}:${group.key}`;
+                            const isExpanded = !group.label || expandedPeriods.has(periodKey);
+                            const movementCount = group.items.reduce((total, item) => total + (item.kind === "event" ? 1 : item.days), 0);
 
-                                    return (
-                                        <article key={event.id} className="p-4 sm:p-5">
-                                            <div className="flex items-center gap-3">
-                                                <span className={isIncome
-                                                    ? "grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600"
-                                                    : "grid size-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-600"
-                                                }>
-                                                    <Icon className="size-4" />
+                            return (
+                                <div key={group.key}>
+                                    {group.label && (
+                                        <button
+                                            type="button"
+                                            aria-expanded={isExpanded}
+                                            onClick={() => togglePeriod(periodKey)}
+                                            className="w-full cursor-pointer border-b bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70 sm:px-5"
+                                        >
+                                            <span className="flex items-center gap-2 text-sm font-semibold">
+                                                <ChevronRight className={`size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                                <span className="inline-block flex-1 first-letter:uppercase">{group.label}</span>
+                                                <span className="text-xs font-normal text-muted-foreground">
+                                                    {movementCount} movimiento{movementCount === 1 ? "" : "s"}
                                                 </span>
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-sm font-semibold">{event.name}</p>
-                                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                        {formatAppDate(event.scheduledAt, {
-                                                            weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
-                                                        })}
-                                                        {event.source === "recurring"
-                                                            ? " · Recurrencia"
-                                                            : event.source === "financing"
-                                                                ? " · Cuota por cubrir"
-                                                                : event.source === "budget"
-                                                                    ? " · Presupuesto estimado"
-                                                                : event.source === "card_payment"
-                                                                    ? event.affectsBalance
-                                                                        ? " · Pago proyectado de tarjeta"
-                                                                        : " · Compromiso manual"
-                                                                    : event.source === "fixed_income"
-                                                                        ? " · Renta fija"
-                                                                : account ? ` · ${account.name}` : ""
-                                                        }
-                                                        {event.isOverdue ? " · Vencido" : ""}
-                                                    </p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className={isIncome
-                                                        ? "text-sm font-semibold text-emerald-600"
-                                                        : "text-sm font-semibold"
-                                                    }>
-                                                        {isIncome ? "+" : "-"}{money(event.amount, event.currency)}
-                                                    </p>
-                                                    <p className="mt-0.5 text-xs text-muted-foreground">
-                                                        {balanceDescription}
-                                                    </p>
-                                                </div>
-                                                {event.cardPaymentBreakdown && (
-                                                    <ChevronRight className="hidden size-4 text-muted-foreground sm:block" />
-                                                )}
-                                            </div>
-                                            <CardPaymentBreakdown event={event} />
-                                            {event.source === "card_payment" && event.settlesAccountId && event.cardPaymentDueAt && (
-                                                <div className="mt-3 flex flex-wrap justify-end gap-2">
-                                                    {event.id.startsWith("card-statement:") && event.affectsBalance && event.accountId && (
-                                                        <Button
-                                                            type="button"
-                                                            size="sm"
-                                                            disabled={payingStatementId === event.id}
-                                                            onClick={() => void payStatement(event.id, event.settlesAccountId!, event.accountId!)}
-                                                            className="cursor-pointer"
-                                                        >
-                                                            {payingStatementId === event.id ? "Registrando..." : "Pagar estado de cuenta"}
-                                                        </Button>
-                                                    )}
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={dismissingPaymentId === event.id}
-                                                        onClick={() => void dismissPayment(event.id, event.settlesAccountId!, event.cardPaymentDueAt!)}
-                                                        className="cursor-pointer"
-                                                    >
-                                                        Omitir este pago
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </article>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                            </span>
+                                            <PeriodAccountSummaries
+                                                summaries={summarizeTimelinePeriod(group.items, accountTypes, summaryMerges)}
+                                                accounts={forecast.accounts}
+                                                names={summaryNames}
+                                            />
+                                        </button>
+                                    )}
+                                    {isExpanded && (
+                                        <div className="divide-y border-b last:border-b-0">
+                                            {group.items.map((item) => item.kind === "event"
+                                                ? renderTimelineEvent(item.event)
+                                                : renderTimelineEvent(
+                                                    {
+                                                        ...item.last,
+                                                        id: item.id,
+                                                        amount: item.amount,
+                                                        name: item.days > 1 ? `${item.last.name} · ${item.days} días` : item.last.name,
+                                                    },
+                                                    item.days > 1
+                                                        ? `${formatAppDate(item.firstAt, { day: "numeric", month: "short" })} – ${formatAppDate(item.last.scheduledAt, { day: "numeric", month: "short" })}`
+                                                        : undefined,
+                                                ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </section>
 
                     {visibleDismissedCardPayments.length > 0 && (
@@ -744,5 +949,55 @@ function EmptyState() {
                 </p>
             </div>
         </motion.section>
+    );
+}
+
+function PeriodAccountSummaries({ summaries, accounts, names }: {
+    summaries: ForecastPeriodAccountSummary[];
+    accounts: Array<{ id: string; name: string; type: string; currency: string }>;
+    names: Map<string, string>;
+}) {
+    const nameOf = (accountId: string) => names.get(accountId)
+        || accounts.find((account) => account.id === accountId)?.name
+        || "";
+    const rows = accounts.flatMap((account) => {
+        const summary = summaries.find((item) => item.accountId === account.id);
+        return summary ? [{ account, summary }] : [];
+    });
+    if (!rows.length) return null;
+
+    return (
+        <span className="mt-2 grid gap-1.5 pl-6 sm:grid-cols-2 xl:grid-cols-3">
+            {rows.map(({ account, summary }) => {
+                const isCredit = account.type === "credit";
+                const figures = [
+                    { label: isCredit ? "Pagos" : "Ingresos", value: summary.incomes, sign: isCredit ? "-" : "+" },
+                    { label: "Rendimiento", value: summary.yields, sign: "+" },
+                    { label: isCredit ? "Cargos" : "Gastos", value: summary.expenses, sign: isCredit ? "+" : "-" },
+                    { label: "Traspasos recibidos", value: summary.transfersIn, sign: "+" },
+                    { label: "Traspasos enviados", value: summary.transfersOut, sign: "-" },
+                ].filter((figure) => figure.value > 0);
+
+                return (
+                    <span key={account.id} className="rounded-lg bg-background/60 px-2.5 py-1.5 text-xs">
+                        <span className="block font-medium">{nameOf(account.id)}</span>
+                        <span className="mt-0.5 block text-muted-foreground">
+                            {figures.map((figure) => `${figure.label} ${figure.sign}${money(figure.value, account.currency)}`).join(" · ")}
+                            {summary.closingBalance !== null && (
+                                <>
+                                    {figures.length ? " · " : ""}
+                                    <span className="text-foreground">
+                                        {isCredit ? "Deuda al cierre" : "Cierre"} {money(summary.closingBalance, account.currency)}
+                                    </span>
+                                </>
+                            )}
+                            {summary.mergedBalances.map((merged) => (
+                                ` · En ${nameOf(merged.accountId)} ${money(merged.balance, account.currency)}`
+                            ))}
+                        </span>
+                    </span>
+                );
+            })}
+        </span>
     );
 }

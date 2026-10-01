@@ -15,7 +15,7 @@ import {
     creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
     fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
     fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
-    fixedIncomePositions, fixedIncomeCashFlows,
+    fixedIncomePositions, fixedIncomeCashFlows, forecastSavingsSimulations,
 } from "./financial";
 
 export {
@@ -31,5 +31,5 @@ export {
     creditCardPaymentSettings, creditCardPaymentStrategyEnum, creditCardPaymentDismissals,
     fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
     fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
-    fixedIncomePositions, fixedIncomeCashFlows,
+    fixedIncomePositions, fixedIncomeCashFlows, forecastSavingsSimulations,
 }

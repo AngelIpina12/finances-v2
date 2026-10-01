@@ -436,3 +436,26 @@ export const fixedIncomeCashFlows = pgTable(
         index("fixed_income_cash_flows_position_date_idx").on(table.positionId, table.occurredAt),
     ],
 );
+
+// Simulación de ahorro automático en la previsión: los ingresos de una cuenta
+// se barren a una de sus cajitas y los pagos retiran de ella lo que falte.
+export const forecastSavingsSimulations = pgTable(
+    "forecast_savings_simulations",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "cascade" }),
+        positionId: uuid("position_id").notNull().references(() => fixedIncomePositions.id, { onDelete: "cascade" }),
+        minimumBalance: numeric("minimum_balance", { precision: 15, scale: 2 }).notNull().default("0"),
+        isDefault: boolean("is_default").notNull().default(false),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("forecast_savings_simulations_user_idx").on(table.userId),
+        uniqueIndex("forecast_savings_simulations_default_idx")
+            .on(table.userId)
+            .where(sql`${table.isDefault}`),
+    ],
+);

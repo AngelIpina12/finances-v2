@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { buildForecast, type ForecastAccount, type ForecastEvent } from "./forecast-calculator";
-import { applyLinkedSavings, type LinkedSavingsMode } from "./linked-savings";
+import {
+    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts, type LinkedSavingsMode,
+} from "./linked-savings";
 
 const now = new Date("2026-09-05T12:00:00.000Z");
 
@@ -30,7 +32,10 @@ const events: ForecastEvent[] = [
     },
 ];
 
-const savings = [{ positionId: "cajita", accountId: "debit", name: "Cajita", currency: "MXN" as const, balance: 1000 }];
+const savings = [{
+    positionId: "cajita", accountId: "debit", name: "Cajita", currency: "MXN" as const, balance: 1000,
+    annualRate: 0.1, dayCountConvention: "actual_365" as const, withholdingRate: 0, hasDailyInterest: true,
+}];
 
 function project(mode: LinkedSavingsMode) {
     const projection = applyLinkedSavings({ accounts, events, savings, mode });
@@ -40,29 +45,48 @@ function project(mode: LinkedSavingsMode) {
     };
 }
 
+const savingsId = linkedSavingsAccountId("cajita");
+
+function balanceOf(forecast: ReturnType<typeof project>["forecast"], id: string) {
+    return forecast.accounts.find((account) => account.id === id)?.projectedBalance;
+}
+
 describe("applyLinkedSavings", () => {
     it("sin cajitas ignora el rendimiento reinvertido pero conserva el capital al vencimiento", () => {
         const { projection, forecast } = project("exclude");
 
-        expect(projection.accounts[0]?.linkedSavingsBalance).toBeUndefined();
+        expect(projection.accounts.map((account) => account.id)).toEqual(["debit"]);
         expect(projection.events.map((event) => event.id)).toEqual(["rent", "principal"]);
-        expect(forecast.accounts[0]?.projectedBalance).toBe(600);
+        expect(balanceOf(forecast, "debit")).toBe(600);
     });
 
-    it("con cajitas suma su saldo a la cuenta de fondeo sin duplicar el capital", () => {
+    it("con cajitas proyecta cada una como cuenta propia ligada a su cuenta de fondeo", () => {
         const { projection, forecast } = project("principal");
 
-        expect(projection.accounts[0]).toEqual(expect.objectContaining({
-            currentBalance: 1100, linkedSavingsBalance: 1000,
+        expect(projection.accounts[1]).toEqual(expect.objectContaining({
+            id: savingsId, name: "Cajita", type: "fixed_income", currentBalance: 1000,
+            fundingAccountId: "debit", includeInLiquidity: true,
         }));
-        expect(projection.events.map((event) => event.id)).toEqual(["rent"]);
-        expect(forecast.accounts[0]?.projectedBalance).toBe(600);
+        expect(projection.events.map((event) => event.id)).toEqual(["rent", "principal"]);
+        // Al vencer, el capital pasa de la cajita a la cuenta que lo recibe.
+        expect(balanceOf(forecast, "debit")).toBe(600);
+        expect(balanceOf(forecast, savingsId)).toBe(0);
     });
 
-    it("con rendimiento suma además los intereses diarios proyectados", () => {
+    it("con rendimiento la cajita genera sus intereses diarios", () => {
         const { projection, forecast } = project("with_yield");
 
-        expect(projection.events.map((event) => event.id)).toEqual(["rent", "yield-1"]);
-        expect(forecast.accounts[0]?.projectedBalance).toBe(610);
+        expect(projection.events.find((event) => event.id === "yield-1")?.accountId).toBe(savingsId);
+        expect(balanceOf(forecast, "debit")).toBe(600);
+        expect(balanceOf(forecast, savingsId)).toBe(10);
+    });
+
+    it("hace que las cajitas acompañen a su cuenta en los filtros", () => {
+        const scoped = withSavingsAccounts(new Set(["debit"]), [
+            { id: savingsId, fundingAccountId: "debit" },
+            { id: "otra-cajita", fundingAccountId: "otra-cuenta" },
+        ]);
+
+        expect([...scoped]).toEqual(["debit", savingsId]);
     });
 });

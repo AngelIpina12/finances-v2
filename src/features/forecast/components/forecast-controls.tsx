@@ -118,8 +118,8 @@ export function ForecastControls({
                         {savingsMode === "exclude"
                             ? "Las cuentas muestran sólo su propio saldo; lo guardado en cajitas no se contempla."
                             : savingsMode === "principal"
-                                ? "El saldo de cada cajita se suma a su cuenta de fondeo, sin rendimiento futuro."
-                                : "El saldo de cada cajita y su rendimiento diario estimado se suman a su cuenta de fondeo."}
+                                ? "Cada cajita aparece como su propia cuenta con su saldo actual, sin rendimiento futuro."
+                                : "Cada cajita aparece como su propia cuenta y genera su rendimiento diario estimado."}
                     </p>
                 </div>
             )}

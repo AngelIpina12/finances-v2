@@ -23,10 +23,11 @@ export type ForecastAccount = {
     minimumPayment: number | null;
     includeInLiquidity: boolean;
     calculatedStatementBalance?: number | null;
-    linkedSavingsBalance?: number;
+    /** En una cajita proyectada como cuenta, la cuenta de la que sale y a la que regresa su dinero. */
+    fundingAccountId?: string;
 };
 
-export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income";
+export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income" | "savings_simulation";
 
 export type ForecastEvent = {
     id: string;
@@ -44,6 +45,8 @@ export type ForecastEvent = {
         positionId: string;
         kind: "yield" | "principal";
     };
+    /** Identifica rendimientos diarios de una misma inversión para resumirlos por periodo. */
+    dailyYieldGroup?: string;
     cardPaymentDueAt?: Date;
     cardPaymentBreakdown?: {
         statementBalance: number;
@@ -424,7 +427,7 @@ export function buildForecast(input: {
 
 export type ForecastGranularity = "day" | "week" | "month";
 
-function getPeriod(date: Date, granularity: ForecastGranularity) {
+export function getPeriod(date: Date, granularity: ForecastGranularity) {
     const zonedDate = toZonedTime(date, APP_TIME_ZONE);
     const zonedPeriodStart = granularity === "day"
         ? startOfDay(zonedDate)
@@ -442,7 +445,11 @@ function getPeriod(date: Date, granularity: ForecastGranularity) {
     return { key, label };
 }
 
-export function buildCashFlow(events: ProjectedForecastEvent[], granularity: ForecastGranularity) {
+export function buildCashFlow(
+    events: ProjectedForecastEvent[],
+    granularity: ForecastGranularity,
+    accountId?: string,
+) {
     const groups = new Map<string, { label: string; incomes: number; expenses: number }>();
 
     for (const event of events) {
@@ -450,8 +457,12 @@ export function buildCashFlow(events: ProjectedForecastEvent[], granularity: For
 
         const { key, label } = getPeriod(event.scheduledAt, granularity);
         const group = groups.get(key) ?? { label, incomes: 0, expenses: 0 };
+        // Un traspaso que llega a la cuenta desde otra es un ingreso para ella.
+        const receivesTransfer = accountId !== undefined
+            && event.settlesAccountId === accountId
+            && event.accountId !== accountId;
 
-        if (event.transactionType === "income") group.incomes += event.amount;
+        if (receivesTransfer || event.transactionType === "income") group.incomes += event.amount;
         else group.expenses += event.amount;
         groups.set(key, group);
     }
