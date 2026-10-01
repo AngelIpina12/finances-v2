@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    CalendarClock, Landmark, Pencil, Plus, ReceiptText, Trash2, Wallet, X,
+    CalendarCheck, CalendarClock, Landmark, Pencil, Plus, ReceiptText, Trash2, Wallet, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +69,14 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
     const total = active.reduce((sum, position) => sum + position.outstandingPrincipal, 0);
     const accrued = active.reduce((sum, position) => sum + position.estimatedNet, 0);
     const today = new Date();
+    const activePositions = positions.filter((position) => position.status === "active");
+    const confirmablePositions = activePositions.filter(canConfirmTodayInterest);
+    const hasDailyActivePositions = activePositions.some((position) => position.interestFrequency === "daily");
+    const confirmAllLabel = !confirmablePositions.length
+        ? "Abonos de hoy confirmados"
+        : confirmablePositions.length === activePositions.length
+            ? "Confirmar abono de hoy en todas las inversiones"
+            : `Confirmar abono de hoy en algunas inversiones (${confirmablePositions.length})`;
     const visiblePositions = positions.filter((position) => {
         if (statusFilter === "all") return true;
         if (statusFilter === "active") return position.status === "active" || position.status === "matured";
@@ -102,6 +110,33 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
 
             toast.success(result.message);
             setBackdatePositionId(null);
+            router.refresh();
+        });
+    }
+
+    function registerDailyForAll() {
+        if (!confirmablePositions.length) return;
+        startTransition(async () => {
+            let confirmed = 0;
+            // Secuencial para no competir por los mismos saldos de cuenta en paralelo.
+            for (const position of confirmablePositions) {
+                const result = await recordDailyFixedIncomeInterest({
+                    positionId: position.id,
+                    occurredAt: today,
+                });
+
+                if (result.success) {
+                    confirmed += 1;
+                } else {
+                    toast.error(`${position.name}: ${result.message}`);
+                }
+            }
+
+            if (confirmed) {
+                toast.success(confirmed === 1
+                    ? "Se confirmó el abono de hoy en 1 inversión."
+                    : `Se confirmó el abono de hoy en ${confirmed} inversiones.`);
+            }
             router.refresh();
         });
     }
@@ -269,7 +304,24 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                 </motion.section>
             ) : (
                 <>
-                    <FixedIncomeFilters value={statusFilter} onChange={setStatusFilter} />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <FixedIncomeFilters value={statusFilter} onChange={setStatusFilter} />
+                        {hasDailyActivePositions && (
+                            <Button
+                                size="sm"
+                                variant={confirmablePositions.length ? "default" : "outline"}
+                                disabled={isPending || !confirmablePositions.length}
+                                onClick={registerDailyForAll}
+                                title={confirmablePositions.length && confirmablePositions.length < activePositions.length
+                                    ? `Se confirmará en: ${confirmablePositions.map((position) => position.name).join(", ")}`
+                                    : undefined}
+                                className="shrink-0 cursor-pointer"
+                            >
+                                <CalendarCheck />
+                                {confirmAllLabel}
+                            </Button>
+                        )}
+                    </div>
                     {!visiblePositions.length ? (
                         <section className="grid min-h-52 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center">
                             <div>
@@ -377,11 +429,7 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            disabled={
-                                                isPending
-                                                || position.interestFrequency !== "daily"
-                                                || position.hasConfirmedInterestToday
-                                            }
+                                            disabled={isPending || !canConfirmTodayInterest(position)}
                                             onClick={() => registerDaily(position.id)}
                                             className="cursor-pointer"
                                         >
@@ -682,6 +730,12 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
             </AlertDialog>
         </div>
     );
+}
+
+function canConfirmTodayInterest(position: FixedIncomeData["positions"][number]) {
+    return position.status === "active"
+        && position.interestFrequency === "daily"
+        && !position.hasConfirmedInterestToday;
 }
 
 function startOfDay(date: Date) {
