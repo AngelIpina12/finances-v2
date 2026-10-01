@@ -1,13 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
 import { LogOut, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
-import {
-    useEffect, useRef, useState
-} from "react";
+import { useState } from "react";
 import { signOut } from "@/src/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { DockButton, DockSlot, useDock } from "@/src/shared/components/ui/dock-primitives";
+import { Popover, PopoverContent, PopoverTrigger } from "@/src/shared/components/ui/popover";
 
 type UserMenuProps = {
     name?: string | null;
@@ -19,31 +18,8 @@ function getInitials(name?: string | null) {
 }
 
 export function UserMenu({ name, email }: UserMenuProps) {
-    const menuRef = useRef<HTMLDivElement>(null);
-    const [isOpen, setIsOpen] = useState(false);
+    const { popoverSide, onMenuOpenChange } = useDock();
     const [isSigningOut, setIsSigningOut] = useState(false);
-
-    useEffect(() => {
-        if (!isOpen) return;
-
-        function closeWhenClickingOutside(event: PointerEvent) {
-            if (!menuRef.current?.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        }
-
-        function closeOnEscape(event: KeyboardEvent) {
-            if (event.key === "Escape") setIsOpen(false);
-        }
-
-        document.addEventListener("pointerdown", closeWhenClickingOutside);
-        document.addEventListener("keydown", closeOnEscape);
-
-        return () => {
-            document.removeEventListener("pointerdown", closeWhenClickingOutside);
-            document.removeEventListener("keydown", closeOnEscape);
-        };
-    }, [isOpen]);
 
     async function handleSignOut() {
         setIsSigningOut(true);
@@ -57,60 +33,48 @@ export function UserMenu({ name, email }: UserMenuProps) {
     }
 
     return (
-        <div ref={menuRef} className="relative">
-            <button
-                type="button"
-                aria-expanded={isOpen}
-                aria-haspopup="menu"
-                onClick={() => setIsOpen((open) => !open)}
-                className="flex h-9 items-center gap-2 rounded-lg px-1.5 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-            >
-                <span className="grid size-7 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                    {getInitials(name)}
-                </span>
-                <span className="hidden max-w-36 truncate font-medium sm:block">{name || "Mi cuenta"}</span>
-            </button>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        role="menu"
-                        initial={{ opacity: 0, scale: 0.96, y: -8 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.96, y: -8 }}
-                        transition={{ duration: 0.16, ease: "easeOut" }}
-                        className="absolute right-0 z-50 mt-2 w-64 origin-top-right overflow-hidden rounded-xl border bg-popover p-1 text-popover-foreground shadow-lg"
-                    >
-                        <div className="flex items-center gap-3 px-3 py-3">
-                            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+        <DockSlot>
+            <Popover onOpenChange={onMenuOpenChange}>
+                <PopoverTrigger
+                    render={(props) => (
+                        <DockButton {...props} label={name || "Mi cuenta"}>
+                            {/* El avatar escala con el ícono magnificado del dock */}
+                            <span className="grid size-[calc(var(--dock-icon)*1.4)] place-items-center rounded-full bg-primary text-[calc(var(--dock-icon)*0.5)] font-semibold text-primary-foreground dock-theme:bg-primary-foreground dock-theme:text-primary">
                                 {getInitials(name)}
                             </span>
-                            <div className="min-w-0">
-                                <p className="truncate text-sm font-medium">{name || "Mi cuenta"}</p>
-                                <p className="truncate text-xs text-muted-foreground">{email || "Sin correo"}</p>
-                            </div>
+                        </DockButton>
+                    )}
+                />
+                <PopoverContent side={popoverSide} sideOffset={12} className="w-64 p-1">
+                    <div className="flex items-center gap-3 px-3 py-3">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+                            {getInitials(name)}
+                        </span>
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{name || "Mi cuenta"}</p>
+                            <p className="truncate text-xs text-muted-foreground">{email || "Sin correo"}</p>
                         </div>
+                    </div>
 
-                        <div className="my-1 border-t" />
+                    <div className="my-1 border-t" />
 
-                        <button type="button" disabled className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground opacity-60">
-                            <UserRound className="size-4" />
-                            Configuración próximamente
-                        </button>
+                    <button type="button" disabled className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground opacity-60">
+                        <UserRound className="size-4" />
+                        Configuración próximamente
+                    </button>
 
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={handleSignOut}
-                            disabled={isSigningOut}
-                        >
-                            <LogOut />
-                            {isSigningOut ? "Cerrando sesión..." : "Cerrar sesión"}
-                        </Button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={handleSignOut}
+                        disabled={isSigningOut}
+                    >
+                        <LogOut />
+                        {isSigningOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                    </Button>
+                </PopoverContent>
+            </Popover>
+        </DockSlot>
     );
 }
