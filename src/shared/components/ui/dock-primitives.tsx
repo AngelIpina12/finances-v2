@@ -1,17 +1,21 @@
 "use client";
 
-import { createContext, useContext, useRef, type ComponentProps, type CSSProperties } from "react";
-import { motion, useSpring, useTransform, type MotionValue } from "framer-motion";
+import {
+    createContext, useContext, useRef,
+    type ComponentProps, type CSSProperties
+} from "react";
+import {
+    motion, useSpring, useTransform,
+    type MotionValue
+} from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { DockPosition } from "@/src/shared/constants/dock";
 
-// Radio de influencia del cursor y resorte de la magnificación
 const DISTANCE = 140;
 const SPRING = { mass: 0.1, stiffness: 170, damping: 14 };
 
 type PopoverSide = "top" | "bottom" | "left" | "right";
 
-// Los menús del dock se abren hacia el contenido, nunca hacia el borde de la pantalla
 export const DOCK_POPOVER_SIDE: Record<DockPosition, PopoverSide> = {
     bottom: "top",
     top: "bottom",
@@ -23,10 +27,8 @@ export type DockLayout = { vertical: boolean; baseSize: number; maxSize: number 
 
 type DockContextValue = {
     mouse: MotionValue<number>;
-    // Motion value para que las ranuras recalculen su tamaño sin volver a montarse (y sin cerrar menús abiertos)
     layout: MotionValue<DockLayout>;
     popoverSide: PopoverSide;
-    // Mantiene visible el dock (con ocultado automático) mientras un menú suyo esté abierto
     onMenuOpenChange: (open: boolean) => void;
 };
 
@@ -73,7 +75,6 @@ export function dockItemClassName(active = false) {
     );
 }
 
-// Ranura magnificable: su tamaño crece según la cercanía del cursor y expone --dock-icon a su contenido
 export function DockSlot({ children }: { children: React.ReactNode }) {
     const { mouse, layout } = useDock();
     const ref = useRef<HTMLDivElement>(null);
@@ -130,7 +131,6 @@ export function DockButton({ label, className, children, ...props }: DockButtonP
     );
 }
 
-// Línea que separa los accesos a pantallas de las preferencias y la cuenta
 export function DockSeparator() {
     return (
         <div
