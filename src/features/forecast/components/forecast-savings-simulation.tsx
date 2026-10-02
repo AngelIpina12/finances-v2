@@ -1,12 +1,16 @@
 "use client";
 
-import { PiggyBank, Save, Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import toast from "react-hot-toast";
+import {
+    PiggyBank, Save, Trash2
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FormInput, FormLabel, FormSelect } from "@/src/shared/components/forms";
+import {
+    FormInput, FormLabel, FormSelect
+} from "@/src/shared/components/forms";
 import { deleteSavingsSimulation, saveSavingsSimulation } from "../actions/savings-simulation-actions";
 import type { LinkedSavings } from "../domain/linked-savings";
 import { getSweepableSavings } from "../domain/savings-sweep";

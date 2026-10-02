@@ -48,8 +48,6 @@ export class PayCardStatementUseCase {
                 scope.findUnpaidInstallmentsDue(userId, card.id, dueAt),
             ]);
 
-            // Las bonificaciones del ciclo cancelan primero los cargos regulares,
-            // igual que en el cálculo de previsión.
             const purchases = Math.max(0, regularCharges - cycleCredits);
             const installmentsTotal = unpaidInstallments.reduce((sum, installment) => sum + installment.amount, 0);
             const amount = Math.max(

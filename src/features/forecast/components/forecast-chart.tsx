@@ -2,9 +2,13 @@
 
 import { useId } from "react";
 import {
-    Area, CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis,
+    Area, CartesianGrid, ComposedChart,
+    Line, ReferenceLine, XAxis,
+    YAxis,
 } from "recharts";
-import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
+import {
+    ChartContainer, ChartTooltip, type ChartConfig
+} from "@/components/ui/chart";
 import { SegmentedControl } from "@/src/shared/components/forms";
 import type { LinkedSavingsMode } from "../domain/linked-savings";
 import type { ForecastTimelineMeasure, ForecastTimelinePoint } from "../domain/forecast-timeline";
@@ -15,7 +19,6 @@ export type ForecastSavingsPoint = Pick<ForecastTimelinePoint, "key" | "label" |
     & Record<LinkedSavingsMode, number>
     & {
         sweep?: number;
-        /** Cambio de cada línea respecto al cierre anterior. */
         changes: Partial<Record<LinkedSavingsMode | "sweep", number | null>>;
     };
 
@@ -89,9 +92,7 @@ function getSeries(view: ForecastChartView, measure: ForecastTimelineMeasure, ha
     return [{ key: "balance", label: measureLabels[measure], color: "var(--chart-2)" }];
 }
 
-export function ForecastChart({
-    view, onViewChange, hasSavings, measure, points, savingsPoints, currency, emptyMessage,
-}: Props) {
+export function ForecastChart({ view, onViewChange, hasSavings, measure, points, savingsPoints, currency, emptyMessage }: Props) {
     const gradientId = useId().replace(/:/g, "");
     const activeView = view === "savings" && !savingsPoints ? "balance" : view;
     const series = getSeries(activeView, measure, savingsPoints?.[0]?.sweep !== undefined);
@@ -105,12 +106,8 @@ export function ForecastChart({
     const config = Object.fromEntries(series.map((item) => [
         item.key, { label: item.label, color: item.color },
     ])) satisfies ChartConfig;
-    const views = hasSavings
-        ? ["balance", "flows", "savings"] as const
-        : ["balance", "flows"] as const;
+    const views = hasSavings ? ["balance", "flows", "savings"] as const : ["balance", "flows"] as const;
 
-    // Para la línea de saldo, el tramo bajo cero se pinta como alerta. El
-    // degradado corta en la posición relativa del cero dentro del rango.
     const balances = activeView === "balance" ? points.map((point) => point.balance) : [];
     const highest = Math.max(0, ...balances);
     const lowest = Math.min(0, ...balances);
@@ -288,7 +285,7 @@ function ForecastTooltip({ active, point, series, currency, showsPeriodFlows, is
                 const change = point.changes?.[item.key];
                 return (
                     <div key={item.key} className="flex items-center gap-2">
-                        <span className="size-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
+                        <span className="size-2.5 shrink-0 rounded-xs" style={{ backgroundColor: item.color }} />
                         <span className="flex-1 text-muted-foreground">{item.label}</span>
                         <span className="font-mono font-medium tabular-nums">
                             {formatMoney(Number(point[item.key]), currency)}

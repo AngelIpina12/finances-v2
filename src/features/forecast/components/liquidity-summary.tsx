@@ -77,9 +77,7 @@ export function LiquiditySummary({ summaries }: { summaries: LiquidityRangeSumma
     );
 }
 
-function SummaryCard({
-    icon: Icon, label, value, currency, tone = "negative",
-}: {
+function SummaryCard({ icon: Icon, label, value, currency, tone = "negative" }: {
     icon: typeof ArrowUp;
     label: string;
     value: number;

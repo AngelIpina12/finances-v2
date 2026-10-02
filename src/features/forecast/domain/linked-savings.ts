@@ -11,7 +11,6 @@ export type LinkedSavings = {
     annualRate: number;
     dayCountConvention: DayCountConvention;
     withholdingRate: number;
-    /** Sólo las cajitas con rendimiento diario pueden simular ahorro automático. */
     hasDailyInterest: boolean;
 };
 
@@ -21,7 +20,6 @@ export function linkedSavingsAccountId(positionId: string) {
     return `linked-savings:${positionId}`;
 }
 
-/** Proyecta una cajita como cuenta propia, ligada a su cuenta de fondeo. */
 export function toSavingsAccount(saving: LinkedSavings, id: string, name: string): ForecastAccount {
     return {
         id,
@@ -38,12 +36,6 @@ export function toSavingsAccount(saving: LinkedSavings, id: string, name: string
     };
 }
 
-/**
- * Ajusta cuentas y eventos según cómo se quieran contemplar las cajitas:
- * - exclude: las cajitas no aparecen; las cuentas muestran sólo su dinero.
- * - principal: cada cajita aparece como cuenta propia con su saldo actual.
- * - with_yield: además, cada cajita genera su rendimiento diario proyectado.
- */
 export function applyLinkedSavings(input: {
     accounts: ForecastAccount[];
     events: ForecastEvent[];
@@ -51,7 +43,6 @@ export function applyLinkedSavings(input: {
     mode: LinkedSavingsMode;
 }) {
     if (input.mode === "exclude") {
-        // El rendimiento se queda en la cajita; sólo el capital que vence llega a una cuenta.
         return {
             accounts: input.accounts,
             events: input.events.filter((event) => event.linkedSavings?.kind !== "yield"),
@@ -71,7 +62,6 @@ export function applyLinkedSavings(input: {
             return input.mode === "with_yield" ? [{ ...event, accountId: savingsAccountId }] : [];
         }
 
-        // Al vencer, el capital sale de la cajita hacia la cuenta que lo recibe.
         return [{
             ...event,
             accountId: savingsAccountId,
@@ -89,7 +79,6 @@ export function applyLinkedSavings(input: {
     };
 }
 
-/** Las cajitas acompañan a su cuenta de fondeo cuando ésta se filtra. */
 export function withSavingsAccounts(accountIds: Set<string>, accounts: Array<Pick<ForecastAccount, "id" | "fundingAccountId">>) {
     const scoped = new Set(accountIds);
     for (const account of accounts) {

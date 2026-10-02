@@ -2,8 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup,
-    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent,
+    DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/src/shared/components/ui/dropdown-menu";
 
 export type ForecastAccountKind = "all" | "debit" | "credit";
@@ -14,8 +15,6 @@ const kinds: Array<{ value: ForecastAccountKind; label: string }> = [
     { value: "credit", label: "Crédito" },
 ];
 
-// "Débito" agrupa las cuentas de las que sale el dinero disponible: débito,
-// efectivo y monederos. Inversiones y préstamos sólo aparecen en "Todas".
 export function matchesAccountKind(type: string, kind: ForecastAccountKind) {
     if (kind === "all") return true;
     if (kind === "credit") return type === "credit";
@@ -30,9 +29,7 @@ interface Props {
     onSelectedAccountIdsChange: (accountIds: Set<string>) => void;
 }
 
-export function ForecastAccountFilters({
-    kind, onKindChange, accounts, selectedAccountIds, onSelectedAccountIdsChange,
-}: Props) {
+export function ForecastAccountFilters({ kind, onKindChange, accounts, selectedAccountIds, onSelectedAccountIdsChange }: Props) {
     const selectedCount = selectedAccountIds.size;
 
     function toggleAccount(accountId: string) {

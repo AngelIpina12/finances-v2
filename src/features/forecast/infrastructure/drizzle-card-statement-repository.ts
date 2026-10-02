@@ -9,7 +9,8 @@ import { applyAccountBalanceDelta } from "@/src/features/transactions/infrastruc
 import type { TransactionAccount } from "@/src/features/transactions/domain/transaction-repository";
 import { isAppCalendarDateBefore } from "../domain/credit-card-cycle";
 import type {
-    CardStatementCard, CardStatementRepository, CardStatementScope, UnpaidInstallment,
+    CardStatementCard, CardStatementRepository, CardStatementScope,
+    UnpaidInstallment,
 } from "../domain/card-statement-repository";
 
 class DrizzleCardStatementScope implements CardStatementScope {

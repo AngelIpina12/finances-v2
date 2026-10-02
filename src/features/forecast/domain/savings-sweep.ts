@@ -3,10 +3,12 @@ import {
 } from "@/src/features/fixed-income/domain/fixed-income-calculator";
 import { addAppCalendarDays } from "@/src/shared/utils/local-date-time";
 import {
-    buildForecast, type CardPaymentSetting, type ForecastAccount, type ForecastEvent,
+    buildForecast, type CardPaymentSetting, type ForecastAccount,
+    type ForecastEvent,
 } from "./forecast-calculator";
 import {
-    applyLinkedSavings, toSavingsAccount, type LinkedSavings, type LinkedSavingsMode,
+    applyLinkedSavings, toSavingsAccount, type LinkedSavings,
+    type LinkedSavingsMode,
 } from "./linked-savings";
 
 export type SavingsSweepRule = {
@@ -19,24 +21,12 @@ export function simulatedSavingsAccountId(positionId: string) {
     return `simulated-savings:${positionId}`;
 }
 
-/** Cajitas que pueden recibir el ahorro automático de una cuenta. */
 export function getSweepableSavings(savings: LinkedSavings[], accountId: string) {
     return savings.filter((saving) => saving.accountId === accountId && saving.hasDailyInterest);
 }
 
 type Flow = { at: Date; delta: number };
 
-/**
- * Proyecta la previsión simulando un barrido automático entre una cuenta y
- * una de sus cajitas:
- * - cada día la cajita genera rendimiento sobre su saldo de ese momento;
- * - cada ingreso deja en la cuenta sólo el saldo mínimo y manda el resto a la cajita;
- * - antes de cada pago, si la cuenta no alcanza a conservar el saldo mínimo,
- *   se retira de la cajita lo que falte.
- *
- * La cajita se proyecta como una cuenta propia para que sus movimientos se
- * vean por separado; el resto de las cajitas sigue el modo elegido.
- */
 export function applySavingsSweep(input: {
     accounts: ForecastAccount[];
     events: ForecastEvent[];
@@ -59,15 +49,11 @@ export function applySavingsSweep(input: {
         mode: input.mode,
     });
 
-    if (!saving || !saving.hasDailyInterest || !account || account.currency !== saving.currency) {
-        return base;
-    }
+    if (!saving || !saving.hasDailyInterest || !account || account.currency !== saving.currency) return base;
 
     const savingsAccountId = simulatedSavingsAccountId(saving.positionId);
     const savingsAccount = toSavingsAccount(saving, savingsAccountId, `${saving.name} (simulada)`);
 
-    // Primera pasada: los movimientos que tocarán la cuenta, incluidos los
-    // pagos de tarjeta que la previsión genera a partir de los cargos.
     const firstPass = buildForecast({
         accounts: base.accounts,
         events: base.events,
@@ -76,7 +62,9 @@ export function applySavingsSweep(input: {
         now: input.now,
         days: input.days,
     });
+
     const flows: Flow[] = [];
+
     for (const event of firstPass.events) {
         if (event.accountId === account.id && event.balanceAfter !== null) {
             flows.push({ at: event.scheduledAt, delta: event.transactionType === "income" ? event.amount : -event.amount });
@@ -88,6 +76,7 @@ export function applySavingsSweep(input: {
 
     const until = new Date(input.now.getTime() + input.days * 24 * 60 * 60 * 1000);
     const yieldDates: Date[] = [];
+
     for (let date = input.now; date < until; date = addAppCalendarDays(date, 1)) yieldDates.push(date);
 
     const simulated: ForecastEvent[] = [];
@@ -116,8 +105,6 @@ export function applySavingsSweep(input: {
             accountBalance = roundMoney(accountBalance + flow.delta);
             const excess = roundMoney(accountBalance - minimumBalance);
             if (excess > 0) {
-                // Un instante después del ingreso, para que la previsión lo
-                // registre primero en la cuenta.
                 transfer(new Date(flow.at.getTime() + 1), excess, true);
                 accountBalance = minimumBalance;
                 savingsBalance = roundMoney(savingsBalance + excess);
@@ -128,7 +115,6 @@ export function applySavingsSweep(input: {
         const shortfall = roundMoney(minimumBalance - (accountBalance + flow.delta));
         const withdrawal = Math.min(Math.max(shortfall, 0), savingsBalance);
         if (withdrawal > 0) {
-            // Un instante antes del pago, sin salir del horizonte de la previsión.
             transfer(new Date(Math.max(flow.at.getTime() - 1, input.now.getTime())), withdrawal, false);
             accountBalance = roundMoney(accountBalance + withdrawal);
             savingsBalance = roundMoney(savingsBalance - withdrawal);

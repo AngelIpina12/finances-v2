@@ -29,7 +29,6 @@ export async function saveSavingsSimulation(input: z.input<typeof simulationSche
     const userId = session.user.id;
     const data = parsed.data;
 
-    // La cajita debe pertenecer a la cuenta: sus retiros regresan a ella.
     const [position] = await db
         .select({ id: fixedIncomePositions.id })
         .from(fixedIncomePositions)

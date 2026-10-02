@@ -25,7 +25,6 @@ function liquidDelta(
     const accountDelta = account?.includeInLiquidity && account.currency === event.currency
         ? event.transactionType === "income" ? event.amount : -event.amount
         : 0;
-    // Un traspaso entre dos cuentas líquidas no cambia la liquidez total.
     const settledAccount = event.settlesAccountId ? accountsById.get(event.settlesAccountId) : undefined;
     const settledDelta = settledAccount?.includeInLiquidity && settledAccount.currency === event.currency
         ? event.amount
@@ -85,15 +84,9 @@ export function buildLiquidityRangeSummaries(input: {
         }
 
         return {
-            currency,
-            today,
-            starting,
-            incomes,
-            directExpenses,
-            cardPayments,
-            financingPayments,
-            minimum,
-            ending: running,
+            currency, today, starting,
+            incomes, directExpenses, cardPayments,
+            financingPayments, minimum, ending: running,
             firstNegativeAt,
         };
     });

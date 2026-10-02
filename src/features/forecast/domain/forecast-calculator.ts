@@ -1,7 +1,10 @@
 import {
-    startOfDay, startOfMonth, startOfWeek, subMonths
+    startOfDay, startOfMonth, startOfWeek,
+    subMonths
 } from "date-fns";
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
+import {
+    formatInTimeZone, fromZonedTime, toZonedTime
+} from "date-fns-tz";
 import { getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
 import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
 import { formatAppDate } from "@/src/shared/utils/local-date-time";
@@ -23,7 +26,6 @@ export type ForecastAccount = {
     minimumPayment: number | null;
     includeInLiquidity: boolean;
     calculatedStatementBalance?: number | null;
-    /** En una cajita proyectada como cuenta, la cuenta de la que sale y a la que regresa su dinero. */
     fundingAccountId?: string;
 };
 
@@ -45,7 +47,6 @@ export type ForecastEvent = {
         positionId: string;
         kind: "yield" | "principal";
     };
-    /** Identifica rendimientos diarios de una misma inversión para resumirlos por periodo. */
     dailyYieldGroup?: string;
     cardPaymentDueAt?: Date;
     cardPaymentBreakdown?: {
@@ -197,17 +198,9 @@ export function buildCardPaymentEvents(input: {
 
         const chargesByDueDate = new Map<string, { dueAt: Date; closesAt: Date; amount: number }>();
         for (const event of input.events) {
-            if (
-                event.accountId !== card.id
-                || event.transactionType !== "expense"
-                || event.source === "card_payment"
-            ) continue;
-            // El estado actual ya contiene las MSI exigibles antes de su vencimiento.
+            if (event.accountId !== card.id || event.transactionType !== "expense" || event.source === "card_payment") continue;
             if (event.source === "financing" && event.scheduledAt <= currentDueAt) continue;
 
-            // La fecha almacenada de MSI era su antigua fecha de cuota. Para
-            // proyectarla como parte del estado, se asigna al corte previo y
-            // se usa el mismo vencimiento calculado que el resto de cargos.
             const closesAt = getCycleCloseForCharge(
                 event.source === "financing" ? subMonths(event.scheduledAt, 1) : event.scheduledAt,
                 card.billingDate,
@@ -304,9 +297,6 @@ export function buildForecast(input: {
         totalAfter: number;
     }> = [];
     const baseEvents = input.events.filter((event) => event.scheduledAt >= input.now && event.scheduledAt < until);
-    // Los cargos ya registrados ya están reflejados en el saldo actual de la
-    // tarjeta. Se usan sólo para calcular el pago de su ciclo, no como un
-    // movimiento futuro que vuelva a modificar ese saldo.
     const postedCardCharges = input.events.filter((event) => event.source === "posted_card_charge");
     const eventsToProject = [
         ...baseEvents.filter((event) => event.source !== "financing"),
@@ -445,11 +435,7 @@ export function getPeriod(date: Date, granularity: ForecastGranularity) {
     return { key, label };
 }
 
-export function buildCashFlow(
-    events: ProjectedForecastEvent[],
-    granularity: ForecastGranularity,
-    accountId?: string,
-) {
+export function buildCashFlow(events: ProjectedForecastEvent[], granularity: ForecastGranularity, accountId?: string) {
     const groups = new Map<string, { label: string; incomes: number; expenses: number }>();
 
     for (const event of events) {
@@ -457,7 +443,6 @@ export function buildCashFlow(
 
         const { key, label } = getPeriod(event.scheduledAt, granularity);
         const group = groups.get(key) ?? { label, incomes: 0, expenses: 0 };
-        // Un traspaso que llega a la cuenta desde otra es un ingreso para ella.
         const receivesTransfer = accountId !== undefined
             && event.settlesAccountId === accountId
             && event.accountId !== accountId;
@@ -470,11 +455,7 @@ export function buildCashFlow(
     return [...groups.values()].map((group) => ({ ...group, net: group.incomes - group.expenses }));
 }
 
-export function buildCreditDebtActivity(
-    events: ProjectedForecastEvent[],
-    creditAccountId: string,
-    granularity: ForecastGranularity,
-) {
+export function buildCreditDebtActivity(events: ProjectedForecastEvent[], creditAccountId: string, granularity: ForecastGranularity) {
     const groups = new Map<string, { label: string; charges: number; payments: number }>();
 
     for (const event of events) {
@@ -495,8 +476,5 @@ export function buildCreditDebtActivity(
         groups.set(key, group);
     }
 
-    return [...groups.values()].map((group) => ({
-        ...group,
-        netDebtChange: group.charges - group.payments,
-    }));
+    return [...groups.values()].map((group) => ({ ...group, netDebtChange: group.charges - group.payments }));
 }

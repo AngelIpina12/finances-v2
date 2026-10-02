@@ -1,13 +1,9 @@
 import { addAppCalendarDays, formatAppDate } from "@/src/shared/utils/local-date-time";
 import {
-    getPeriod, type ForecastAccount, type ForecastGranularity, type ProjectedForecastEvent,
+    getPeriod, type ForecastAccount, type ForecastGranularity,
+    type ProjectedForecastEvent,
 } from "./forecast-calculator";
 
-/**
- * Qué representa la línea de saldo según las cuentas filtradas:
- * - balance: el dinero de las cuentas de activo; la deuda de tarjetas no se resta.
- * - debt: la deuda, cuando el filtro sólo contiene tarjetas de crédito.
- */
 export type ForecastTimelineMeasure = "balance" | "debt";
 
 export type ForecastTimelinePoint = {
@@ -17,7 +13,6 @@ export type ForecastTimelinePoint = {
     balance: number;
     incomes: number;
     expenses: number;
-    /** Cambio del saldo respecto al cierre anterior; null en el punto de inicio. */
     balanceChange: number | null;
     periodIncomes: number;
     periodExpenses: number;
@@ -27,11 +22,6 @@ function roundMoney(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-/**
- * Las gráficas muestran dinero disponible, así que las tarjetas se ignoran
- * mientras haya alguna cuenta de activo; sólo se grafican cuando el filtro
- * contiene únicamente tarjetas.
- */
 export function selectTimelineAccounts<T extends Pick<ForecastAccount, "type">>(accounts: T[]) {
     const assets = accounts.filter((account) => account.type !== "credit");
     return {
@@ -46,13 +36,6 @@ function shortLabel(date: Date, granularity: ForecastGranularity) {
         : formatAppDate(date, { day: "numeric", month: "short" });
 }
 
-/**
- * Construye un punto por periodo con el saldo al cierre y los ingresos y
- * gastos acumulados desde el inicio del rango. Un movimiento entre dos cuentas
- * graficadas no cuenta como ingreso ni gasto: sólo mueve dinero dentro del
- * conjunto. Pagar una tarjeta desde débito sí es un gasto, porque la tarjeta
- * no se grafica.
- */
 export function buildForecastTimeline(input: {
     accounts: ForecastAccount[];
     events: ProjectedForecastEvent[];
@@ -94,7 +77,6 @@ export function buildForecastTimeline(input: {
                 if (event.transactionType === "income") incomes += event.amount;
                 else expenses += event.amount;
             } else if (inSettledAccount) {
-                // Un pago que llega a una tarjeta filtrada desde fuera del conjunto.
                 incomes += event.amount;
             }
         }
@@ -144,8 +126,6 @@ export function buildForecastTimeline(input: {
         periodFirstDay = null;
     }
 
-    // Si el primer periodo semanal o mensual cierra el mismo día en que empieza
-    // el rango, el punto de inicio sólo repetiría su valor.
     if (input.granularity !== "day" && firstPeriodDays === 1 && points.length > 2) points.shift();
 
     return { measure, points };
@@ -155,11 +135,6 @@ export type ForecastTimelineItem<T extends ProjectedForecastEvent> =
     | { kind: "event"; event: T }
     | { kind: "daily_yield"; id: string; days: number; amount: number; firstAt: Date; last: T };
 
-/**
- * Agrupa la línea de tiempo por periodo. Con agrupación diaria se muestra cada
- * movimiento; por semana o mes, los rendimientos diarios de una misma inversión
- * se resumen en una sola fila por periodo.
- */
 export function groupTimelineEvents<T extends ProjectedForecastEvent>(events: T[], granularity: ForecastGranularity) {
     if (granularity === "day") {
         return [{ key: "all", label: null, items: events.map((event): ForecastTimelineItem<T> => ({ kind: "event", event })) }];
@@ -202,8 +177,6 @@ export function groupTimelineEvents<T extends ProjectedForecastEvent>(events: T[
         group.items.push(created);
     }
 
-    // La fila resumida muestra el saldo tras su último rendimiento, así que se
-    // ordena en ese momento del periodo.
     const itemTime = (item: ForecastTimelineItem<T>) => (
         item.kind === "event" ? item.event.scheduledAt : item.last.scheduledAt
     ).getTime();
@@ -214,28 +187,15 @@ export function groupTimelineEvents<T extends ProjectedForecastEvent>(events: T[
 
 export type ForecastPeriodAccountSummary = {
     accountId: string;
-    /** Ingresos; en una tarjeta, los pagos que reducen su deuda. */
     incomes: number;
-    /** Rendimientos diarios de inversiones y cajitas. */
     yields: number;
-    /** Gastos y pagos de tarjeta; en una tarjeta, los cargos. */
     expenses: number;
     transfersIn: number;
     transfersOut: number;
     closingBalance: number | null;
-    /** Saldo al cierre de las cuentas fusionadas en este resumen, si no quedaron en cero. */
     mergedBalances: Array<{ accountId: string; balance: number }>;
 };
 
-/**
- * Resume por cuenta los movimientos de un periodo. Un movimiento entre dos
- * cuentas de activo (por ejemplo, el traspaso a una cajita) es un traspaso;
- * pagar una tarjeta es un gasto para la cuenta que paga y un pago para la tarjeta.
- *
- * `mergeInto` fusiona una cuenta en otra (la cuenta del ahorro automático en su
- * cajita): sus movimientos se suman al resumen destino y los traspasos entre
- * ambas se omiten por ser internos.
- */
 export function summarizeTimelinePeriod<T extends ProjectedForecastEvent>(
     items: ForecastTimelineItem<T>[],
     accountTypes: Map<string, string>,

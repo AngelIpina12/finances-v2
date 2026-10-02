@@ -37,11 +37,12 @@ type Props = {
 };
 
 export function ForecastControls({
-    startsAt, endsAt, minimumDate, maximumDate,
-    currency, currencies, granularity, activePreset,
-    hasLinkedSavings, savingsMode,
-    onStartsAtChange, onEndsAtChange, onCurrencyChange,
-    onGranularityChange, onPresetChange, onSavingsModeChange,
+    startsAt, endsAt, minimumDate,
+    maximumDate, currency, currencies,
+    granularity, activePreset, hasLinkedSavings,
+    savingsMode, onStartsAtChange, onEndsAtChange,
+    onCurrencyChange, onGranularityChange, onPresetChange,
+    onSavingsModeChange,
 }: Props) {
     return (
         <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
