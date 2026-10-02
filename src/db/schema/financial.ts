@@ -1,7 +1,7 @@
 import {
     boolean, foreignKey, index,
     integer, jsonb, numeric, pgEnum,
-    pgTable, text, timestamp,
+    date, pgTable, text, timestamp,
     uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -455,6 +455,37 @@ export const forecastSavingsSimulations = pgTable(
     (table) => [
         index("forecast_savings_simulations_user_idx").on(table.userId),
         uniqueIndex("forecast_savings_simulations_default_idx")
+            .on(table.userId)
+            .where(sql`${table.isDefault}`),
+    ],
+);
+
+/** Configuración guardada de la previsión: rango, filtros, vistas y simulación. */
+export const forecastViews = pgTable(
+    "forecast_views",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        /** Días desde hoy; null cuando el rango usa fechas fijas. */
+        rangePresetDays: integer("range_preset_days"),
+        startsOn: date("starts_on", { mode: "string" }),
+        endsOn: date("ends_on", { mode: "string" }),
+        currency: text("currency").notNull().default("all"),
+        accountKind: text("account_kind").notNull().default("all"),
+        accountIds: jsonb("account_ids").$type<string[]>().notNull().default([]),
+        granularity: text("granularity").notNull().default("week"),
+        savingsMode: text("savings_mode").notNull().default("exclude"),
+        chartView: text("chart_view").notNull().default("balance"),
+        savingsSimulationId: uuid("savings_simulation_id")
+            .references(() => forecastSavingsSimulations.id, { onDelete: "set null" }),
+        isDefault: boolean("is_default").notNull().default(false),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("forecast_views_user_idx").on(table.userId),
+        uniqueIndex("forecast_views_default_idx")
             .on(table.userId)
             .where(sql`${table.isDefault}`),
     ],

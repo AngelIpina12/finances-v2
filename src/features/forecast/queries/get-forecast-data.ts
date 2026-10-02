@@ -2,8 +2,9 @@ import { and, asc, eq, gte, isNull, lt, lte } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
-    financingPlans, recurringRules, scheduledOccurrences, budgets, transactions, fixedIncomePositions,
-    creditCardPaymentDismissals, forecastSavingsSimulations,
+    financingPlans, recurringRules, scheduledOccurrences,
+    budgets, transactions, fixedIncomePositions,
+    creditCardPaymentDismissals, forecastSavingsSimulations, forecastViews,
 } from "@/src/db/schema";
 import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
@@ -11,7 +12,10 @@ import { calculateCardStatement } from "../domain/card-statement-calculator";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
 import type { LinkedSavings } from "../domain/linked-savings";
-import { calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest } from "@/src/features/fixed-income/domain/fixed-income-calculator";
+import type { SavedForecastView } from "../domain/forecast-view";
+import {
+    calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest
+} from "@/src/features/fixed-income/domain/fixed-income-calculator";
 import { addAppCalendarDays } from "@/src/shared/utils/local-date-time";
 
 const FORECAST_DAYS = 180;
@@ -22,8 +26,10 @@ type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 export async function getForecastData(userId: string, now = new Date()) {
     const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
     const [
-        accounts, occurrences, cardPaymentSettings, rules, forecastBudgets,
-        completedTransactions, dismissedCardPayments, fixedIncome, savedSimulations,
+        accounts, occurrences, cardPaymentSettings,
+        rules, forecastBudgets, completedTransactions,
+        dismissedCardPayments, fixedIncome, savedSimulations,
+        savedViews,
     ] = await Promise.all([
         db
             .select({
@@ -109,47 +115,85 @@ export async function getForecastData(userId: string, now = new Date()) {
                 eq(recurringRules.isActive, true),
                 isNull(recurringRules.deletedAt),
             )),
-        db.select({ id: budgets.id, name: budgets.name, amount: budgets.amount, currency: budgets.currency, startsAt: budgets.startsAt, endsAt: budgets.endsAt, forecastAccountId: budgets.forecastAccountId })
+        db
+            .select({
+                id: budgets.id,
+                name: budgets.name,
+                amount: budgets.amount,
+                currency: budgets.currency,
+                startsAt: budgets.startsAt,
+                endsAt: budgets.endsAt,
+                forecastAccountId: budgets.forecastAccountId
+            })
             .from(budgets)
-            .where(and(eq(budgets.userId, userId), eq(budgets.isActive, true), eq(budgets.includeInForecast, true), eq(budgets.period, "monthly"), isNull(budgets.deletedAt))),
-        db.select({
-            id: transactions.id,
-            accountId: transactions.accountId,
-            type: transactions.type,
-            transferDirection: transactions.transferDirection,
-            financingPlanId: transactions.financingPlanId,
-            amount: transactions.amount,
-            currency: transactions.currency,
-            merchant: transactions.merchant,
-            date: transactions.date,
-        })
+            .where(and(
+                eq(budgets.userId, userId),
+                eq(budgets.isActive, true),
+                eq(budgets.includeInForecast, true),
+                eq(budgets.period, "monthly"),
+                isNull(budgets.deletedAt)
+            )),
+        db
+            .select({
+                id: transactions.id,
+                accountId: transactions.accountId,
+                type: transactions.type,
+                transferDirection: transactions.transferDirection,
+                financingPlanId: transactions.financingPlanId,
+                amount: transactions.amount,
+                currency: transactions.currency,
+                merchant: transactions.merchant,
+                date: transactions.date,
+            })
             .from(transactions)
             .where(and(
                 eq(transactions.userId, userId),
                 eq(transactions.status, "completed"),
             )),
-        db.select({
-            creditAccountId: creditCardPaymentDismissals.creditAccountId,
-            dueAt: creditCardPaymentDismissals.dueAt,
-        })
+        db
+            .select({
+                creditAccountId: creditCardPaymentDismissals.creditAccountId,
+                dueAt: creditCardPaymentDismissals.dueAt,
+            })
             .from(creditCardPaymentDismissals)
             .where(eq(creditCardPaymentDismissals.userId, userId)),
-        db.select().from(fixedIncomePositions).where(and(
-            eq(fixedIncomePositions.userId, userId),
-            eq(fixedIncomePositions.status, "active"),
-            lte(fixedIncomePositions.startsAt, until),
-        )),
-        db.select({
-            id: forecastSavingsSimulations.id,
-            name: forecastSavingsSimulations.name,
-            accountId: forecastSavingsSimulations.accountId,
-            positionId: forecastSavingsSimulations.positionId,
-            minimumBalance: forecastSavingsSimulations.minimumBalance,
-            isDefault: forecastSavingsSimulations.isDefault,
-        })
+        db
+            .select().from(fixedIncomePositions).where(and(
+                eq(fixedIncomePositions.userId, userId),
+                eq(fixedIncomePositions.status, "active"),
+                lte(fixedIncomePositions.startsAt, until),
+            )),
+        db
+            .select({
+                id: forecastSavingsSimulations.id,
+                name: forecastSavingsSimulations.name,
+                accountId: forecastSavingsSimulations.accountId,
+                positionId: forecastSavingsSimulations.positionId,
+                minimumBalance: forecastSavingsSimulations.minimumBalance,
+                isDefault: forecastSavingsSimulations.isDefault,
+            })
             .from(forecastSavingsSimulations)
             .where(eq(forecastSavingsSimulations.userId, userId))
             .orderBy(asc(forecastSavingsSimulations.name)),
+        db
+            .select({
+                id: forecastViews.id,
+                name: forecastViews.name,
+                rangePresetDays: forecastViews.rangePresetDays,
+                startsOn: forecastViews.startsOn,
+                endsOn: forecastViews.endsOn,
+                currency: forecastViews.currency,
+                accountKind: forecastViews.accountKind,
+                accountIds: forecastViews.accountIds,
+                granularity: forecastViews.granularity,
+                savingsMode: forecastViews.savingsMode,
+                chartView: forecastViews.chartView,
+                savingsSimulationId: forecastViews.savingsSimulationId,
+                isDefault: forecastViews.isDefault,
+            })
+            .from(forecastViews)
+            .where(eq(forecastViews.userId, userId))
+            .orderBy(asc(forecastViews.name)),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -176,9 +220,6 @@ export async function getForecastData(userId: string, now = new Date()) {
             currency: occurrence.currency as ForecastEvent["currency"],
             scheduledAt: occurrence.scheduledAt,
             transactionType: occurrence.transactionType as ForecastEvent["transactionType"],
-            // La deuda MSI ya forma parte del saldo de la tarjeta. En Forecast la
-            // cuota sólo alimenta el pago de tarjeta de su vencimiento, sin duplicar
-            // un cargo ni una salida directa desde la cuenta de pago.
             affectsBalance: occurrence.source !== "financing_installment",
         }));
 
@@ -223,9 +264,9 @@ export async function getForecastData(userId: string, now = new Date()) {
                 && transaction.type === "expense"
                 && transaction.financingPlanId === null
                 && isAppCalendarDateBefore(
-                getLatestCycleClose(now, card.billingDate!),
-                transaction.date,
-            );
+                    getLatestCycleClose(now, card.billingDate!),
+                    transaction.date,
+                );
         })
         .map((transaction) => ({
             id: `posted-card-charge:${transaction.id}`,
@@ -289,19 +330,27 @@ export async function getForecastData(userId: string, now = new Date()) {
             const scheduledAt = new Date(now.getFullYear(), now.getMonth() + index, Math.min(anchor.getDate(), 28), anchor.getHours(), anchor.getMinutes());
             if (scheduledAt < now || scheduledAt < anchor) continue;
             if (scheduledAt >= until || (budget.endsAt && scheduledAt >= budget.endsAt)) break;
-            events.push({ id: `budget:${budget.id}:${scheduledAt.toISOString()}`, accountId: budget.forecastAccountId, source: "budget", name: `Presupuesto estimado · ${budget.name}`, amount: Number(budget.amount), currency: budget.currency as ForecastEvent["currency"], scheduledAt, transactionType: "expense", affectsBalance: true });
+            events.push({
+                id: `budget:${budget.id}:${scheduledAt.toISOString()}`,
+                accountId: budget.forecastAccountId,
+                source: "budget",
+                name: `Presupuesto estimado · ${budget.name}`,
+                amount: Number(budget.amount),
+                currency: budget.currency as ForecastEvent["currency"],
+                scheduledAt,
+                transactionType: "expense",
+                affectsBalance: true
+            });
         }
     }
 
     const linkedSavings: LinkedSavings[] = [];
+
     for (const position of fixedIncome) {
         if (!activeAccountIds.has(position.settlementAccountId)) continue;
         const principal = Number(position.outstandingPrincipal);
         const rate = Number(position.annualRate);
         const withholding = Number(position.withholdingRate ?? 0);
-        // Una cajita disponible al instante vive dentro de su cuenta de fondeo:
-        // de ahí sale el capital y ahí regresan los retiros. Su rendimiento
-        // diario se reinvierte en la cajita, no se deposita en la cuenta.
         const fundingAccount = accounts.find((account) => account.id === position.fundingAccountId);
         const isLinkedSavings = position.isAvailableOnDemand
             && fundingAccount !== undefined
@@ -351,9 +400,26 @@ export async function getForecastData(userId: string, now = new Date()) {
                 });
             });
         } else if (position.maturesAt) {
-            const gross = calculateAccruedInterest({ principal: Number(position.principal), annualRate: rate, startsAt: position.startsAt, asOf: position.maturesAt, calculationMethod: position.calculationMethod, dayCountConvention: position.dayCountConvention }).gross;
+            const gross = calculateAccruedInterest({
+                principal: Number(position.principal),
+                annualRate: rate,
+                startsAt: position.startsAt,
+                asOf: position.maturesAt,
+                calculationMethod: position.calculationMethod,
+                dayCountConvention: position.dayCountConvention
+            }).gross;
             const net = calculateNetInterest(gross, withholding).net;
-            events.push({ id: `fixed-income-interest:${position.id}:maturity`, accountId: position.settlementAccountId, source: "fixed_income", name: `Interés estimado al vencimiento · ${position.name}`, amount: net, currency: position.currency as ForecastEvent["currency"], scheduledAt: position.maturesAt, transactionType: "income", affectsBalance: true });
+            events.push({
+                id: `fixed-income-interest:${position.id}:maturity`,
+                accountId: position.settlementAccountId,
+                source: "fixed_income",
+                name: `Interés estimado al vencimiento · ${position.name}`,
+                amount: net,
+                currency: position.currency as ForecastEvent["currency"],
+                scheduledAt: position.maturesAt,
+                transactionType: "income",
+                affectsBalance: true
+            });
         }
         if (position.maturesAt && position.maturesAt < until) {
             events.push({
@@ -398,7 +464,6 @@ export async function getForecastData(userId: string, now = new Date()) {
         )),
         dismissedCardPayments,
         linkedSavings,
-        // Una simulación cuya cajita ya no está activa o ligada no se puede proyectar.
         savingsSimulations: savedSimulations
             .filter((simulation) => linkedSavings.some((saving) => (
                 saving.positionId === simulation.positionId
@@ -406,6 +471,7 @@ export async function getForecastData(userId: string, now = new Date()) {
                 && saving.hasDailyInterest
             )))
             .map((simulation) => ({ ...simulation, minimumBalance: Number(simulation.minimumBalance) })),
+        savedViews: savedViews.map((view) => view as SavedForecastView),
         events,
     };
 }

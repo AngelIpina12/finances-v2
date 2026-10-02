@@ -1,13 +1,17 @@
 "use client";
 
-import { motion } from "framer-motion";
+import {
+    useEffect, useMemo, useRef,
+    useState, type ReactNode
+} from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 import {
     AlertTriangle, CalendarClock, ChevronRight,
-    CreditCard, Landmark, PiggyBank, ReceiptText, Repeat2, Settings2,
+    CreditCard, Landmark, PiggyBank,
+    ReceiptText, Repeat2, Settings2,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import toast from "react-hot-toast";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
     Dialog, DialogContent, DialogDescription,
@@ -16,7 +20,8 @@ import {
 import { CreditCardPaymentSettingsForm } from "@/src/features/accounts/components/credit-card-payment-settings-form";
 import { CardTitle } from "@/src/shared/components/ui/card";
 import {
-    addAppCalendarDays, formatAppDate, millisecondsUntilNextAppDay, toAppDateInputValue,
+    addAppCalendarDays, formatAppDate, millisecondsUntilNextAppDay,
+    toAppDateInputValue,
 } from "@/src/shared/utils/local-date-time";
 import { CardPaymentBreakdown } from "./card-payment-breakdown";
 import { dismissCardPayment, restoreCardPayment } from "../actions/card-payment-dismissal-actions";
@@ -29,20 +34,25 @@ import {
 } from "./forecast-account-filters";
 import { LiquiditySummary } from "./liquidity-summary";
 import {
-    buildCashFlow, buildCreditDebtActivity,
-    buildForecast, type ForecastEventSource, type ForecastGranularity,
+    buildCashFlow, buildCreditDebtActivity, buildForecast,
+    type ForecastEventSource, type ForecastGranularity,
 } from "../domain/forecast-calculator";
 import { buildLiquidityRangeSummaries } from "../domain/liquidity-calculator";
 import {
-    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts, type LinkedSavingsMode,
+    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts,
+    type LinkedSavingsMode,
 } from "../domain/linked-savings";
 import { applySavingsSweep, simulatedSavingsAccountId } from "../domain/savings-sweep";
 import { ForecastSavingsSimulation, type SavingsSimulationDraft } from "./forecast-savings-simulation";
+import { ForecastSavedViews } from "./forecast-saved-views";
+import { resolveForecastViewRange, type SavedForecastView } from "../domain/forecast-view";
 import {
-    buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts, summarizeTimelinePeriod,
-    type ForecastPeriodAccountSummary,
+    buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts,
+    summarizeTimelinePeriod, type ForecastPeriodAccountSummary,
 } from "../domain/forecast-timeline";
-import { ForecastChart, type ForecastChartView, type ForecastSavingsPoint } from "./forecast-chart";
+import {
+    ForecastChart, type ForecastChartView, type ForecastSavingsPoint
+} from "./forecast-chart";
 import type { ForecastData } from "../queries/get-forecast-data";
 import { fromForecastDateInput, isInsideForecastRange } from "../utils/forecast-filters";
 
@@ -59,68 +69,136 @@ function eventIcon(source: ForecastEventSource) {
             ? Landmark
             : source === "budget"
                 ? ReceiptText
-            : source === "card_payment"
-                ? CreditCard
-                : source === "fixed_income"
-                    ? Landmark
-                : source === "savings_simulation"
-                    ? PiggyBank
-                : ReceiptText;
+                : source === "card_payment"
+                    ? CreditCard
+                    : source === "fixed_income"
+                        ? Landmark
+                        : source === "savings_simulation"
+                            ? PiggyBank
+                            : ReceiptText;
 }
 
 export function ForecastClient({
-    accounts, cardPaymentSettings, events, dismissedCardPaymentKeys: savedDismissedCardPaymentKeys,
-    dismissedCardPayments, linkedSavings, savingsSimulations, now,
+    accounts, cardPaymentSettings, events,
+    dismissedCardPaymentKeys: savedDismissedCardPaymentKeys, dismissedCardPayments,
+    linkedSavings, savingsSimulations, savedViews, now,
 }: ForecastData) {
     const router = useRouter();
     const anchorNow = useMemo(() => new Date(now), [now]);
     const minimumDate = toAppDateInputValue(anchorNow);
     const maximumDate = toAppDateInputValue(addAppCalendarDays(anchorNow, 180));
-    const [startsAtValue, setStartsAtValue] = useState(minimumDate);
-    const [endsAtValue, setEndsAtValue] = useState(
-        toAppDateInputValue(addAppCalendarDays(anchorNow, 30)),
-    );
-    const [activePreset, setActivePreset] = useState<number | null>(30);
-    const [currency, setCurrency] = useState<string>("all");
-    const [accountKind, setAccountKind] = useState<ForecastAccountKind>("all");
-    const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
-    const [granularity, setGranularity] = useState<ForecastGranularity>("week");
-    const [savingsMode, setSavingsMode] = useState<LinkedSavingsMode>("exclude");
-    const [chartView, setChartView] = useState<ForecastChartView>("balance");
-    // Los periodos de la línea de tiempo empiezan contraídos.
-    const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
-    const [simulation, setSimulation] = useState<SavingsSimulationDraft | null>(() => {
-        const preferred = savingsSimulations.find((item) => item.isDefault);
-        return preferred ? { ...preferred } : null;
-    });
-    // El nombre o la opción predeterminada no cambian la proyección; sólo estos campos.
-    const sweepAccountId = simulation?.accountId;
-    const sweepPositionId = simulation?.positionId;
-    const sweepMinimumBalance = simulation?.minimumBalance || 0;
-    const sweepRule = useMemo(
-        () => sweepAccountId && sweepPositionId
-            ? { accountId: sweepAccountId, positionId: sweepPositionId, minimumBalance: sweepMinimumBalance }
-            : null,
-        [sweepAccountId, sweepPositionId, sweepMinimumBalance],
-    );
+    const currencies = [...new Set(accounts.map((account) => account.currency))];
+    const [initialView] = useState(() => savedViews.find((view) => view.isDefault) ?? null);
+    const [initialSettings] = useState(() => initialView ? resolveViewSettings(initialView) : null);
+    const [viewSelection, setViewSelection] = useState<string | null>(initialView?.id ?? null);
+    const [startsAtValue, setStartsAtValue] = useState(initialSettings?.startsOn ?? minimumDate);
+    const [endsAtValue, setEndsAtValue] = useState(initialSettings?.endsOn ?? toAppDateInputValue(addAppCalendarDays(anchorNow, 30)));
+    const [activePreset, setActivePreset] = useState<number | null>(initialSettings ? initialSettings.preset : 30);
+    const [currency, setCurrency] = useState<string>(initialSettings?.currency ?? "all");
+    const [accountKind, setAccountKind] = useState<ForecastAccountKind>(initialSettings?.accountKind ?? "all");
+    const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(initialSettings?.accountIds ?? new Set());
+    const [granularity, setGranularity] = useState<ForecastGranularity>(initialSettings?.granularity ?? "week");
+    const [savingsMode, setSavingsMode] = useState<LinkedSavingsMode>(initialSettings?.savingsMode ?? "exclude");
+    const [chartView, setChartView] = useState<ForecastChartView>(initialSettings?.chartView ?? "balance");
+    const [expandedPeriods, setExpandedPeriods] = useState<Map<string, string | null>>(new Map());
     const [cardToConfigure, setCardToConfigure] = useState<ForecastData["accounts"][number] | null>(null);
     const [locallyDismissedPaymentKeys, setLocallyDismissedPaymentKeys] = useState<Set<string>>(new Set());
     const [locallyRestoredPaymentKeys, setLocallyRestoredPaymentKeys] = useState<Set<string>>(new Set());
     const [dismissingPaymentId, setDismissingPaymentId] = useState<string | null>(null);
     const [payingStatementId, setPayingStatementId] = useState<string | null>(null);
+
     const [statementAwaitingFunds, setStatementAwaitingFunds] = useState<{
         eventId: string;
         creditAccountId: string;
         sourceAccountId: string;
         kind: FundsImpact["kind"];
     } | null>(null);
+
+    const [simulation, setSimulation] = useState<SavingsSimulationDraft | null>(() => {
+        if (initialSettings) return initialSettings.simulation;
+        const preferred = savingsSimulations.find((item) => item.isDefault);
+        return preferred ? { ...preferred } : null;
+    });
+
+    function resolveViewSettings(view: SavedForecastView) {
+        const range = resolveForecastViewRange(view, {
+            minimumDate,
+            maximumDate,
+            addDays: (date, days) => toAppDateInputValue(addAppCalendarDays(fromForecastDateInput(date) ?? anchorNow, days)),
+        });
+        const viewCurrency = currencies.some((item) => item === view.currency) ? view.currency : "all";
+        const savedSimulation = savingsSimulations.find((item) => item.id === view.savingsSimulationId);
+
+        return {
+            ...range,
+            currency: viewCurrency,
+            accountKind: view.accountKind,
+            accountIds: new Set(accounts
+                .filter((account) => (
+                    view.accountIds.includes(account.id)
+                    && (viewCurrency === "all" || account.currency === viewCurrency)
+                    && matchesAccountKind(account.type, view.accountKind)
+                ))
+                .map((account) => account.id)),
+            granularity: view.granularity,
+            savingsMode: linkedSavings.length ? view.savingsMode : "exclude" as const,
+            chartView: view.chartView,
+            simulation: savedSimulation ? { ...savedSimulation } : null,
+        };
+    }
+
+    function selectView(next: string | null) {
+        setViewSelection(next);
+        if (next === null) return resetToDefaults();
+        const view = savedViews.find((item) => item.id === next);
+        if (!view) return;
+
+        const settings = resolveViewSettings(view);
+        setStartsAtValue(settings.startsOn);
+        setEndsAtValue(settings.endsOn);
+        setActivePreset(settings.preset);
+        setCurrency(settings.currency);
+        setAccountKind(settings.accountKind);
+        setSelectedAccountIds(settings.accountIds);
+        setGranularity(settings.granularity);
+        setSavingsMode(settings.savingsMode);
+        setChartView(settings.chartView);
+        setSimulation(settings.simulation);
+        setExpandedPeriods(new Map());
+    }
+
+    function resetToDefaults() {
+        const preferredSimulation = savingsSimulations.find((item) => item.isDefault);
+        setStartsAtValue(minimumDate);
+        setEndsAtValue(toAppDateInputValue(addAppCalendarDays(anchorNow, 30)));
+        setActivePreset(30);
+        setCurrency("all");
+        setAccountKind("all");
+        setSelectedAccountIds(new Set());
+        setGranularity("week");
+        setSavingsMode("exclude");
+        setChartView("balance");
+        setSimulation(preferredSimulation ? { ...preferredSimulation } : null);
+        setExpandedPeriods(new Map());
+    }
+
+    const sweepAccountId = simulation?.accountId;
+    const sweepPositionId = simulation?.positionId;
+    const sweepMinimumBalance = simulation?.minimumBalance || 0;
+
+    const sweepRule = useMemo(
+        () => sweepAccountId && sweepPositionId
+            ? { accountId: sweepAccountId, positionId: sweepPositionId, minimumBalance: sweepMinimumBalance }
+            : null,
+        [sweepAccountId, sweepPositionId, sweepMinimumBalance],
+    );
+
     const startsAt = fromForecastDateInput(startsAtValue) ?? anchorNow;
     const endsAt = fromForecastDateInput(endsAtValue) ?? addAppCalendarDays(anchorNow, 30);
     const forecastDays = Math.min(180, Math.max(
         1,
         Math.ceil((endsAt.getTime() - anchorNow.getTime()) / (24 * 60 * 60 * 1000)),
     ));
-    const currencies = [...new Set(accounts.map((account) => account.currency))];
     const dismissedCardPaymentKeys = useMemo(() => [
         ...new Set([...savedDismissedCardPaymentKeys, ...locallyDismissedPaymentKeys]),
     ].filter((key) => !locallyRestoredPaymentKeys.has(key)), [
@@ -129,42 +207,41 @@ export function ForecastClient({
     const visibleDismissedCardPayments = dismissedCardPayments.filter((payment) => (
         !locallyRestoredPaymentKeys.has(`${payment.creditAccountId}:${payment.dueAt.toISOString()}`)
     ));
-    const projection = useMemo(
-        () => sweepRule
-            ? applySavingsSweep({
-                accounts,
-                events,
-                savings: linkedSavings,
-                mode: savingsMode,
-                rule: sweepRule,
-                settings: cardPaymentSettings,
-                dismissedCardPaymentKeys,
-                now: anchorNow,
-                days: forecastDays,
-            })
-            : applyLinkedSavings({ accounts, events, savings: linkedSavings, mode: savingsMode }),
-        [
-            accounts, events, linkedSavings, savingsMode, cardPaymentSettings, dismissedCardPaymentKeys,
-            anchorNow, forecastDays, sweepRule,
-        ],
-    );
-    const forecast = useMemo(
-        () => buildForecast({
-            accounts: projection.accounts,
-            events: projection.events,
+
+    const projection = useMemo(() => sweepRule
+        ? applySavingsSweep({
+            accounts,
+            events,
+            savings: linkedSavings,
+            mode: savingsMode,
+            rule: sweepRule,
             settings: cardPaymentSettings,
             dismissedCardPaymentKeys,
             now: anchorNow,
             days: forecastDays,
-        }),
-        [projection, cardPaymentSettings, dismissedCardPaymentKeys, anchorNow, forecastDays],
+        })
+        : applyLinkedSavings({ accounts, events, savings: linkedSavings, mode: savingsMode }),
+        [
+            accounts, events, linkedSavings,
+            savingsMode, cardPaymentSettings, dismissedCardPaymentKeys,
+            anchorNow, forecastDays, sweepRule,
+        ],
     );
+
+    const forecast = useMemo(() => buildForecast({
+        accounts: projection.accounts,
+        events: projection.events,
+        settings: cardPaymentSettings,
+        dismissedCardPaymentKeys,
+        now: anchorNow,
+        days: forecastDays,
+    }), [projection, cardPaymentSettings, dismissedCardPaymentKeys, anchorNow, forecastDays]);
+
     const selectableAccounts = accounts.filter((account) => (
         (currency === "all" || account.currency === currency)
         && matchesAccountKind(account.type, accountKind)
     ));
-    // Las cajitas se proyectan como cuentas propias y acompañan a su cuenta de
-    // fondeo en los filtros, en cualquiera de los modos que se comparen.
+
     const scopedAccountIds = withSavingsAccounts(
         new Set(selectableAccounts
             .filter((account) => selectedAccountIds.size === 0 || selectedAccountIds.has(account.id))
@@ -174,6 +251,7 @@ export function ForecastClient({
             { id: simulatedSavingsAccountId(saving.positionId), fundingAccountId: saving.accountId },
         ]),
     );
+
     const isScopedToAccounts = accountKind !== "all" || selectedAccountIds.size > 0;
     const visibleEvents = forecast.events.filter((event) => (
         isInsideForecastRange(event.scheduledAt, startsAt, endsAt)
@@ -187,8 +265,7 @@ export function ForecastClient({
         isInsideForecastRange(alert.scheduledAt, startsAt, endsAt)
         && scopedAccountIds.has(alert.accountId)
     ));
-    // El flujo detallado sólo tiene sentido para una cuenta: mezclar varias
-    // combinaría monedas o deuda con saldo disponible.
+
     const selectedAccount = selectedAccountIds.size === 1
         ? selectableAccounts.find((account) => selectedAccountIds.has(account.id))
         : undefined;
@@ -217,9 +294,8 @@ export function ForecastClient({
             selectedAccount.id,
         )
         : [];
-    const debtActivity = isSelectedCredit
-        ? buildCreditDebtActivity(visibleEvents, selectedAccount.id, granularity)
-        : [];
+
+    const debtActivity = isSelectedCredit ? buildCreditDebtActivity(visibleEvents, selectedAccount.id, granularity) : [];
     const chartCurrencies = new Set(selectTimelineAccounts(visibleAccounts).accounts.map((account) => account.currency));
     const chartCurrency = chartCurrencies.size === 1 ? [...chartCurrencies][0] : null;
     const hasScopedSavings = linkedSavings.some((saving) => scopedAccountIds.has(saving.accountId));
@@ -231,12 +307,11 @@ export function ForecastClient({
         endsAt,
         granularity,
     });
-    // Comparar los tres modos requiere proyectar la previsión una vez por modo;
-    // sólo se hace cuando esa vista está abierta.
+
     function buildSavingsPoints(): ForecastSavingsPoint[] {
         const modes: LinkedSavingsMode[] = ["exclude", "principal", "with_yield"];
         const projections = modes.map((mode) => applyLinkedSavings({ accounts, events, savings: linkedSavings, mode }));
-        // La simulación se compara contra contemplar todas las cajitas con rendimiento.
+
         if (sweepRule) {
             projections.push(applySavingsSweep({
                 accounts,
@@ -250,6 +325,7 @@ export function ForecastClient({
                 days: forecastDays,
             }));
         }
+
         const timelines = projections.map((modeProjection) => {
             const modeForecast = buildForecast({
                 accounts: modeProjection.accounts,
@@ -288,21 +364,26 @@ export function ForecastClient({
     const savingsPoints = chartView === "savings" && hasScopedSavings ? buildSavingsPoints() : null;
     const timelineGroups = groupTimelineEvents(visibleEvents, granularity);
     const accountTypes = new Map(forecast.accounts.map((account) => [account.id, account.type]));
-    // En los resúmenes, la cuenta del ahorro automático sólo es un paso hacia su
-    // cajita: se fusiona con ella y la cajita se muestra con su nombre normal.
     const sweepSavingsAccountId = sweepRule ? simulatedSavingsAccountId(sweepRule.positionId) : null;
     const summaryMerges = new Map(sweepRule && sweepSavingsAccountId ? [[sweepRule.accountId, sweepSavingsAccountId]] : []);
     const summaryNames = new Map(sweepRule && sweepSavingsAccountId
         ? [[sweepSavingsAccountId, linkedSavings.find((saving) => saving.positionId === sweepRule.positionId)?.name ?? ""]]
         : []);
 
-    function togglePeriod(periodKey: string) {
+    function togglePeriod(periodKey: string, accountId: string | null = null) {
         setExpandedPeriods((current) => {
-            const next = new Set(current);
-            if (next.has(periodKey)) next.delete(periodKey);
-            else next.add(periodKey);
+            const next = new Map(current);
+            if (next.has(periodKey) && next.get(periodKey) === accountId) next.delete(periodKey);
+            else next.set(periodKey, accountId);
             return next;
         });
+    }
+
+    const resolveSummaryAccount = (accountId: string) => summaryMerges.get(accountId) ?? accountId;
+
+    function itemTouchesAccount(item: (typeof timelineGroups)[number]["items"][number], accountId: string) {
+        const event = item.kind === "event" ? item.event : item.last;
+        return [event.accountId, event.settlesAccountId].some((id) => id && resolveSummaryAccount(id) === accountId);
     }
     const liquiditySummaries = buildLiquidityRangeSummaries({
         accounts: projection.accounts,
@@ -375,14 +456,10 @@ export function ForecastClient({
         }
     }
 
-    async function payStatement(
-        eventId: string,
-        creditAccountId: string,
-        sourceAccountId: string,
-        allowInsufficientFunds = false,
-    ) {
+    async function payStatement(eventId: string, creditAccountId: string, sourceAccountId: string, allowInsufficientFunds = false) {
         setStatementAwaitingFunds(null);
         setPayingStatementId(eventId);
+
         try {
             const result = await payCardStatement({ creditAccountId, sourceAccountId, allowInsufficientFunds });
             if (result.insufficientFunds) {
@@ -409,6 +486,7 @@ export function ForecastClient({
     async function restorePayment(creditAccountId: string, dueAt: Date) {
         const key = `${creditAccountId}:${dueAt.toISOString()}`;
         setDismissingPaymentId(`restore:${key}`);
+
         try {
             const result = await restoreCardPayment({ creditAccountId, dueAt });
             if (!result.success) {
@@ -434,12 +512,8 @@ export function ForecastClient({
     function renderTimelineEvent(event: (typeof forecast.events)[number], dateText?: string) {
         const Icon = eventIcon(event.source);
         const isIncome = event.transactionType === "income";
-        const account = event.accountId
-            ? forecast.accounts.find((item) => item.id === event.accountId)
-            : null;
-        const settledAccount = event.settlesAccountId
-            ? forecast.accounts.find((item) => item.id === event.settlesAccountId)
-            : null;
+        const account = event.accountId ? forecast.accounts.find((item) => item.id === event.accountId) : null;
+        const settledAccount = event.settlesAccountId ? forecast.accounts.find((item) => item.id === event.settlesAccountId) : null;
         const balanceDescription = event.balanceAfter === null
             ? event.source === "card_payment"
                 ? "Pago manual por confirmar"
@@ -472,15 +546,15 @@ export function ForecastClient({
                                     ? " · Cuota por cubrir"
                                     : event.source === "budget"
                                         ? " · Presupuesto estimado"
-                                    : event.source === "card_payment"
-                                        ? event.affectsBalance
-                                            ? " · Pago proyectado de tarjeta"
-                                            : " · Compromiso manual"
-                                        : event.source === "fixed_income"
-                                            ? " · Renta fija"
-                                        : event.source === "savings_simulation"
-                                            ? " · Ahorro automático (simulado)"
-                                    : account ? ` · ${account.name}` : ""
+                                        : event.source === "card_payment"
+                                            ? event.affectsBalance
+                                                ? " · Pago proyectado de tarjeta"
+                                                : " · Compromiso manual"
+                                            : event.source === "fixed_income"
+                                                ? " · Renta fija"
+                                                : event.source === "savings_simulation"
+                                                    ? " · Ahorro automático (simulado)"
+                                                    : account ? ` · ${account.name}` : ""
                             }
                             {event.isOverdue ? " · Vencido" : ""}
                         </p>
@@ -550,6 +624,25 @@ export function ForecastClient({
                     </p>
                 </div>
             </motion.header>
+
+            <ForecastSavedViews
+                views={savedViews}
+                selection={viewSelection}
+                onSelectionChange={selectView}
+                hasUnsavedSimulation={simulation !== null && !simulation.id}
+                settings={{
+                    rangePresetDays: activePreset,
+                    startsOn: startsAtValue,
+                    endsOn: endsAtValue,
+                    currency,
+                    accountKind,
+                    accountIds: [...selectedAccountIds],
+                    granularity,
+                    savingsMode,
+                    chartView,
+                    savingsSimulationId: simulation?.id ?? null,
+                }}
+            />
 
             <ForecastControls
                 startsAt={startsAtValue}
@@ -794,15 +887,26 @@ export function ForecastClient({
                         {visibleEvents.length > 0 && timelineGroups.map((group) => {
                             const periodKey = `${granularity}:${group.key}`;
                             const isExpanded = !group.label || expandedPeriods.has(periodKey);
+                            const focusedAccountId = group.label ? expandedPeriods.get(periodKey) ?? null : null;
+                            const shownItems = focusedAccountId
+                                ? group.items.filter((item) => itemTouchesAccount(item, focusedAccountId))
+                                : group.items;
                             const movementCount = group.items.reduce((total, item) => total + (item.kind === "event" ? 1 : item.days), 0);
 
                             return (
                                 <div key={group.key}>
                                     {group.label && (
-                                        <button
-                                            type="button"
+                                        <div
+                                            role="button"
+                                            tabIndex={0}
                                             aria-expanded={isExpanded}
                                             onClick={() => togglePeriod(periodKey)}
+                                            onKeyDown={(keyEvent) => {
+                                                if (keyEvent.target !== keyEvent.currentTarget) return;
+                                                if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                                                keyEvent.preventDefault();
+                                                togglePeriod(periodKey);
+                                            }}
                                             className="w-full cursor-pointer border-b bg-muted/40 px-4 py-3 text-left transition-colors hover:bg-muted/70 sm:px-5"
                                         >
                                             <span className="flex items-center gap-2 text-sm font-semibold">
@@ -816,12 +920,25 @@ export function ForecastClient({
                                                 summaries={summarizeTimelinePeriod(group.items, accountTypes, summaryMerges)}
                                                 accounts={forecast.accounts}
                                                 names={summaryNames}
+                                                focusedAccountId={isExpanded ? focusedAccountId : null}
+                                                onSelect={(accountId) => togglePeriod(periodKey, accountId)}
                                             />
-                                        </button>
+                                        </div>
                                     )}
-                                    {isExpanded && (
-                                        <div className="divide-y border-b last:border-b-0">
-                                            {group.items.map((item) => item.kind === "event"
+                                    <AnimatedCollapse open={isExpanded}>
+                                        <motion.div
+                                            key={focusedAccountId ?? "all"}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="divide-y"
+                                        >
+                                            {focusedAccountId && !shownItems.length && (
+                                                <p className="p-5 text-sm text-muted-foreground">
+                                                    No hay movimientos de esta cuenta en el periodo.
+                                                </p>
+                                            )}
+                                            {shownItems.map((item) => item.kind === "event"
                                                 ? renderTimelineEvent(item.event)
                                                 : renderTimelineEvent(
                                                     {
@@ -834,8 +951,8 @@ export function ForecastClient({
                                                         ? `${formatAppDate(item.firstAt, { day: "numeric", month: "short" })} – ${formatAppDate(item.last.scheduledAt, { day: "numeric", month: "short" })}`
                                                         : undefined,
                                                 ))}
-                                        </div>
-                                    )}
+                                        </motion.div>
+                                    </AnimatedCollapse>
                                 </div>
                             );
                         })}
@@ -932,6 +1049,35 @@ export function ForecastClient({
     );
 }
 
+function AnimatedCollapse({ open, children }: { open: boolean; children: ReactNode }) {
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [height, setHeight] = useState<number | "auto">("auto");
+
+    useEffect(() => {
+        const content = contentRef.current;
+        if (!open || !content) return;
+        const observer = new ResizeObserver(([entry]) => setHeight(entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height));
+        observer.observe(content);
+        return () => observer.disconnect();
+    }, [open]);
+
+    return (
+        <AnimatePresence initial={false}>
+            {open && (
+                <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height, opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                >
+                    <div ref={contentRef}>{children}</div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+    );
+}
+
 function EmptyState() {
     return (
         <motion.section
@@ -952,18 +1098,19 @@ function EmptyState() {
     );
 }
 
-function PeriodAccountSummaries({ summaries, accounts, names }: {
+function PeriodAccountSummaries({ summaries, accounts, names, focusedAccountId, onSelect }: {
     summaries: ForecastPeriodAccountSummary[];
     accounts: Array<{ id: string; name: string; type: string; currency: string }>;
     names: Map<string, string>;
+    focusedAccountId: string | null;
+    onSelect: (accountId: string) => void;
 }) {
-    const nameOf = (accountId: string) => names.get(accountId)
-        || accounts.find((account) => account.id === accountId)?.name
-        || "";
+    const nameOf = (accountId: string) => names.get(accountId) || accounts.find((account) => account.id === accountId)?.name || "";
     const rows = accounts.flatMap((account) => {
         const summary = summaries.find((item) => item.accountId === account.id);
         return summary ? [{ account, summary }] : [];
     });
+    
     if (!rows.length) return null;
 
     return (
@@ -979,7 +1126,19 @@ function PeriodAccountSummaries({ summaries, accounts, names }: {
                 ].filter((figure) => figure.value > 0);
 
                 return (
-                    <span key={account.id} className="rounded-lg bg-background/60 px-2.5 py-1.5 text-xs">
+                    <button
+                        key={account.id}
+                        type="button"
+                        aria-pressed={focusedAccountId === account.id}
+                        onClick={(clickEvent) => {
+                            clickEvent.stopPropagation();
+                            onSelect(account.id);
+                        }}
+                        className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-left text-xs ring-1 transition-colors ${focusedAccountId === account.id
+                            ? "bg-background ring-foreground/30"
+                            : "bg-background/60 ring-transparent hover:bg-background"
+                            }`}
+                    >
                         <span className="block font-medium">{nameOf(account.id)}</span>
                         <span className="mt-0.5 block text-muted-foreground">
                             {figures.map((figure) => `${figure.label} ${figure.sign}${money(figure.value, account.currency)}`).join(" · ")}
@@ -995,7 +1154,7 @@ function PeriodAccountSummaries({ summaries, accounts, names }: {
                                 ` · En ${nameOf(merged.accountId)} ${money(merged.balance, account.currency)}`
                             ))}
                         </span>
-                    </span>
+                    </button>
                 );
             })}
         </span>
