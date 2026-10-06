@@ -2,9 +2,7 @@
 
 import { useTransition } from "react";
 import toast from "react-hot-toast";
-import {
-    PiggyBank, Save, Trash2
-} from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +12,7 @@ import {
 import { deleteSavingsSimulation, saveSavingsSimulation } from "../actions/savings-simulation-actions";
 import type { LinkedSavings } from "../domain/linked-savings";
 import { getSweepableSavings } from "../domain/savings-sweep";
+import { formatMoney } from "./forecast-ui";
 
 export type SavingsSimulationDraft = {
     id?: string;
@@ -34,9 +33,6 @@ interface Props {
     onChange: (value: SavingsSimulationDraft | null) => void;
 }
 
-function money(value: number, currency: string) {
-    return new Intl.NumberFormat("es-MX", { style: "currency", currency, maximumFractionDigits: 2 }).format(value);
-}
 
 export function ForecastSavingsSimulation({ accounts, linkedSavings, simulations, value, onChange }: Props) {
     const router = useRouter();
@@ -111,21 +107,9 @@ export function ForecastSavingsSimulation({ accounts, linkedSavings, simulations
     }
 
     return (
-        <section className="space-y-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="flex gap-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-                        <PiggyBank className="size-5" />
-                    </span>
-                    <div>
-                        <h2 className="font-semibold">Ahorro automático</h2>
-                        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                            Simula que cada ingreso de una cuenta se va a una de sus cajitas y que, antes de cada
-                            pago, se retira de la cajita lo que haga falta. No modifica tus cuentas reales.
-                        </p>
-                    </div>
-                </div>
-                <div className="flex flex-col gap-2 md:w-72">
+        <section className="space-y-4">
+            <div className="flex flex-col gap-3">
+                <div className="flex w-full flex-col gap-2">
                     <FormLabel>Simulación</FormLabel>
                     <FormSelect
                         value={value ? value.id ?? "new" : "none"}
@@ -162,7 +146,7 @@ export function ForecastSavingsSimulation({ accounts, linkedSavings, simulations
                                 onValueChange={(positionId) => onChange({ ...value, positionId })}
                                 options={accountSavings.map((saving) => ({
                                     value: saving.positionId,
-                                    label: `${saving.name} · ${money(saving.balance, saving.currency)} · ${(saving.annualRate * 100).toFixed(2)}%`,
+                                    label: `${saving.name} · ${formatMoney(saving.balance, saving.currency)} · ${(saving.annualRate * 100).toFixed(2)}%`,
                                 }))}
                             />
                         </div>

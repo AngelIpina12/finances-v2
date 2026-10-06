@@ -3,12 +3,7 @@
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import type { ProjectedForecastEvent } from "../domain/forecast-calculator";
-
-function money(value: number, currency: string) {
-    return new Intl.NumberFormat("es-MX", {
-        style: "currency", currency, maximumFractionDigits: 2,
-    }).format(value);
-}
+import { formatMoney } from "./forecast-ui";
 
 export function CardPaymentBreakdown({ event }: { event: ProjectedForecastEvent }) {
     const breakdown = event.cardPaymentBreakdown;
@@ -25,25 +20,25 @@ export function CardPaymentBreakdown({ event }: { event: ProjectedForecastEvent 
                     />
                 )}
                 {breakdown.statementBalance > 0 && (
-                    <BreakdownItem label="Pago informado por el banco" value={money(breakdown.statementBalance, event.currency)} />
+                    <BreakdownItem label="Pago informado por el banco" value={formatMoney(breakdown.statementBalance, event.currency)} />
                 )}
                 {breakdown.calculatedStatementBalance !== null && breakdown.calculatedStatementBalance !== undefined && (
-                    <BreakdownItem label="Pago calculado con tus movimientos" value={money(breakdown.calculatedStatementBalance, event.currency)} />
+                    <BreakdownItem label="Pago calculado con tus movimientos" value={formatMoney(breakdown.calculatedStatementBalance, event.currency)} />
                 )}
                 {breakdown.trackedInstallments > 0 && (
-                    <BreakdownItem label="Cuotas rastreadas aparte" value={money(breakdown.trackedInstallments, event.currency)} />
+                    <BreakdownItem label="Cuotas rastreadas aparte" value={formatMoney(breakdown.trackedInstallments, event.currency)} />
                 )}
                 {breakdown.untrackedStatement > 0 && (
-                    <BreakdownItem label="Base usada en la previsión" value={money(breakdown.untrackedStatement, event.currency)} />
+                    <BreakdownItem label="Base usada en la previsión" value={formatMoney(breakdown.untrackedStatement, event.currency)} />
                 )}
                 {breakdown.projectedCharges > 0 && (
-                    <BreakdownItem label="Cargos previstos del ciclo" value={money(breakdown.projectedCharges, event.currency)} />
+                    <BreakdownItem label="Cargos previstos del ciclo" value={formatMoney(breakdown.projectedCharges, event.currency)} />
                 )}
                 <BreakdownItem
                     label="Pago esperado"
                     value={breakdown.expectedPayment === null
                         ? "Por confirmar manualmente"
-                        : money(breakdown.expectedPayment, event.currency)
+                        : formatMoney(breakdown.expectedPayment, event.currency)
                     }
                 />
             </dl>
