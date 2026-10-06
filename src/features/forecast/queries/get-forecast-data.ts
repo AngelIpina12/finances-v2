@@ -13,18 +13,18 @@ import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/doma
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
 import type { LinkedSavings } from "../domain/linked-savings";
 import type { SavedForecastView } from "../domain/forecast-view";
+import { FORECAST_HORIZON_DAYS } from "../domain/forecast-horizon";
 import {
     calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest
 } from "@/src/features/fixed-income/domain/fixed-income-calculator";
 import { addAppCalendarDays } from "@/src/shared/utils/local-date-time";
 
-const FORECAST_DAYS = 180;
 
 type StoredCalendarEntry = { scheduledAt: string; amount?: number };
 type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
-    const until = new Date(now.getTime() + FORECAST_DAYS * 24 * 60 * 60 * 1000);
+    const until = new Date(now.getTime() + FORECAST_HORIZON_DAYS * 24 * 60 * 60 * 1000);
     const [
         accounts, occurrences, cardPaymentSettings,
         rules, forecastBudgets, completedTransactions,
