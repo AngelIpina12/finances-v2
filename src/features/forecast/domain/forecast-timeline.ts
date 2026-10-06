@@ -16,6 +16,8 @@ export type ForecastTimelinePoint = {
     balanceChange: number | null;
     periodIncomes: number;
     periodExpenses: number;
+    yields: number;
+    periodYields: number;
 };
 
 function roundMoney(value: number) {
@@ -52,6 +54,7 @@ export function buildForecastTimeline(input: {
     let eventIndex = 0;
     let incomes = 0;
     let expenses = 0;
+    let yields = 0;
 
     function currentValue() {
         return roundMoney(scopedAccounts.reduce((total, account) => {
@@ -74,6 +77,7 @@ export function buildForecastTimeline(input: {
 
             if (!countFlows || !event.affectsBalance || (inAccount && inSettledAccount)) continue;
             if (inAccount) {
+                if (event.dailyYieldGroup && event.transactionType === "income") yields += event.amount;
                 if (event.transactionType === "income") incomes += event.amount;
                 else expenses += event.amount;
             } else if (inSettledAccount) {
@@ -93,6 +97,8 @@ export function buildForecastTimeline(input: {
         balanceChange: null,
         periodIncomes: 0,
         periodExpenses: 0,
+        yields: 0,
+        periodYields: 0,
     }];
     let previous = points[0];
 
@@ -120,6 +126,8 @@ export function buildForecastTimeline(input: {
             balanceChange: roundMoney(balance - previous.balance),
             periodIncomes: roundMoney(incomes - previous.incomes),
             periodExpenses: roundMoney(expenses - previous.expenses),
+            yields: roundMoney(yields),
+            periodYields: roundMoney(yields - previous.yields),
         };
         points.push(point);
         previous = point;

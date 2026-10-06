@@ -125,6 +125,25 @@ describe("buildForecastTimeline", () => {
         expect(points[0]).toEqual(expect.objectContaining({ balanceChange: -400, periodExpenses: 400 }));
         expect(points[1]).toEqual(expect.objectContaining({ balanceChange: 550, periodIncomes: 900, periodExpenses: 350 }));
     });
+
+    it("acumula aparte los rendimientos diarios de las cajitas", () => {
+        const yieldEvents = [1, 2, 3].map((day) => event({
+            id: `rendimiento-${day}`, amount: 10, transactionType: "income", source: "fixed_income",
+            dailyYieldGroup: "fixed-income:cajita", scheduledAt: new Date(`2026-10-0${day}T12:00:00.000Z`),
+        }));
+        const forecast = buildForecast({ accounts: [debit], events: [...events, ...yieldEvents], now, days: 5 });
+        const { points } = buildForecastTimeline({
+            accounts: [debit],
+            events: forecast.events,
+            accountIds: new Set(["debit"]),
+            startsAt,
+            endsAt: new Date("2026-10-05T06:00:00.000Z"),
+            granularity: "day",
+        });
+
+        expect(points.map((point) => point.periodYields)).toEqual([0, 0, 10, 10, 10, 0]);
+        expect(points.at(-1)).toEqual(expect.objectContaining({ yields: 30, incomes: 930 }));
+    });
 });
 
 describe("groupTimelineEvents", () => {

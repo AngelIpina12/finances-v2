@@ -63,6 +63,7 @@ describe("buildLiquidityRangeSummaries", () => {
             cardPayments: 400,
             financingPayments: 200,
             minimum: 700,
+            minimumAt: new Date("2026-09-11T18:00:00.000Z"),
             ending: 700,
             firstNegativeAt: null,
         }));

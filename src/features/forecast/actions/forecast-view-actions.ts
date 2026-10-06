@@ -6,13 +6,14 @@ import { z } from "zod";
 import { db } from "@/src/db";
 import { forecastSavingsSimulations, forecastViews } from "@/src/db/schema";
 import { requireAuth } from "@/src/lib/auth-server";
+import { FORECAST_HORIZON_DAYS } from "../domain/forecast-horizon";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.");
 
 const viewSchema = z.object({
     id: z.uuid("La previsión no es válida.").optional(),
     name: z.string().trim().min(1, "Ponle un nombre a la previsión.").max(80, "El nombre no puede superar 80 caracteres."),
-    rangePresetDays: z.number().int().min(1).max(180).nullable(),
+    rangePresetDays: z.number().int().min(1).max(FORECAST_HORIZON_DAYS).nullable(),
     startsOn: dateSchema,
     endsOn: dateSchema,
     currency: z.string().min(1).max(8),
@@ -20,7 +21,7 @@ const viewSchema = z.object({
     accountIds: z.array(z.uuid()).max(200),
     granularity: z.enum(["day", "week", "month"]),
     savingsMode: z.enum(["exclude", "principal", "with_yield"]),
-    chartView: z.enum(["balance", "flows", "savings"]),
+    chartView: z.enum(["balance", "flows", "savings", "yields"]),
     savingsSimulationId: z.uuid().nullable(),
     isDefault: z.boolean(),
 }).refine((view) => view.startsOn < view.endsOn, { message: "La fecha final debe ser posterior a la inicial." });

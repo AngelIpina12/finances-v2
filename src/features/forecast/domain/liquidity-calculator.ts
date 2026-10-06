@@ -11,6 +11,7 @@ export type LiquidityRangeSummary = {
     cardPayments: number;
     financingPayments: number;
     minimum: number;
+    minimumAt: Date;
     ending: number;
     firstNegativeAt: Date | null;
 };
@@ -63,6 +64,7 @@ export function buildLiquidityRangeSummaries(input: {
         const starting = today + priorDelta;
         let running = starting;
         let minimum = starting;
+        let minimumAt = input.startsAt;
         let firstNegativeAt: Date | null = starting < 0 ? input.startsAt : null;
         let incomes = 0;
         let directExpenses = 0;
@@ -74,7 +76,10 @@ export function buildLiquidityRangeSummaries(input: {
             if (delta === 0) continue;
 
             running += delta;
-            minimum = Math.min(minimum, running);
+            if (running < minimum) {
+                minimum = running;
+                minimumAt = event.scheduledAt;
+            }
             if (running < 0 && firstNegativeAt === null) firstNegativeAt = event.scheduledAt;
 
             if (delta > 0) incomes += delta;
@@ -86,7 +91,7 @@ export function buildLiquidityRangeSummaries(input: {
         return {
             currency, today, starting,
             incomes, directExpenses, cardPayments,
-            financingPayments, minimum, ending: running,
+            financingPayments, minimum, minimumAt, ending: running,
             firstNegativeAt,
         };
     });

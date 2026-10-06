@@ -1,7 +1,7 @@
 import type { ForecastGranularity } from "./forecast-calculator";
 import type { LinkedSavingsMode } from "./linked-savings";
 export type ForecastViewAccountKind = "all" | "debit" | "credit";
-export type ForecastViewChartView = "balance" | "flows" | "savings";
+export type ForecastViewChartView = "balance" | "flows" | "savings" | "yields";
 
 export type ForecastViewSettings = {
     rangePresetDays: number | null;
@@ -41,4 +41,27 @@ export function resolveForecastViewRange(
     const startsOn = clampDate(view.startsOn, minimumDate, lastStart);
     const endsOn = clampDate(view.endsOn, addDays(startsOn, 1), maximumDate);
     return { startsOn, endsOn, preset: null };
+}
+
+export type ForecastViewDraft = ForecastViewSettings & { startsOn: string; endsOn: string };
+
+export function matchesAccountKind(type: string, kind: ForecastViewAccountKind) {
+    if (kind === "all") return true;
+    if (kind === "credit") return type === "credit";
+    return type === "debit" || type === "cash" || type === "wallet";
+}
+
+export function isSameForecastViewSettings(view: ForecastViewSettings, draft: ForecastViewDraft) {
+    const sameRange = view.rangePresetDays === null
+        ? draft.rangePresetDays === null && view.startsOn === draft.startsOn && view.endsOn === draft.endsOn
+        : view.rangePresetDays === draft.rangePresetDays;
+
+    return sameRange
+        && view.currency === draft.currency
+        && view.accountKind === draft.accountKind
+        && [...view.accountIds].sort().join() === [...draft.accountIds].sort().join()
+        && view.granularity === draft.granularity
+        && view.savingsMode === draft.savingsMode
+        && view.chartView === draft.chartView
+        && view.savingsSimulationId === draft.savingsSimulationId;
 }
