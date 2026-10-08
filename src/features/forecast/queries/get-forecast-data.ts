@@ -3,17 +3,19 @@ import { db } from "@/src/db";
 import {
     creditCardPaymentSettings, financialAccounts, financingInstallments,
     financingPlans, recurringRules, scheduledOccurrences,
-    budgets, transactions, fixedIncomePositions,
+    budgets, budgetAllocations, transactions, fixedIncomePositions,
     creditCardPaymentDismissals, forecastSavingsSimulations, forecastViews,
 } from "@/src/db/schema";
 import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import { getLatestCycleClose, isAppCalendarDateBefore } from "../domain/credit-card-cycle";
-import { calculateCardStatement } from "../domain/card-statement-calculator";
+import { calculateCardStatement, type CardStatementItem } from "../domain/card-statement-calculator";
 import { getOccurrencesInHorizon } from "@/src/features/recurring-movements/domain/recurrence-calculator";
 import type { ForecastAccount, ForecastEvent } from "../domain/forecast-calculator";
+import { buildBudgetForecastEvents } from "../domain/budget-forecast";
 import type { LinkedSavings } from "../domain/linked-savings";
+import { getValidSweepRules } from "../domain/savings-sweep";
 import type { SavedForecastView } from "../domain/forecast-view";
-import { FORECAST_HORIZON_DAYS } from "../domain/forecast-horizon";
+import { getForecastHorizonEnd } from "../domain/forecast-horizon";
 import {
     calculateAccruedInterest, calculateNetInterest, calculateProjectedDailyNetInterest
 } from "@/src/features/fixed-income/domain/fixed-income-calculator";
@@ -24,12 +26,12 @@ type StoredCalendarEntry = { scheduledAt: string; amount?: number };
 type StoredDateOverride = StoredCalendarEntry & { originalScheduledAt: string };
 
 export async function getForecastData(userId: string, now = new Date()) {
-    const until = new Date(now.getTime() + FORECAST_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+    const until = getForecastHorizonEnd();
     const [
         accounts, occurrences, cardPaymentSettings,
         rules, forecastBudgets, completedTransactions,
         dismissedCardPayments, fixedIncome, savedSimulations,
-        savedViews,
+        savedViews, forecastBudgetAllocations,
     ] = await Promise.all([
         db
             .select({
@@ -123,6 +125,7 @@ export async function getForecastData(userId: string, now = new Date()) {
                 currency: budgets.currency,
                 startsAt: budgets.startsAt,
                 endsAt: budgets.endsAt,
+                isReusable: budgets.isReusable,
                 forecastAccountId: budgets.forecastAccountId
             })
             .from(budgets)
@@ -144,6 +147,8 @@ export async function getForecastData(userId: string, now = new Date()) {
                 currency: transactions.currency,
                 merchant: transactions.merchant,
                 date: transactions.date,
+                categoryId: transactions.categoryId,
+                budgetAmount: transactions.budgetAmount,
             })
             .from(transactions)
             .where(and(
@@ -167,9 +172,7 @@ export async function getForecastData(userId: string, now = new Date()) {
             .select({
                 id: forecastSavingsSimulations.id,
                 name: forecastSavingsSimulations.name,
-                accountId: forecastSavingsSimulations.accountId,
-                positionId: forecastSavingsSimulations.positionId,
-                minimumBalance: forecastSavingsSimulations.minimumBalance,
+                rules: forecastSavingsSimulations.rules,
                 isDefault: forecastSavingsSimulations.isDefault,
             })
             .from(forecastSavingsSimulations)
@@ -194,6 +197,18 @@ export async function getForecastData(userId: string, now = new Date()) {
             .from(forecastViews)
             .where(eq(forecastViews.userId, userId))
             .orderBy(asc(forecastViews.name)),
+        db
+            .select({
+                budgetId: budgetAllocations.budgetId,
+                categoryId: budgetAllocations.categoryId,
+            })
+            .from(budgetAllocations)
+            .innerJoin(budgets, eq(budgetAllocations.budgetId, budgets.id))
+            .where(and(
+                eq(budgets.userId, userId),
+                eq(budgets.includeInForecast, true),
+                isNull(budgets.deletedAt),
+            )),
     ]);
 
     const activeAccountIds = new Set(accounts.map((account) => account.id));
@@ -228,8 +243,9 @@ export async function getForecastData(userId: string, now = new Date()) {
         .map((account) => [account.id, account]));
 
     const calculatedStatementBalances = new Map<string, number>();
+    const statementItemsByCard = new Map<string, CardStatementItem[]>();
     for (const card of creditCardsById.values()) {
-        const { calculatedStatementBalance } = calculateCardStatement({
+        const { calculatedStatementBalance, items } = calculateCardStatement({
             cardId: card.id,
             billingDate: card.billingDate!,
             paymentTermDays: cardPaymentSettings.find((setting) => (
@@ -237,6 +253,8 @@ export async function getForecastData(userId: string, now = new Date()) {
             ))?.paymentTermDays ?? 0,
             now,
             transactions: completedTransactions.map((transaction) => ({
+                id: transaction.id,
+                name: transaction.merchant,
                 accountId: transaction.accountId,
                 type: transaction.type,
                 transferDirection: transaction.transferDirection,
@@ -245,6 +263,8 @@ export async function getForecastData(userId: string, now = new Date()) {
                 date: transaction.date,
             })),
             installmentOccurrences: occurrences.map((occurrence) => ({
+                id: occurrence.id,
+                name: occurrence.name,
                 accountId: occurrence.accountId,
                 source: occurrence.source,
                 status: occurrence.status,
@@ -254,6 +274,7 @@ export async function getForecastData(userId: string, now = new Date()) {
         });
         if (calculatedStatementBalance !== null) {
             calculatedStatementBalances.set(card.id, calculatedStatementBalance);
+            statementItemsByCard.set(card.id, items);
         }
     }
 
@@ -321,28 +342,32 @@ export async function getForecastData(userId: string, now = new Date()) {
             })));
     }
 
-    for (const budget of forecastBudgets) {
-        if (!budget.forecastAccountId || !activeAccountIds.has(budget.forecastAccountId)) continue;
-        const account = accounts.find((item) => item.id === budget.forecastAccountId);
-        if (!account || account.currency !== budget.currency) continue;
-        const anchor = new Date(budget.startsAt);
-        for (let index = 0; ; index += 1) {
-            const scheduledAt = new Date(now.getFullYear(), now.getMonth() + index, Math.min(anchor.getDate(), 28), anchor.getHours(), anchor.getMinutes());
-            if (scheduledAt < now || scheduledAt < anchor) continue;
-            if (scheduledAt >= until || (budget.endsAt && scheduledAt >= budget.endsAt)) break;
-            events.push({
-                id: `budget:${budget.id}:${scheduledAt.toISOString()}`,
-                accountId: budget.forecastAccountId,
-                source: "budget",
-                name: `Presupuesto estimado · ${budget.name}`,
+    events.push(...buildBudgetForecastEvents({
+        budgets: forecastBudgets.flatMap((budget) => {
+            const account = accounts.find((item) => item.id === budget.forecastAccountId);
+            if (!budget.forecastAccountId || !account || account.currency !== budget.currency) return [];
+
+            return [{
+                ...budget,
+                forecastAccountId: budget.forecastAccountId,
                 amount: Number(budget.amount),
                 currency: budget.currency as ForecastEvent["currency"],
-                scheduledAt,
-                transactionType: "expense",
-                affectsBalance: true
-            });
-        }
-    }
+                categoryIds: forecastBudgetAllocations
+                    .filter((allocation) => allocation.budgetId === budget.id)
+                    .map((allocation) => allocation.categoryId),
+            }];
+        }),
+        expenses: completedTransactions
+            .filter((transaction) => transaction.type === "expense")
+            .map((transaction) => ({
+                categoryId: transaction.categoryId,
+                currency: transaction.currency,
+                date: transaction.date,
+                amount: Number(transaction.budgetAmount ?? transaction.amount),
+            })),
+        now,
+        until,
+    }));
 
     const linkedSavings: LinkedSavings[] = [];
 
@@ -446,6 +471,7 @@ export async function getForecastData(userId: string, now = new Date()) {
             statementBalance: account.statementBalance === null ? null : Number(account.statementBalance),
             minimumPayment: account.minimumPayment === null ? null : Number(account.minimumPayment),
             calculatedStatementBalance: calculatedStatementBalances.get(account.id) ?? null,
+            statementItems: statementItemsByCard.get(account.id),
             type: account.type as ForecastAccount["type"],
             currency: account.currency as ForecastEvent["currency"],
         })),
@@ -465,12 +491,14 @@ export async function getForecastData(userId: string, now = new Date()) {
         dismissedCardPayments,
         linkedSavings,
         savingsSimulations: savedSimulations
-            .filter((simulation) => linkedSavings.some((saving) => (
-                saving.positionId === simulation.positionId
-                && saving.accountId === simulation.accountId
-                && saving.hasDailyInterest
-            )))
-            .map((simulation) => ({ ...simulation, minimumBalance: Number(simulation.minimumBalance) })),
+            .map((simulation) => ({
+                ...simulation,
+                rules: getValidSweepRules(simulation.rules.map((rule) => ({
+                    ...rule,
+                    minimumBalance: Number(rule.minimumBalance),
+                })), linkedSavings),
+            }))
+            .filter((simulation) => simulation.rules.length > 0),
         savedViews: savedViews.map((view) => view as SavedForecastView),
         events,
     };

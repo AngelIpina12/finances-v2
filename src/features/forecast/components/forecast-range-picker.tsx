@@ -13,7 +13,9 @@ import {
     addAppCalendarDays, formatAppDate, toAppDateInputValue,
 } from "@/src/shared/utils/local-date-time";
 import { fromForecastDateInput } from "../utils/forecast-filters";
-import { FORECAST_RANGE_PRESETS, formatRangePreset } from "../domain/forecast-horizon";
+import {
+    FORECAST_RANGE_PRESETS, forecastRangeDays, formatRangePreset
+} from "../domain/forecast-horizon";
 
 
 type RangeProps = {
@@ -56,12 +58,17 @@ export function formatForecastRange(startsOn: string, endsOn: string) {
     return startsOn === lastDay ? shortDate(startsOn) : `${shortDate(startsOn)} – ${shortDate(lastDay)}`;
 }
 
-export function ForecastRangePresets({ activePreset, onPresetChange, className }: Pick<Props, "activePreset" | "onPresetChange"> & {
+export function ForecastRangePresets({
+    activePreset, onPresetChange, minimumDate,
+    maximumDate, className,
+}: Pick<Props, "activePreset" | "onPresetChange" | "minimumDate" | "maximumDate"> & {
     className?: string;
 }) {
+    const availableDays = forecastRangeDays(minimumDate, maximumDate);
+
     return (
         <div className={cn("flex items-center rounded-lg bg-muted p-0.5", className)}>
-            {FORECAST_RANGE_PRESETS.map((days) => (
+            {FORECAST_RANGE_PRESETS.filter((days) => days <= availableDays).map((days) => (
                 <button
                     key={days}
                     type="button"
@@ -82,7 +89,9 @@ export function ForecastRangePresets({ activePreset, onPresetChange, className }
 }
 
 export function ForecastRangeCalendar({
-    startsOn, endsOn, minimumDate, maximumDate, onRangeChange, numberOfMonths = 1, onPicked,
+    startsOn, endsOn, minimumDate,
+    maximumDate, onRangeChange, numberOfMonths = 1,
+    onPicked,
 }: RangeProps & { numberOfMonths?: number; onPicked?: () => void }) {
     const [pendingStart, setPendingStart] = useState<Date | null>(null);
     const selected: DateRange = pendingStart
@@ -127,7 +136,12 @@ export function ForecastRangePicker({ activePreset, onPresetChange, ...range }: 
 
     return (
         <div className="flex shrink-0 items-center gap-1">
-            <ForecastRangePresets activePreset={activePreset} onPresetChange={onPresetChange} />
+            <ForecastRangePresets
+                activePreset={activePreset}
+                onPresetChange={onPresetChange}
+                minimumDate={range.minimumDate}
+                maximumDate={range.maximumDate}
+            />
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger
                     render={(

@@ -1,6 +1,4 @@
-import type {
-    ForecastAccount, ProjectedForecastEvent,
-} from "./forecast-calculator";
+import type { ForecastAccount, ProjectedForecastEvent } from "./forecast-calculator";
 
 export type LiquidityRangeSummary = {
     currency: ForecastAccount["currency"];

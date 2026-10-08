@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { buildForecast, type ForecastAccount, type ForecastEvent } from "./forecast-calculator";
+import {
+    describe, expect, it
+} from "vitest";
+import {
+    buildForecast, type ForecastAccount, type ForecastEvent
+} from "./forecast-calculator";
 import type { LinkedSavings } from "./linked-savings";
-import { applySavingsSweep, simulatedSavingsAccountId } from "./savings-sweep";
+import {
+    applySavingsSweep, getValidSweepRules, simulatedSavingsAccountId
+} from "./savings-sweep";
 
 const now = new Date("2026-10-01T15:00:00.000Z");
 const savingsId = simulatedSavingsAccountId("cajita");
@@ -32,7 +38,7 @@ function simulate(events: ForecastEvent[], savings: LinkedSavings, minimumBalanc
         events,
         savings: [savings],
         mode: "exclude",
-        rule: { accountId: "debit", positionId: "cajita", minimumBalance },
+        rules: [{ accountId: "debit", positionId: "cajita", minimumBalance }],
         settings: [],
         dismissedCardPaymentKeys: [],
         now,
@@ -56,10 +62,10 @@ describe("applySavingsSweep", () => {
         expect(forecast.events
             .filter((item) => item.source === "savings_simulation")
             .map((item) => [item.name, item.amount])).toEqual([
-            ["Traspaso simulado a Cajita", 2100],
-            ["Retiro simulado de Cajita", 1500],
-            ["Retiro simulado de Cajita", 800],
-        ]);
+                ["Traspaso simulado a Cajita", 2100],
+                ["Retiro simulado de Cajita", 1500],
+                ["Retiro simulado de Cajita", 800],
+            ]);
     });
 
     it("conserva el saldo mínimo en la cuenta", () => {
@@ -85,7 +91,6 @@ describe("applySavingsSweep", () => {
             .filter((item) => item.name.startsWith("Rendimiento simulado"))
             .map((item) => item.amount);
 
-        // El primer día la cajita está vacía; después rinde sobre $36,500.
         expect(yields[0]).toBe(10);
         expect(yields).toHaveLength(9);
     });
@@ -99,5 +104,42 @@ describe("applySavingsSweep", () => {
         const { projection } = simulate([originalYield], saving());
 
         expect(projection.events.some((item) => item.id === "rendimiento")).toBe(false);
+    });
+
+    it("aplica varias reglas a la vez: cada cuenta cubre sus gastos con su propia cajita", () => {
+        const revolut: ForecastAccount = { ...debit, id: "revolut", name: "Revolut Débito", currentBalance: 0 };
+        const budget: ForecastEvent = {
+            ...event("presupuesto", 2, -700), accountId: "revolut", source: "budget", name: "Presupuesto estimado · Comida",
+        };
+        const projection = applySavingsSweep({
+            accounts: [debit, revolut],
+            events: [event("nomina", 1, 2000), budget],
+            savings: [saving(), saving({ positionId: "revolut-15", accountId: "revolut", name: "Revolut 15%", balance: 3000 })],
+            mode: "exclude",
+            rules: [
+                { accountId: "debit", positionId: "cajita", minimumBalance: 0 },
+                { accountId: "revolut", positionId: "revolut-15", minimumBalance: 0 },
+            ],
+            settings: [],
+            dismissedCardPaymentKeys: [],
+            now,
+            days: 10,
+        });
+        const forecast = buildForecast({ accounts: projection.accounts, events: projection.events, now, days: 10 });
+        const balance = (id: string) => forecast.accounts.find((account) => account.id === id)?.projectedBalance;
+
+        expect(balance("revolut")).toBe(0);
+        expect(balance(simulatedSavingsAccountId("revolut-15"))).toBe(2300);
+        expect(balance(savingsId)).toBe(3100);
+    });
+
+    it("descarta reglas repetidas o con cajitas que no rinden diario", () => {
+        const savings = [saving(), saving({ positionId: "mensual", hasDailyInterest: false })];
+
+        expect(getValidSweepRules([
+            { accountId: "debit", positionId: "cajita", minimumBalance: 0 },
+            { accountId: "debit", positionId: "cajita", minimumBalance: 100 },
+            { accountId: "debit", positionId: "mensual", minimumBalance: 0 },
+        ], savings)).toEqual([{ accountId: "debit", positionId: "cajita", minimumBalance: 0 }]);
     });
 });

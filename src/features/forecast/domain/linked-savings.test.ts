@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { buildForecast, type ForecastAccount, type ForecastEvent } from "./forecast-calculator";
 import {
-    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts, type LinkedSavingsMode,
+    describe, expect, it
+} from "vitest";
+import {
+    buildForecast, type ForecastAccount, type ForecastEvent
+} from "./forecast-calculator";
+import {
+    applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts,
+    type LinkedSavingsMode,
 } from "./linked-savings";
 
 const now = new Date("2026-09-05T12:00:00.000Z");
@@ -68,7 +73,6 @@ describe("applyLinkedSavings", () => {
             fundingAccountId: "debit", includeInLiquidity: true,
         }));
         expect(projection.events.map((event) => event.id)).toEqual(["rent", "principal"]);
-        // Al vencer, el capital pasa de la cajita a la cuenta que lo recibe.
         expect(balanceOf(forecast, "debit")).toBe(600);
         expect(balanceOf(forecast, savingsId)).toBe(0);
     });

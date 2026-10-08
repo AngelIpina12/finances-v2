@@ -4,8 +4,9 @@ import { useState, type ReactNode } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-    Sheet, SheetContent, SheetDescription, SheetFooter,
-    SheetHeader, SheetTitle, SheetTrigger,
+    Sheet, SheetContent, SheetDescription,
+    SheetFooter, SheetHeader, SheetTitle,
+    SheetTrigger,
 } from "@/components/ui/sheet";
 import { SegmentedControl } from "@/src/shared/components/forms";
 import type { ForecastGranularity } from "../domain/forecast-calculator";
@@ -34,8 +35,9 @@ interface Props {
 }
 
 export function ForecastAdjustSheet({
-    draft, minimumDate, maximumDate, onPresetChange, onRangeChange,
-    onGranularityChange, filters, savings,
+    draft, minimumDate, maximumDate,
+    onPresetChange, onRangeChange, onGranularityChange,
+    filters, savings,
 }: Props) {
     const [open, setOpen] = useState(false);
     const allowsDaily = allowsDailyGranularity(forecastRangeDays(draft.startsOn, draft.endsOn));
@@ -65,7 +67,12 @@ export function ForecastAdjustSheet({
 
                 <div className="min-h-0 flex-1 divide-y overflow-y-auto border-y">
                     <Section title="Rango">
-                        <ForecastRangePresets activePreset={draft.rangePresetDays} onPresetChange={onPresetChange} />
+                        <ForecastRangePresets
+                            activePreset={draft.rangePresetDays}
+                            onPresetChange={onPresetChange}
+                            minimumDate={minimumDate}
+                            maximumDate={maximumDate}
+                        />
                         <div className="rounded-xl border">
                             <ForecastRangeCalendar
                                 startsOn={draft.startsOn}

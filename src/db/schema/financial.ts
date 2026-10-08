@@ -445,9 +445,8 @@ export const forecastSavingsSimulations = pgTable(
         id: uuid("id").defaultRandom().primaryKey(),
         userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
         name: text("name").notNull(),
-        accountId: uuid("account_id").notNull().references(() => financialAccounts.id, { onDelete: "cascade" }),
-        positionId: uuid("position_id").notNull().references(() => fixedIncomePositions.id, { onDelete: "cascade" }),
-        minimumBalance: numeric("minimum_balance", { precision: 15, scale: 2 }).notNull().default("0"),
+        /** Una regla por cuenta: sus ingresos se barren a la cajita y sus pagos retiran de ella. */
+        rules: jsonb("rules").$type<Array<{ accountId: string; positionId: string; minimumBalance: number }>>().notNull().default([]),
         isDefault: boolean("is_default").notNull().default(false),
         createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
         updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

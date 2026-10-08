@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
-import type {
-    ForecastAccount, ProjectedForecastEvent,
-} from "./forecast-calculator";
+import {
+    describe, expect, it
+} from "vitest";
+import type { ForecastAccount, ProjectedForecastEvent } from "./forecast-calculator";
 import { buildLiquidityRangeSummaries } from "./liquidity-calculator";
 
 const account: ForecastAccount = {

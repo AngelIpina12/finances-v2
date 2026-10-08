@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChevronDown, Layers3, X } from "lucide-react";
+import {
+    ChevronDown, Layers3, X
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuLabel,
-    DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuContent, DropdownMenuGroup,
+    DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ForecastGranularity } from "../domain/forecast-calculator";
 import type { LinkedSavings, LinkedSavingsMode } from "../domain/linked-savings";
@@ -126,7 +129,7 @@ export function ForecastToolbar(props: Props) {
 
     return (
         <div className="sticky top-3 z-30 space-y-2 dock-top:top-[calc(var(--dock-space)+0.75rem)]">
-            <div className="flex items-center gap-1.5 overflow-x-auto rounded-2xl border bg-card/90 p-1.5 shadow-sm backdrop-blur-md [scrollbar-width:none]">
+            <div className="flex items-center gap-1.5 overflow-x-auto rounded-2xl border bg-card/90 p-1.5 shadow-sm backdrop-blur-md scrollbar-none">
                 <ForecastViewMenu
                     views={props.views}
                     selection={props.viewSelection}

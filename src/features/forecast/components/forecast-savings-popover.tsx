@@ -108,7 +108,7 @@ export function ForecastSavingsPopover(props: FieldsProps) {
                 <PiggyBank className={props.simulation ? "text-primary" : "text-muted-foreground"} />
                 Ahorro
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[26rem] p-4">
+            <PopoverContent align="start" className="w-104 p-4">
                 <ForecastSavingsFields
                     {...props}
                     onEditSimulation={() => {
@@ -121,9 +121,10 @@ export function ForecastSavingsPopover(props: FieldsProps) {
     );
 }
 
-export function ForecastSimulationDialog({ open, onOpenChange, ...props }: Pick<Props, "accounts" | "linkedSavings" | "simulations" | "simulation" | "onSimulationChange"> & {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
+export function ForecastSimulationDialog({
+    open, onOpenChange, ...props
+}: Pick<Props, "accounts" | "linkedSavings" | "simulations" | "simulation" | "onSimulationChange"> & {
+    open: boolean; onOpenChange: (open: boolean) => void;
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

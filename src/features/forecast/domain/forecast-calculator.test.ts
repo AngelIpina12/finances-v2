@@ -1,7 +1,9 @@
 import {
     describe, expect, it
 } from "vitest";
-import { buildCashFlow, buildCreditDebtActivity, buildForecast } from "./forecast-calculator";
+import {
+    buildCashFlow, buildCreditDebtActivity, buildForecast
+} from "./forecast-calculator";
 
 const now = new Date("2026-09-05T12:00:00.000Z");
 

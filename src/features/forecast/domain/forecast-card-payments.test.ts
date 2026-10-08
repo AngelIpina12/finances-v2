@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
-    buildForecast, type CardPaymentSetting,
-    type ForecastAccount, type ForecastEvent,
+    describe, expect, it
+} from "vitest";
+import {
+    buildForecast, type CardPaymentSetting, type ForecastAccount,
+    type ForecastEvent,
 } from "./forecast-calculator";
 import { buildLiquidityRangeSummaries } from "./liquidity-calculator";
 
@@ -153,6 +155,41 @@ describe("credit card payment forecast", () => {
             }),
         ]));
         expect(result.events.find((event) => event.source === "posted_card_charge")).toBeUndefined();
+    });
+
+    it("detalla los cargos que integran el pago proyectado de un ciclo", () => {
+        const postedCharge: ForecastEvent = {
+            ...futureCharge,
+            id: "posted-charge",
+            source: "posted_card_charge",
+            name: "Compra ya realizada",
+            amount: 1200,
+            scheduledAt: new Date("2026-09-01T18:00:00.000Z"),
+            affectsBalance: false,
+        };
+        const budgetEstimate: ForecastEvent = {
+            ...futureCharge,
+            id: "budget",
+            source: "budget",
+            name: "Presupuesto estimado · Mamá",
+            amount: 500,
+            scheduledAt: new Date("2026-09-15T18:00:00.000Z"),
+        };
+        const result = buildForecast({
+            accounts: accounts(),
+            events: [postedCharge, budgetEstimate],
+            settings: [setting("full_statement")],
+            now,
+            days: 60,
+        });
+        const cyclePayment = result.events.find((event) => event.id.startsWith("card-cycle:"));
+
+        expect(cyclePayment?.amount).toBe(1700);
+        expect(cyclePayment?.cardPaymentBreakdown?.charges).toHaveLength(2);
+        expect(cyclePayment?.cardPaymentBreakdown?.charges).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: "posted-charge", source: "posted_card_charge", amount: 1200 }),
+            expect.objectContaining({ id: "budget", source: "budget", amount: 500 }),
+        ]));
     });
 
     it("mantiene separadas las cuotas MSI del pago informado para no generar intereses", () => {

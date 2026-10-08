@@ -3,9 +3,9 @@
 import { useId } from "react";
 import { MousePointerClick } from "lucide-react";
 import {
-    Area, Bar, CartesianGrid, ComposedChart,
-    Line, ReferenceLine, XAxis,
-    YAxis,
+    Area, Bar, CartesianGrid,
+    ComposedChart, Line, ReferenceLine,
+    XAxis, YAxis,
 } from "recharts";
 import {
     ChartContainer, ChartTooltip, type ChartConfig

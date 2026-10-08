@@ -13,6 +13,7 @@ import {
     getCycleCloseForCharge, getLatestCycleClose, getPaymentDueAt,
     isAppCalendarDateBefore,
 } from "./credit-card-cycle";
+import type { CardStatementItem } from "./card-statement-calculator";
 
 export type ForecastAccount = {
     id: string;
@@ -26,10 +27,19 @@ export type ForecastAccount = {
     minimumPayment: number | null;
     includeInLiquidity: boolean;
     calculatedStatementBalance?: number | null;
+    statementItems?: CardStatementItem[];
     fundingAccountId?: string;
 };
 
 export type ForecastEventSource = "scheduled" | "recurring" | "financing" | "budget" | "posted_card_charge" | "card_payment" | "fixed_income" | "savings_simulation";
+
+export type CardCycleCharge = {
+    id: string;
+    name: string;
+    amount: number;
+    scheduledAt: Date;
+    source: ForecastEventSource;
+};
 
 export type ForecastEvent = {
     id: string;
@@ -57,6 +67,8 @@ export type ForecastEvent = {
         projectedCharges: number;
         expectedPayment: number | null;
         closesAt: Date | null;
+        charges?: CardCycleCharge[];
+        statementItems?: CardStatementItem[];
     };
 };
 
@@ -160,6 +172,7 @@ export function buildCardPaymentEvents(input: {
                     calculatedStatementBalance: card.calculatedStatementBalance ?? null,
                     trackedInstallments,
                     untrackedStatement,
+                    statementItems: card.calculatedStatementBalance != null ? card.statementItems : undefined,
                     projectedCharges: 0,
                     expectedPayment: currentPayment,
                     closesAt: getLatestCycleClose(input.now, card.billingDate),
@@ -189,6 +202,7 @@ export function buildCardPaymentEvents(input: {
                     calculatedStatementBalance: card.calculatedStatementBalance ?? null,
                     trackedInstallments,
                     untrackedStatement,
+                    statementItems: card.calculatedStatementBalance != null ? card.statementItems : undefined,
                     projectedCharges: 0,
                     expectedPayment: null,
                     closesAt: getLatestCycleClose(input.now, card.billingDate),
@@ -196,7 +210,12 @@ export function buildCardPaymentEvents(input: {
             });
         }
 
-        const chargesByDueDate = new Map<string, { dueAt: Date; closesAt: Date; amount: number }>();
+        const chargesByDueDate = new Map<string, {
+            dueAt: Date;
+            closesAt: Date;
+            amount: number;
+            charges: CardCycleCharge[];
+        }>();
         for (const event of input.events) {
             if (event.accountId !== card.id || event.transactionType !== "expense" || event.source === "card_payment") continue;
             if (event.source === "financing" && event.scheduledAt <= currentDueAt) continue;
@@ -207,8 +226,15 @@ export function buildCardPaymentEvents(input: {
             );
             const cycleDueAt = getPaymentDueAt(closesAt, setting.paymentTermDays);
             const key = cycleDueAt.toISOString();
-            const cycle = chargesByDueDate.get(key) ?? { dueAt: cycleDueAt, closesAt, amount: 0 };
+            const cycle = chargesByDueDate.get(key) ?? { dueAt: cycleDueAt, closesAt, amount: 0, charges: [] };
             cycle.amount += event.amount;
+            cycle.charges.push({
+                id: event.id,
+                name: event.name,
+                amount: event.amount,
+                scheduledAt: event.scheduledAt,
+                source: event.source,
+            });
             chargesByDueDate.set(key, cycle);
         }
 
@@ -244,6 +270,7 @@ export function buildCardPaymentEvents(input: {
                         projectedCharges: cycle.amount,
                         expectedPayment: null,
                         closesAt: cycle.closesAt,
+                        charges: cycle.charges,
                     },
                 });
                 continue;
@@ -269,6 +296,7 @@ export function buildCardPaymentEvents(input: {
                     projectedCharges: cycle.amount,
                     expectedPayment: amount,
                     closesAt: cycle.closesAt,
+                    charges: cycle.charges,
                 },
             });
         }

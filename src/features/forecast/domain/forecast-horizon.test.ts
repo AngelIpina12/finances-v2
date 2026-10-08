@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
 import {
-    enforceGranularity, forecastRangeDays, formatRangePreset, suggestGranularity,
+    describe, expect, it
+} from "vitest";
+import {
+    enforceGranularity, forecastRangeDays, formatRangePreset,
+    getForecastHorizonDays, getForecastHorizonEnd, suggestGranularity,
 } from "./forecast-horizon";
 
 describe("forecast horizon", () => {
@@ -24,5 +27,14 @@ describe("forecast horizon", () => {
 
     it("nombra los presets cortos en días y los largos en meses", () => {
         expect([30, 90, 180, 365].map(formatRangePreset)).toEqual(["30d", "90d", "6m", "12m"]);
+    });
+
+    it("termina al iniciar el 1 de enero de 2028 en CDMX, así incluye todo el 31 de diciembre de 2027", () => {
+        expect(getForecastHorizonEnd().toISOString()).toBe("2028-01-01T06:00:00.000Z");
+    });
+
+    it("cuenta los días que faltan desde hoy hasta el límite", () => {
+        expect(getForecastHorizonDays(new Date("2026-10-07T18:00:00.000Z"))).toBe(451);
+        expect(getForecastHorizonDays(new Date("2027-12-31T18:00:00.000Z"))).toBe(1);
     });
 });

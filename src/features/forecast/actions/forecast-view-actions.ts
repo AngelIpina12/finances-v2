@@ -6,14 +6,14 @@ import { z } from "zod";
 import { db } from "@/src/db";
 import { forecastSavingsSimulations, forecastViews } from "@/src/db/schema";
 import { requireAuth } from "@/src/lib/auth-server";
-import { FORECAST_HORIZON_DAYS } from "../domain/forecast-horizon";
+import { FORECAST_RANGE_PRESETS } from "../domain/forecast-horizon";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.");
 
 const viewSchema = z.object({
     id: z.uuid("La previsión no es válida.").optional(),
     name: z.string().trim().min(1, "Ponle un nombre a la previsión.").max(80, "El nombre no puede superar 80 caracteres."),
-    rangePresetDays: z.number().int().min(1).max(FORECAST_HORIZON_DAYS).nullable(),
+    rangePresetDays: z.number().int().min(1).max(Math.max(...FORECAST_RANGE_PRESETS)).nullable(),
     startsOn: dateSchema,
     endsOn: dateSchema,
     currency: z.string().min(1).max(8),

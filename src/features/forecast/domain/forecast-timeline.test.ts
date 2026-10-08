@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
-import { buildForecast, type ForecastAccount, type ForecastEvent } from "./forecast-calculator";
 import {
-    buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts, summarizeTimelinePeriod,
+    describe, expect, it
+} from "vitest";
+import {
+    buildForecast, type ForecastAccount, type ForecastEvent
+} from "./forecast-calculator";
+import {
+    buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts,
+    summarizeTimelinePeriod,
 } from "./forecast-timeline";
 
-// 30 sep 2026, 00:00 en CDMX.
 const startsAt = new Date("2026-09-30T06:00:00.000Z");
 const now = new Date("2026-09-30T15:00:00.000Z");
 
@@ -70,12 +74,10 @@ describe("buildForecastTimeline", () => {
 
         expect(measure).toBe("balance");
         expect(points.map((point) => point.balance)).toEqual([1000, 600, 600, 1500, 1150, 1150]);
-        // El pago de la tarjeta sale de débito, así que cuenta como gasto.
         expect(points.at(-1)).toEqual(expect.objectContaining({ incomes: 900, expenses: 750 }));
     });
 
     it("agrupa por semana con un punto al cierre de cada una", () => {
-        // Del miércoles 30 sep al domingo 4 oct es una sola semana.
         const { points } = timeline(["debit"], "week");
 
         expect(points.map((point) => point.label)).toEqual(["Inicio", "30 sep"]);
@@ -121,7 +123,6 @@ describe("buildForecastTimeline", () => {
             granularity: "month",
         });
 
-        // Septiembre cierra con la renta del 30 (1000 → 600).
         expect(points[0]).toEqual(expect.objectContaining({ balanceChange: -400, periodExpenses: 400 }));
         expect(points[1]).toEqual(expect.objectContaining({ balanceChange: 550, periodIncomes: 900, periodExpenses: 350 }));
     });
@@ -170,7 +171,6 @@ describe("groupTimelineEvents", () => {
         ], "month");
 
         expect(groups.map((group) => group.label)).toEqual(["octubre de 2026", "noviembre de 2026"]);
-        // El resumen se ordena en su último día (3 oct), después de la renta del 2.
         expect(groups[0].items).toEqual([
             expect.objectContaining({ kind: "event" }),
             expect.objectContaining({ kind: "daily_yield", days: 2, amount: 20.5 }),
@@ -195,7 +195,6 @@ describe("summarizeTimelinePeriod", () => {
             now,
             days: 5,
         });
-        // La renta del 30 sep cae en septiembre; se resume octubre.
         const [, period] = groupTimelineEvents(forecast.events, "month");
         const summary = summarizeTimelinePeriod(period.items, new Map([
             ["debit", "debit"], ["card", "credit"], ["cajita", "fixed_income"],

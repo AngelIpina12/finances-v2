@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+    useEffect, useMemo, useState
+} from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
-    AlertTriangle, CalendarClock, ChevronRight, Info,
-    CreditCard, Landmark, PiggyBank,
-    ReceiptText, Repeat2, Settings2,
+    AlertTriangle, CalendarClock, ChevronRight,
+    Info, CreditCard, Landmark,
+    PiggyBank, ReceiptText, Repeat2,
+    Settings2,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -27,29 +30,34 @@ import { InsufficientFundsDialog } from "@/src/features/transactions/components/
 import type { FundsImpact } from "@/src/features/transactions/domain/transaction-rules";
 import { ForecastToolbar } from "./forecast-toolbar";
 import {
-    FORECAST_HORIZON_DAYS, RELIABLE_RANGE_DAYS, enforceGranularity, forecastRangeDays, suggestGranularity,
+    FORECAST_END_DATE, RELIABLE_RANGE_DAYS, getForecastHorizonDays,
+    enforceGranularity, forecastRangeDays, suggestGranularity,
 } from "../domain/forecast-horizon";
 import { AnimatedCollapse } from "./animated-collapse";
 import {
-    Amount, ForecastPanel, ForecastPanelHeader, IconBadge,
-    TONE_SURFACE, TONE_TEXT, formatMoney, formatSignedMoney, toneOf,
+    Amount, ForecastPanel, ForecastPanelHeader,
+    IconBadge, TONE_SURFACE, TONE_TEXT,
+    formatMoney, formatSignedMoney, toneOf,
 } from "./forecast-ui";
 import { ForecastKeyFigures, type CardDebtSummary } from "./forecast-key-figures";
 import { ForecastAlerts, type ForecastAlertItem } from "./forecast-alerts";
 import {
-    buildCashFlow, buildCreditDebtActivity, buildForecast, getPeriod,
-    type ForecastEventSource, type ForecastGranularity,
+    buildCashFlow, buildCreditDebtActivity, buildForecast,
+    getPeriod, type ForecastEventSource, type ForecastGranularity,
 } from "../domain/forecast-calculator";
 import { buildLiquidityRangeSummaries } from "../domain/liquidity-calculator";
 import {
     applyLinkedSavings, linkedSavingsAccountId, withSavingsAccounts,
     type LinkedSavingsMode,
 } from "../domain/linked-savings";
-import { applySavingsSweep, simulatedSavingsAccountId } from "../domain/savings-sweep";
+import {
+    applySavingsSweep, getValidSweepRules, simulatedSavingsAccountId,
+    type SavingsSweepRule,
+} from "../domain/savings-sweep";
 import type { SavingsSimulationDraft } from "./forecast-savings-simulation";
 import {
-    matchesAccountKind, resolveForecastViewRange,
-    type ForecastViewAccountKind as ForecastAccountKind, type SavedForecastView,
+    matchesAccountKind, resolveForecastViewRange, type ForecastViewAccountKind as ForecastAccountKind,
+    type SavedForecastView,
 } from "../domain/forecast-view";
 import {
     buildForecastTimeline, groupTimelineEvents, selectTimelineAccounts,
@@ -86,7 +94,7 @@ export function ForecastClient({
     const router = useRouter();
     const anchorNow = useMemo(() => new Date(now), [now]);
     const minimumDate = toAppDateInputValue(anchorNow);
-    const maximumDate = toAppDateInputValue(addAppCalendarDays(anchorNow, FORECAST_HORIZON_DAYS));
+    const maximumDate = FORECAST_END_DATE;
     const currencies = [...new Set(accounts.map((account) => account.currency))];
     const [initialView] = useState(() => savedViews.find((view) => view.isDefault) ?? null);
     const [initialSettings] = useState(() => initialView ? resolveViewSettings(initialView) : null);
@@ -186,20 +194,15 @@ export function ForecastClient({
         setFocusedAccountId(null);
     }
 
-    const sweepAccountId = simulation?.accountId;
-    const sweepPositionId = simulation?.positionId;
-    const sweepMinimumBalance = simulation?.minimumBalance || 0;
-
-    const sweepRule = useMemo(
-        () => sweepAccountId && sweepPositionId
-            ? { accountId: sweepAccountId, positionId: sweepPositionId, minimumBalance: sweepMinimumBalance }
-            : null,
-        [sweepAccountId, sweepPositionId, sweepMinimumBalance],
-    );
+    const sweepRulesKey = JSON.stringify(getValidSweepRules(
+        (simulation?.rules ?? []).map((rule) => ({ ...rule, minimumBalance: rule.minimumBalance || 0 })),
+        linkedSavings,
+    ));
+    const sweepRules = useMemo((): SavingsSweepRule[] => JSON.parse(sweepRulesKey), [sweepRulesKey]);
 
     const startsAt = fromForecastDateInput(startsAtValue) ?? anchorNow;
     const endsAt = fromForecastDateInput(endsAtValue) ?? addAppCalendarDays(anchorNow, 30);
-    const forecastDays = Math.min(FORECAST_HORIZON_DAYS, Math.max(
+    const forecastDays = Math.min(getForecastHorizonDays(anchorNow), Math.max(
         1,
         Math.ceil((endsAt.getTime() - anchorNow.getTime()) / (24 * 60 * 60 * 1000)),
     ));
@@ -212,13 +215,13 @@ export function ForecastClient({
         !locallyRestoredPaymentKeys.has(`${payment.creditAccountId}:${payment.dueAt.toISOString()}`)
     ));
 
-    const projection = useMemo(() => sweepRule
+    const projection = useMemo(() => sweepRules.length
         ? applySavingsSweep({
             accounts,
             events,
             savings: linkedSavings,
             mode: savingsMode,
-            rule: sweepRule,
+            rules: sweepRules,
             settings: cardPaymentSettings,
             dismissedCardPaymentKeys,
             now: anchorNow,
@@ -228,7 +231,7 @@ export function ForecastClient({
         [
             accounts, events, linkedSavings,
             savingsMode, cardPaymentSettings, dismissedCardPaymentKeys,
-            anchorNow, forecastDays, sweepRule,
+            anchorNow, forecastDays, sweepRules,
         ],
     );
 
@@ -331,13 +334,13 @@ export function ForecastClient({
         const modes: LinkedSavingsMode[] = ["exclude", "principal", "with_yield"];
         const projections = modes.map((mode) => applyLinkedSavings({ accounts, events, savings: linkedSavings, mode }));
 
-        if (sweepRule) {
+        if (sweepRules.length) {
             projections.push(applySavingsSweep({
                 accounts,
                 events,
                 savings: linkedSavings,
                 mode: "with_yield",
-                rule: sweepRule,
+                rules: sweepRules,
                 settings: cardPaymentSettings,
                 dismissedCardPaymentKeys,
                 now: anchorNow,
@@ -381,15 +384,15 @@ export function ForecastClient({
         }));
     }
     const showsSavingsComparison = hasScopedSavings && savingsMode !== "exclude";
-    const showsYields = hasScopedSavings && (savingsMode === "with_yield" || sweepRule !== null);
+    const showsYields = hasScopedSavings && (savingsMode === "with_yield" || sweepRules.length > 0);
     const savingsPoints = chartView === "savings" && showsSavingsComparison ? buildSavingsPoints() : null;
     const timelineGroups = groupTimelineEvents(visibleEvents, granularity);
     const accountTypes = new Map(forecast.accounts.map((account) => [account.id, account.type]));
-    const sweepSavingsAccountId = sweepRule ? simulatedSavingsAccountId(sweepRule.positionId) : null;
-    const summaryMerges = new Map(sweepRule && sweepSavingsAccountId ? [[sweepRule.accountId, sweepSavingsAccountId]] : []);
-    const summaryNames = new Map(sweepRule && sweepSavingsAccountId
-        ? [[sweepSavingsAccountId, linkedSavings.find((saving) => saving.positionId === sweepRule.positionId)?.name ?? ""]]
-        : []);
+    const summaryMerges = new Map(sweepRules.map((rule) => [rule.accountId, simulatedSavingsAccountId(rule.positionId)]));
+    const summaryNames = new Map(sweepRules.map((rule) => [
+        simulatedSavingsAccountId(rule.positionId),
+        linkedSavings.find((saving) => saving.positionId === rule.positionId)?.name ?? "",
+    ]));
 
     function togglePeriod(periodKey: string, accountId: string | null = null) {
         setExpandedPeriods((current) => {
@@ -788,338 +791,339 @@ export function ForecastClient({
                     <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
                         <div className="contents xl:block xl:min-w-0 xl:space-y-6">
                             <div className="order-2 min-w-0">
-                            <ForecastChart
-                                view={chartView}
-                                onViewChange={setChartView}
-                                onPeriodSelect={revealPeriod}
-                                hasSavings={showsSavingsComparison}
-                                showsYields={showsYields}
-                                yieldsEmptyMessage="No hay rendimientos previstos en este rango."
-                                measure={timeline.measure}
-                                points={timeline.points}
-                                savingsPoints={savingsPoints}
-                                currency={chartCurrency}
-                                emptyMessage={visibleAccounts.length ? null : "No hay cuentas con estos filtros."}
-                            />
+                                <ForecastChart
+                                    view={chartView}
+                                    onViewChange={setChartView}
+                                    onPeriodSelect={revealPeriod}
+                                    hasSavings={showsSavingsComparison}
+                                    showsYields={showsYields}
+                                    yieldsEmptyMessage="No hay rendimientos previstos en este rango."
+                                    measure={timeline.measure}
+                                    points={timeline.points}
+                                    savingsPoints={savingsPoints}
+                                    currency={chartCurrency}
+                                    emptyMessage={visibleAccounts.length ? null : "No hay cuentas con estos filtros."}
+                                />
                             </div>
                             <div className="order-4 min-w-0 space-y-6">
-                            <ForecastPanel>
-                                <ForecastPanelHeader
-                                    className={selectedAccount ? undefined : "border-b-0"}
-                                    title={isSelectedCredit ? "Actividad de deuda" : "Flujo de efectivo"}
-                                    description={selectedAccount
-                                        ? isSelectedCredit
-                                            ? `Cargos y pagos que modifican la deuda de ${selectedAccount.name}.`
-                                            : `Ingresos y gastos previstos en ${selectedAccount.name}.`
-                                        : "Enfoca o filtra una sola cuenta para ver su flujo sin mezclar monedas ni saldos."}
-                                    action={selectedAccount && (
-                                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                                            {granularity === "day" ? "Por día" : granularity === "week" ? "Por semana" : "Por mes"}
-                                        </span>
+                                <ForecastPanel>
+                                    <ForecastPanelHeader
+                                        className={selectedAccount ? undefined : "border-b-0"}
+                                        title={isSelectedCredit ? "Actividad de deuda" : "Flujo de efectivo"}
+                                        description={selectedAccount
+                                            ? isSelectedCredit
+                                                ? `Cargos y pagos que modifican la deuda de ${selectedAccount.name}.`
+                                                : `Ingresos y gastos previstos en ${selectedAccount.name}.`
+                                            : "Enfoca o filtra una sola cuenta para ver su flujo sin mezclar monedas ni saldos."}
+                                        action={selectedAccount && (
+                                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                                                {granularity === "day" ? "Por día" : granularity === "week" ? "Por semana" : "Por mes"}
+                                            </span>
+                                        )}
+                                    />
+                                    {selectedAccount && (
+                                        <div className="hidden grid-cols-[minmax(0,1fr)_repeat(3,8rem)] gap-6 border-b bg-muted/40 px-5 py-2 text-xs font-medium text-muted-foreground sm:grid">
+                                            <span>Periodo</span>
+                                            <span className="text-right">{isSelectedCredit ? "Cargos" : "Ingresos"}</span>
+                                            <span className="text-right">{isSelectedCredit ? "Pagos" : "Gastos"}</span>
+                                            <span className="text-right">{isSelectedCredit ? "Variación" : "Neto"}</span>
+                                        </div>
                                     )}
+                                    {selectedAccount && isSelectedCredit && (
+                                        <div className="divide-y">
+                                            {debtActivity.length ? debtActivity.map((period) => (
+                                                <article
+                                                    key={period.label}
+                                                    className="grid gap-3 px-4 py-3.5 text-sm tabular-nums sm:grid-cols-[minmax(0,1fr)_repeat(3,8rem)] sm:items-center sm:gap-6 sm:px-5"
+                                                >
+                                                    <p className="font-medium first-letter:uppercase">{period.label}</p>
+                                                    <p className={`${TONE_TEXT.negative} sm:text-right`}>
+                                                        <span className="mr-1 text-xs text-muted-foreground sm:hidden">Cargos:</span>
+                                                        +{formatMoney(period.charges, selectedAccount.currency)}
+                                                    </p>
+                                                    <p className={`${TONE_TEXT.positive} sm:text-right`}>
+                                                        <span className="mr-1 text-xs text-muted-foreground sm:hidden">Pagos:</span>
+                                                        −{formatMoney(period.payments, selectedAccount.currency)}
+                                                    </p>
+                                                    <p className={`font-semibold sm:text-right ${TONE_TEXT[toneOf(period.netDebtChange, { inverted: true })]}`}>
+                                                        <span className="mr-1 text-xs font-normal text-muted-foreground sm:hidden">Variación:</span>
+                                                        {formatSignedMoney(period.netDebtChange, selectedAccount.currency)}
+                                                    </p>
+                                                </article>
+                                            )) : (
+                                                <p className="p-5 text-sm text-muted-foreground">
+                                                    No hay cargos ni pagos previstos para esta tarjeta en el horizonte elegido.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                    {selectedAccount && !isSelectedCredit && (
+                                        <div className="divide-y">
+                                            {cashFlow.length ? cashFlow.map((period) => (
+                                                <article
+                                                    key={period.label}
+                                                    className="grid gap-3 px-4 py-3.5 text-sm tabular-nums sm:grid-cols-[minmax(0,1fr)_repeat(3,8rem)] sm:items-center sm:gap-6 sm:px-5"
+                                                >
+                                                    <p className="font-medium first-letter:uppercase">{period.label}</p>
+                                                    <p className={`${TONE_TEXT.positive} sm:text-right`}>+{formatMoney(period.incomes, selectedAccount.currency)}</p>
+                                                    <p className={`${TONE_TEXT.negative} sm:text-right`}>−{formatMoney(period.expenses, selectedAccount.currency)}</p>
+                                                    <p className={`font-semibold sm:text-right ${TONE_TEXT[toneOf(period.net)]}`}>
+                                                        {formatSignedMoney(period.net, selectedAccount.currency)}
+                                                    </p>
+                                                </article>
+                                            )) : (
+                                                <p className="p-5 text-sm text-muted-foreground">
+                                                    No hay flujo previsto para esta cuenta en el horizonte elegido.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                </ForecastPanel>
+
+                                <ForecastPanel>
+                                    <ForecastPanelHeader
+                                        className={visibleEvents.length ? undefined : "border-b-0"}
+                                        title="Línea de tiempo"
+                                        description={visibleEvents.length
+                                            ? `${visibleEvents.length} compromiso${visibleEvents.length === 1 ? "" : "s"} entre ${formatAppDate(startsAt, { day: "numeric", month: "short" })} y ${formatAppDate(endsAt, { day: "numeric", month: "short", year: "numeric" })}.`
+                                            : "No hay movimientos previstos en el rango seleccionado."}
+                                        action={<CalendarClock className="hidden size-5 shrink-0 text-muted-foreground sm:block" />}
+                                    />
+                                    {visibleEvents.length > 0 && timelineGroups.map((group) => {
+                                        const periodKey = `${granularity}:${group.key}`;
+                                        const isExpanded = !group.label || expandedPeriods.has(periodKey);
+                                        const focusedAccountId = group.label ? expandedPeriods.get(periodKey) ?? null : null;
+                                        const shownItems = focusedAccountId
+                                            ? group.items.filter((item) => itemTouchesAccount(item, focusedAccountId))
+                                            : group.items;
+                                        const periodSummaries = summarizeTimelinePeriod(group.items, accountTypes, summaryMerges);
+                                        const periodYields = [...periodSummaries
+                                            .filter((summary) => summary.yields > 0)
+                                            .reduce((totals, summary) => {
+                                                const currency = forecast.accounts.find((account) => account.id === summary.accountId)?.currency ?? "MXN";
+                                                const current = totals.get(currency) ?? { currency, amount: 0, accounts: 0 };
+                                                return totals.set(currency, { currency, amount: current.amount + summary.yields, accounts: current.accounts + 1 });
+                                            }, new Map<string, { currency: string; amount: number; accounts: number }>())
+                                            .values()];
+                                        const movementCount = group.items.reduce((total, item) => total + (item.kind === "event" ? 1 : item.days), 0);
+
+                                        const periodAnchor = `timeline-period-${periodKey}`;
+                                        const dayAnchors = new Map<string, string>();
+                                        const anchoredDays = new Set<string>();
+                                        for (const item of group.label ? [] : group.items) {
+                                            if (item.kind !== "event") continue;
+                                            const dayKey = getPeriod(item.event.scheduledAt, "day").key;
+                                            if (anchoredDays.has(dayKey)) continue;
+                                            anchoredDays.add(dayKey);
+                                            dayAnchors.set(item.event.id, `timeline-day-${dayKey}`);
+                                        }
+
+                                        return (
+                                            <div key={group.key}>
+                                                {group.label && (
+                                                    <div
+                                                        id={periodAnchor}
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        aria-expanded={isExpanded}
+                                                        onClick={() => togglePeriod(periodKey)}
+                                                        onKeyDown={(keyEvent) => {
+                                                            if (keyEvent.target !== keyEvent.currentTarget) return;
+                                                            if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
+                                                            keyEvent.preventDefault();
+                                                            togglePeriod(periodKey);
+                                                        }}
+                                                        className={`w-full scroll-mt-36 cursor-pointer border-b px-4 py-3 text-left transition-colors duration-700 sm:px-5 ${highlightedAnchor === periodAnchor
+                                                            ? "bg-primary/15"
+                                                            : "bg-muted/40 hover:bg-muted/70"
+                                                            }`}
+                                                    >
+                                                        <span className="flex items-center gap-2 text-sm font-medium">
+                                                            <ChevronRight className={`size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                                                            <span className="inline-block flex-1 first-letter:uppercase">{group.label}</span>
+                                                            {periodYields.map((total) => (
+                                                                <span
+                                                                    key={total.currency}
+                                                                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${TONE_SURFACE.positive}`}
+                                                                >
+                                                                    <span className="hidden sm:inline">Rendimiento total </span>
+                                                                    +{formatMoney(total.amount, total.currency)}
+                                                                    {total.accounts > 1 && <span className="hidden font-normal opacity-80 sm:inline"> · {total.accounts} cajitas</span>}
+                                                                </span>
+                                                            ))}
+                                                            <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                                                                {movementCount} movimiento{movementCount === 1 ? "" : "s"}
+                                                            </span>
+                                                        </span>
+                                                        <PeriodAccountSummaries
+                                                            summaries={periodSummaries}
+                                                            accounts={forecast.accounts}
+                                                            names={summaryNames}
+                                                            focusedAccountId={isExpanded ? focusedAccountId : null}
+                                                            onSelect={(accountId) => togglePeriod(periodKey, accountId)}
+                                                        />
+                                                    </div>
+                                                )}
+                                                <AnimatedCollapse open={isExpanded}>
+                                                    <motion.div
+                                                        key={focusedAccountId ?? "all"}
+                                                        initial={{ opacity: 0 }}
+                                                        animate={{ opacity: 1 }}
+                                                        transition={{ duration: 0.2 }}
+                                                        className="divide-y"
+                                                    >
+                                                        {focusedAccountId && !shownItems.length && (
+                                                            <p className="p-5 text-sm text-muted-foreground">
+                                                                No hay movimientos de esta cuenta en el periodo.
+                                                            </p>
+                                                        )}
+                                                        {shownItems.map((item) => item.kind === "event"
+                                                            ? renderTimelineEvent(item.event, undefined, dayAnchors.get(item.event.id))
+                                                            : renderTimelineEvent(
+                                                                {
+                                                                    ...item.last,
+                                                                    id: item.id,
+                                                                    amount: item.amount,
+                                                                    name: item.days > 1 ? `${item.last.name} · ${item.days} días` : item.last.name,
+                                                                },
+                                                                item.days > 1
+                                                                    ? `${formatAppDate(item.firstAt, { day: "numeric", month: "short" })} – ${formatAppDate(item.last.scheduledAt, { day: "numeric", month: "short" })}`
+                                                                    : undefined,
+                                                            ))}
+                                                    </motion.div>
+                                                </AnimatedCollapse>
+                                            </div>
+                                        );
+                                    })}
+                                </ForecastPanel>
+
+                                {visibleDismissedCardPayments.length > 0 && (
+                                    <ForecastPanel>
+                                        <ForecastPanelHeader
+                                            title="Pagos omitidos"
+                                            description="No cuentan en la previsión; puedes volver a incluirlos cuando quieras."
+                                        />
+                                        <div className="divide-y">
+                                            {visibleDismissedCardPayments.map((payment) => {
+                                                const card = accounts.find((account) => account.id === payment.creditAccountId);
+                                                const key = `${payment.creditAccountId}:${payment.dueAt.toISOString()}`;
+                                                return (
+                                                    <div key={key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
+                                                        <p className="text-sm">
+                                                            <span className="font-medium">{card?.name ?? "Tarjeta archivada"}</span>
+                                                            <span className="text-muted-foreground"> · vencía el {formatAppDate(payment.dueAt, { day: "numeric", month: "long" })}</span>
+                                                        </p>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={dismissingPaymentId === `restore:${key}`}
+                                                            onClick={() => void restorePayment(payment.creditAccountId, payment.dueAt)}
+                                                            className="cursor-pointer"
+                                                        >
+                                                            Volver a incluir
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </ForecastPanel>
+                                )}
+                            </div>
+                        </div>
+                        <aside className="contents xl:sticky xl:top-28 xl:block xl:max-h-[calc(100vh-8.5rem)] xl:space-y-6 xl:overflow-y-auto xl:-m-1 xl:p-1 xl:scrollbar-thin xl:dock-top:top-[calc(var(--dock-space)+7rem)]">
+                            <div className="order-1 min-w-0">
+                                <ForecastKeyFigures
+                                    liquidity={liquiditySummaries}
+                                    debts={cardDebts}
+                                    startsAt={startsAt}
                                 />
-                                {selectedAccount && (
-                                    <div className="hidden grid-cols-[minmax(0,1fr)_repeat(3,8rem)] gap-6 border-b bg-muted/40 px-5 py-2 text-xs font-medium text-muted-foreground sm:grid">
-                                        <span>Periodo</span>
-                                        <span className="text-right">{isSelectedCredit ? "Cargos" : "Ingresos"}</span>
-                                        <span className="text-right">{isSelectedCredit ? "Pagos" : "Gastos"}</span>
-                                        <span className="text-right">{isSelectedCredit ? "Variación" : "Neto"}</span>
+                            </div>
+                            <div className="order-3 min-w-0">
+                                <section className="space-y-3">
+                                    <div className="flex items-baseline justify-between px-1">
+                                        <h2 className="text-sm font-medium">Cuentas</h2>
+                                        <p className="text-xs text-muted-foreground">Clic para enfocar</p>
                                     </div>
-                                )}
-                                {selectedAccount && isSelectedCredit && (
-                                    <div className="divide-y">
-                                        {debtActivity.length ? debtActivity.map((period) => (
-                                            <article
-                                                key={period.label}
-                                                className="grid gap-3 px-4 py-3.5 text-sm tabular-nums sm:grid-cols-[minmax(0,1fr)_repeat(3,8rem)] sm:items-center sm:gap-6 sm:px-5"
-                                            >
-                                                <p className="font-medium first-letter:uppercase">{period.label}</p>
-                                                <p className={`${TONE_TEXT.negative} sm:text-right`}>
-                                                    <span className="mr-1 text-xs text-muted-foreground sm:hidden">Cargos:</span>
-                                                    +{formatMoney(period.charges, selectedAccount.currency)}
-                                                </p>
-                                                <p className={`${TONE_TEXT.positive} sm:text-right`}>
-                                                    <span className="mr-1 text-xs text-muted-foreground sm:hidden">Pagos:</span>
-                                                    −{formatMoney(period.payments, selectedAccount.currency)}
-                                                </p>
-                                                <p className={`font-semibold sm:text-right ${TONE_TEXT[toneOf(period.netDebtChange, { inverted: true })]}`}>
-                                                    <span className="mr-1 text-xs font-normal text-muted-foreground sm:hidden">Variación:</span>
-                                                    {formatSignedMoney(period.netDebtChange, selectedAccount.currency)}
-                                                </p>
-                                            </article>
-                                        )) : (
-                                            <p className="p-5 text-sm text-muted-foreground">
-                                                No hay cargos ni pagos previstos para esta tarjeta en el horizonte elegido.
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                                {selectedAccount && !isSelectedCredit && (
-                                    <div className="divide-y">
-                                        {cashFlow.length ? cashFlow.map((period) => (
-                                            <article
-                                                key={period.label}
-                                                className="grid gap-3 px-4 py-3.5 text-sm tabular-nums sm:grid-cols-[minmax(0,1fr)_repeat(3,8rem)] sm:items-center sm:gap-6 sm:px-5"
-                                            >
-                                                <p className="font-medium first-letter:uppercase">{period.label}</p>
-                                                <p className={`${TONE_TEXT.positive} sm:text-right`}>+{formatMoney(period.incomes, selectedAccount.currency)}</p>
-                                                <p className={`${TONE_TEXT.negative} sm:text-right`}>−{formatMoney(period.expenses, selectedAccount.currency)}</p>
-                                                <p className={`font-semibold sm:text-right ${TONE_TEXT[toneOf(period.net)]}`}>
-                                                    {formatSignedMoney(period.net, selectedAccount.currency)}
-                                                </p>
-                                            </article>
-                                        )) : (
-                                            <p className="p-5 text-sm text-muted-foreground">
-                                                No hay flujo previsto para esta cuenta en el horizonte elegido.
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                            </ForecastPanel>
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                                        {accountCards.map((account, index) => {
+                                            const hasAlert = alertedAccountIds.has(account.id);
+                                            const isCredit = account.type === "credit";
+                                            const isFocused = focusedAccount?.id === account.id;
 
-                            <ForecastPanel>
-                                <ForecastPanelHeader
-                                    className={visibleEvents.length ? undefined : "border-b-0"}
-                                    title="Línea de tiempo"
-                                    description={visibleEvents.length
-                                        ? `${visibleEvents.length} compromiso${visibleEvents.length === 1 ? "" : "s"} entre ${formatAppDate(startsAt, { day: "numeric", month: "short" })} y ${formatAppDate(endsAt, { day: "numeric", month: "short", year: "numeric" })}.`
-                                        : "No hay movimientos previstos en el rango seleccionado."}
-                                    action={<CalendarClock className="hidden size-5 shrink-0 text-muted-foreground sm:block" />}
-                                />
-                                {visibleEvents.length > 0 && timelineGroups.map((group) => {
-                                    const periodKey = `${granularity}:${group.key}`;
-                                    const isExpanded = !group.label || expandedPeriods.has(periodKey);
-                                    const focusedAccountId = group.label ? expandedPeriods.get(periodKey) ?? null : null;
-                                    const shownItems = focusedAccountId
-                                        ? group.items.filter((item) => itemTouchesAccount(item, focusedAccountId))
-                                        : group.items;
-                                    const periodSummaries = summarizeTimelinePeriod(group.items, accountTypes, summaryMerges);
-                                    const periodYields = [...periodSummaries
-                                        .filter((summary) => summary.yields > 0)
-                                        .reduce((totals, summary) => {
-                                            const currency = forecast.accounts.find((account) => account.id === summary.accountId)?.currency ?? "MXN";
-                                            const current = totals.get(currency) ?? { currency, amount: 0, accounts: 0 };
-                                            return totals.set(currency, { currency, amount: current.amount + summary.yields, accounts: current.accounts + 1 });
-                                        }, new Map<string, { currency: string; amount: number; accounts: number }>())
-                                        .values()];
-                                    const movementCount = group.items.reduce((total, item) => total + (item.kind === "event" ? 1 : item.days), 0);
-
-                                    const periodAnchor = `timeline-period-${periodKey}`;
-                                    const dayAnchors = new Map<string, string>();
-                                    const anchoredDays = new Set<string>();
-                                    for (const item of group.label ? [] : group.items) {
-                                        if (item.kind !== "event") continue;
-                                        const dayKey = getPeriod(item.event.scheduledAt, "day").key;
-                                        if (anchoredDays.has(dayKey)) continue;
-                                        anchoredDays.add(dayKey);
-                                        dayAnchors.set(item.event.id, `timeline-day-${dayKey}`);
-                                    }
-
-                                    return (
-                                        <div key={group.key}>
-                                            {group.label && (
-                                                <div
-                                                    id={periodAnchor}
+                                            return (
+                                                <motion.article
+                                                    key={account.id}
                                                     role="button"
                                                     tabIndex={0}
-                                                    aria-expanded={isExpanded}
-                                                    onClick={() => togglePeriod(periodKey)}
+                                                    aria-pressed={isFocused}
+                                                    onClick={() => toggleFocus(account.id)}
                                                     onKeyDown={(keyEvent) => {
                                                         if (keyEvent.target !== keyEvent.currentTarget) return;
                                                         if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
                                                         keyEvent.preventDefault();
-                                                        togglePeriod(periodKey);
+                                                        toggleFocus(account.id);
                                                     }}
-                                                    className={`w-full scroll-mt-36 cursor-pointer border-b px-4 py-3 text-left transition-colors duration-700 sm:px-5 ${highlightedAnchor === periodAnchor
-                                                        ? "bg-primary/15"
-                                                        : "bg-muted/40 hover:bg-muted/70"
-                                                    }`}
+                                                    initial={{ opacity: 0, y: 12 }}
+                                                    animate={{ opacity: focusedAccount && !isFocused ? 0.55 : 1, y: 0 }}
+                                                    whileHover={{ opacity: 1 }}
+                                                    transition={{ opacity: { duration: 0.2 }, y: { delay: index * 0.04 } }}
+                                                    className={`flex cursor-pointer flex-col rounded-2xl border bg-card p-4 outline-none transition-[box-shadow,border-color] focus-visible:ring-2 focus-visible:ring-ring ${isFocused
+                                                        ? "border-primary/50 ring-2 ring-primary/30"
+                                                        : "hover:border-foreground/20"
+                                                        }`}
                                                 >
-                                                    <span className="flex items-center gap-2 text-sm font-medium">
-                                                        <ChevronRight className={`size-4 shrink-0 text-muted-foreground transition-transform ${isExpanded ? "rotate-90" : ""}`} />
-                                                        <span className="inline-block flex-1 first-letter:uppercase">{group.label}</span>
-                                                        {periodYields.map((total) => (
-                                                            <span
-                                                                key={total.currency}
-                                                                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums ${TONE_SURFACE.positive}`}
-                                                            >
-                                                                <span className="hidden sm:inline">Rendimiento total </span>
-                                                                +{formatMoney(total.amount, total.currency)}
-                                                                {total.accounts > 1 && <span className="hidden font-normal opacity-80 sm:inline"> · {total.accounts} cajitas</span>}
-                                                            </span>
-                                                        ))}
-                                                        <span className="shrink-0 text-xs font-normal text-muted-foreground">
-                                                            {movementCount} movimiento{movementCount === 1 ? "" : "s"}
-                                                        </span>
-                                                    </span>
-                                                    <PeriodAccountSummaries
-                                                        summaries={periodSummaries}
-                                                        accounts={forecast.accounts}
-                                                        names={summaryNames}
-                                                        focusedAccountId={isExpanded ? focusedAccountId : null}
-                                                        onSelect={(accountId) => togglePeriod(periodKey, accountId)}
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate font-medium">{account.name}</p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {account.fundingAccountId
+                                                                    ? `Cajita de ${accounts.find((item) => item.id === account.fundingAccountId)?.name ?? "otra cuenta"}`
+                                                                    : `${isCredit ? "Deuda proyectada" : "Saldo proyectado"} · ${account.currency}`}
+                                                            </p>
+                                                        </div>
+                                                        {hasAlert && <AlertTriangle className={`size-4 shrink-0 ${TONE_TEXT.warning}`} />}
+                                                    </div>
+                                                    <Amount
+                                                        value={account.projectedBalance}
+                                                        currency={account.currency}
+                                                        tone={!isCredit && account.projectedBalance < 0 ? "negative" : undefined}
+                                                        className="mt-4 block text-2xl font-semibold tracking-tight"
                                                     />
-                                                </div>
-                                            )}
-                                            <AnimatedCollapse open={isExpanded}>
-                                                <motion.div
-                                                    key={focusedAccountId ?? "all"}
-                                                    initial={{ opacity: 0 }}
-                                                    animate={{ opacity: 1 }}
-                                                    transition={{ duration: 0.2 }}
-                                                    className="divide-y"
-                                                >
-                                                    {focusedAccountId && !shownItems.length && (
-                                                        <p className="p-5 text-sm text-muted-foreground">
-                                                            No hay movimientos de esta cuenta en el periodo.
-                                                        </p>
-                                                    )}
-                                                    {shownItems.map((item) => item.kind === "event"
-                                                        ? renderTimelineEvent(item.event, undefined, dayAnchors.get(item.event.id))
-                                                        : renderTimelineEvent(
-                                                            {
-                                                                ...item.last,
-                                                                id: item.id,
-                                                                amount: item.amount,
-                                                                name: item.days > 1 ? `${item.last.name} · ${item.days} días` : item.last.name,
-                                                            },
-                                                            item.days > 1
-                                                                ? `${formatAppDate(item.firstAt, { day: "numeric", month: "short" })} – ${formatAppDate(item.last.scheduledAt, { day: "numeric", month: "short" })}`
-                                                                : undefined,
-                                                        ))}
-                                                </motion.div>
-                                            </AnimatedCollapse>
-                                        </div>
-                                    );
-                                })}
-                            </ForecastPanel>
-
-                            {visibleDismissedCardPayments.length > 0 && (
-                                <ForecastPanel>
-                                    <ForecastPanelHeader
-                                        title="Pagos omitidos"
-                                        description="No cuentan en la previsión; puedes volver a incluirlos cuando quieras."
-                                    />
-                                    <div className="divide-y">
-                                        {visibleDismissedCardPayments.map((payment) => {
-                                            const card = accounts.find((account) => account.id === payment.creditAccountId);
-                                            const key = `${payment.creditAccountId}:${payment.dueAt.toISOString()}`;
-                                            return (
-                                                <div key={key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                                                    <p className="text-sm">
-                                                        <span className="font-medium">{card?.name ?? "Tarjeta archivada"}</span>
-                                                        <span className="text-muted-foreground"> · vencía el {formatAppDate(payment.dueAt, { day: "numeric", month: "long" })}</span>
+                                                    <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                                                        <span className={TONE_TEXT[toneOf(account.projectedBalance - account.currentBalance, { inverted: isCredit })]}>
+                                                            {formatSignedMoney(account.projectedBalance - account.currentBalance, account.currency)}
+                                                        </span>
+                                                        {" "}vs. hoy
+                                                        {isCredit && account.creditLimit !== null
+                                                            ? ` · Límite ${formatMoney(account.creditLimit, account.currency)}`
+                                                            : ""
+                                                        }
                                                     </p>
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        variant="outline"
-                                                        disabled={dismissingPaymentId === `restore:${key}`}
-                                                        onClick={() => void restorePayment(payment.creditAccountId, payment.dueAt)}
-                                                        className="cursor-pointer"
-                                                    >
-                                                        Volver a incluir
-                                                    </Button>
-                                                </div>
+                                                    {isCredit && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(clickEvent) => {
+                                                                clickEvent.stopPropagation();
+                                                                setCardToConfigure({
+                                                                    ...account,
+                                                                    calculatedStatementBalance: account.calculatedStatementBalance ?? null,
+                                                                    statementItems: account.statementItems,
+                                                                });
+                                                            }}
+                                                            className="mt-3 -ml-2 self-start cursor-pointer text-muted-foreground"
+                                                        >
+                                                            <Settings2 className="size-3.5" />
+                                                            Plan de pago
+                                                        </Button>
+                                                    )}
+                                                </motion.article>
                                             );
                                         })}
                                     </div>
-                                </ForecastPanel>
-                            )}
-                            </div>
-                        </div>
-                        <aside className="contents xl:sticky xl:top-28 xl:block xl:max-h-[calc(100vh-8.5rem)] xl:space-y-6 xl:overflow-y-auto xl:-m-1 xl:p-1 xl:[scrollbar-width:thin] xl:dock-top:top-[calc(var(--dock-space)+7rem)]">
-                            <div className="order-1 min-w-0">
-                            <ForecastKeyFigures
-                                liquidity={liquiditySummaries}
-                                debts={cardDebts}
-                                startsAt={startsAt}
-                            />
-                            </div>
-                            <div className="order-3 min-w-0">
-                            <section className="space-y-3">
-                                <div className="flex items-baseline justify-between px-1">
-                                    <h2 className="text-sm font-medium">Cuentas</h2>
-                                    <p className="text-xs text-muted-foreground">Clic para enfocar</p>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                                {accountCards.map((account, index) => {
-                                    const hasAlert = alertedAccountIds.has(account.id);
-                                    const isCredit = account.type === "credit";
-                                    const isFocused = focusedAccount?.id === account.id;
-
-                                    return (
-                                        <motion.article
-                                            key={account.id}
-                                            role="button"
-                                            tabIndex={0}
-                                            aria-pressed={isFocused}
-                                            onClick={() => toggleFocus(account.id)}
-                                            onKeyDown={(keyEvent) => {
-                                                if (keyEvent.target !== keyEvent.currentTarget) return;
-                                                if (keyEvent.key !== "Enter" && keyEvent.key !== " ") return;
-                                                keyEvent.preventDefault();
-                                                toggleFocus(account.id);
-                                            }}
-                                            initial={{ opacity: 0, y: 12 }}
-                                            animate={{ opacity: focusedAccount && !isFocused ? 0.55 : 1, y: 0 }}
-                                            whileHover={{ opacity: 1 }}
-                                            transition={{ opacity: { duration: 0.2 }, y: { delay: index * 0.04 } }}
-                                            className={`flex cursor-pointer flex-col rounded-2xl border bg-card p-4 outline-none transition-[box-shadow,border-color] focus-visible:ring-2 focus-visible:ring-ring ${isFocused
-                                                ? "border-primary/50 ring-2 ring-primary/30"
-                                                : "hover:border-foreground/20"
-                                            }`}
-                                        >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <p className="truncate font-medium">{account.name}</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {account.fundingAccountId
-                                                            ? `Cajita de ${accounts.find((item) => item.id === account.fundingAccountId)?.name ?? "otra cuenta"}`
-                                                            : `${isCredit ? "Deuda proyectada" : "Saldo proyectado"} · ${account.currency}`}
-                                                    </p>
-                                                </div>
-                                                {hasAlert && <AlertTriangle className={`size-4 shrink-0 ${TONE_TEXT.warning}`} />}
-                                            </div>
-                                            <Amount
-                                                value={account.projectedBalance}
-                                                currency={account.currency}
-                                                tone={!isCredit && account.projectedBalance < 0 ? "negative" : undefined}
-                                                className="mt-4 block text-2xl font-semibold tracking-tight"
-                                            />
-                                            <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-                                                <span className={TONE_TEXT[toneOf(account.projectedBalance - account.currentBalance, { inverted: isCredit })]}>
-                                                    {formatSignedMoney(account.projectedBalance - account.currentBalance, account.currency)}
-                                                </span>
-                                                {" "}vs. hoy
-                                                {isCredit && account.creditLimit !== null
-                                                    ? ` · Límite ${formatMoney(account.creditLimit, account.currency)}`
-                                                    : ""
-                                                }
-                                            </p>
-                                            {isCredit && (
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={(clickEvent) => {
-                                                        clickEvent.stopPropagation();
-                                                        setCardToConfigure({
-                                                        ...account,
-                                                            calculatedStatementBalance: account.calculatedStatementBalance ?? null,
-                                                        });
-                                                    }}
-                                                    className="mt-3 -ml-2 self-start cursor-pointer text-muted-foreground"
-                                                >
-                                                    <Settings2 className="size-3.5" />
-                                                    Plan de pago
-                                                </Button>
-                                            )}
-                                        </motion.article>
-                                    );
-                                })}
-                                </div>
-                            </section>
+                                </section>
                             </div>
                         </aside>
                     </div>
@@ -1210,7 +1214,7 @@ function PeriodAccountSummaries({ summaries, accounts, names, focusedAccountId, 
         const summary = summaries.find((item) => item.accountId === account.id);
         return summary ? [{ account, summary }] : [];
     });
-    
+
     if (!rows.length) return null;
 
     return (

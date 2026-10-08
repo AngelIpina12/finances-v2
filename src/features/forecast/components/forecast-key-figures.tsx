@@ -5,7 +5,10 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { formatAppDate } from "@/src/shared/utils/local-date-time";
 import type { LiquidityRangeSummary } from "../domain/liquidity-calculator";
-import { TONE_TEXT, formatMoney, formatSignedMoney, toneOf } from "./forecast-ui";
+import {
+    TONE_TEXT, formatMoney, formatSignedMoney,
+    toneOf
+} from "./forecast-ui";
 
 export type CardDebtSummary = {
     currency: string;

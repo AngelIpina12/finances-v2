@@ -2,7 +2,10 @@
 
 import { useTransition } from "react";
 import toast from "react-hot-toast";
-import { Save, Trash2 } from "lucide-react";
+import {
+    Plus, Save, Trash2,
+    X
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,15 +14,13 @@ import {
 } from "@/src/shared/components/forms";
 import { deleteSavingsSimulation, saveSavingsSimulation } from "../actions/savings-simulation-actions";
 import type { LinkedSavings } from "../domain/linked-savings";
-import { getSweepableSavings } from "../domain/savings-sweep";
+import { getSweepableSavings, type SavingsSweepRule } from "../domain/savings-sweep";
 import { formatMoney } from "./forecast-ui";
 
 export type SavingsSimulationDraft = {
     id?: string;
     name: string;
-    accountId: string;
-    positionId: string;
-    minimumBalance: number;
+    rules: SavingsSweepRule[];
     isDefault: boolean;
 };
 
@@ -34,43 +35,46 @@ interface Props {
 }
 
 
-export function ForecastSavingsSimulation({ accounts, linkedSavings, simulations, value, onChange }: Props) {
+export function ForecastSavingsSimulation({
+    accounts, linkedSavings, simulations,
+    value, onChange
+}: Props) {
     const router = useRouter();
     const [isSaving, startSaving] = useTransition();
     const eligibleAccounts = accounts.filter((account) => getSweepableSavings(linkedSavings, account.id).length > 0);
 
     if (!eligibleAccounts.length) return null;
 
-    const accountSavings = value ? getSweepableSavings(linkedSavings, value.accountId) : [];
-    const selectedAccount = accounts.find((account) => account.id === value?.accountId);
     const saved = simulations.find((simulation) => simulation.id === value?.id);
     const hasUnsavedChanges = value !== null && (!saved
         || saved.name !== value.name.trim()
-        || saved.accountId !== value.accountId
-        || saved.positionId !== value.positionId
-        || saved.minimumBalance !== value.minimumBalance
-        || saved.isDefault !== value.isDefault);
+        || saved.isDefault !== value.isDefault
+        || JSON.stringify(saved.rules) !== JSON.stringify(value.rules));
+    const usedAccountIds = new Set(value?.rules.map((rule) => rule.accountId));
+    const nextAccount = eligibleAccounts.find((account) => !usedAccountIds.has(account.id));
+
+    function ruleFor(accountId: string): SavingsSweepRule {
+        return { accountId, positionId: getSweepableSavings(linkedSavings, accountId)[0]?.positionId ?? "", minimumBalance: 0 };
+    }
 
     function selectSimulation(next: string) {
         if (next === "none") return onChange(null);
         if (next === "new") {
-            const account = eligibleAccounts[0];
-            return onChange({
-                name: "",
-                accountId: account.id,
-                positionId: getSweepableSavings(linkedSavings, account.id)[0].positionId,
-                minimumBalance: 0,
-                isDefault: false,
-            });
+            return onChange({ name: "", rules: [ruleFor(eligibleAccounts[0].id)], isDefault: false });
         }
 
         const simulation = simulations.find((item) => item.id === next);
-        if (simulation) onChange({ ...simulation });
+        if (simulation) onChange({ ...simulation, rules: simulation.rules.map((rule) => ({ ...rule })) });
     }
 
-    function selectAccount(accountId: string) {
+    function updateRule(index: number, rule: SavingsSweepRule) {
         if (!value) return;
-        onChange({ ...value, accountId, positionId: getSweepableSavings(linkedSavings, accountId)[0]?.positionId ?? "" });
+        onChange({ ...value, rules: value.rules.map((current, position) => position === index ? rule : current) });
+    }
+
+    function removeRule(index: number) {
+        if (!value) return;
+        onChange({ ...value, rules: value.rules.filter((_, position) => position !== index) });
     }
 
     function save() {
@@ -128,47 +132,79 @@ export function ForecastSavingsSimulation({ accounts, linkedSavings, simulations
 
             {value && (
                 <>
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <div className="flex flex-col gap-2">
-                            <FormLabel>Cuenta que recibe los ingresos</FormLabel>
-                            <FormSelect
-                                value={value.accountId}
-                                onValueChange={selectAccount}
-                                options={eligibleAccounts.map((account) => ({
-                                    value: account.id, label: `${account.name} · ${account.currency}`,
-                                }))}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <FormLabel>Cajita destino</FormLabel>
-                            <FormSelect
-                                value={value.positionId}
-                                onValueChange={(positionId) => onChange({ ...value, positionId })}
-                                options={accountSavings.map((saving) => ({
-                                    value: saving.positionId,
-                                    label: `${saving.name} · ${formatMoney(saving.balance, saving.currency)} · ${(saving.annualRate * 100).toFixed(2)}%`,
-                                }))}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-2">
-                            <FormLabel htmlFor="simulation-minimum-balance">Saldo mínimo en la cuenta</FormLabel>
-                            <FormInput
-                                id="simulation-minimum-balance"
-                                type="number"
-                                inputMode="decimal"
-                                min={0}
-                                step="0.01"
-                                placeholder="0"
-                                value={value.minimumBalance || ""}
-                                onChange={(event) => onChange({
-                                    ...value,
-                                    minimumBalance: event.target.value === "" ? 0 : Number(event.target.value),
-                                })}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Se queda en {selectedAccount?.name ?? "la cuenta"}; sólo lo que exceda se va a la cajita.
-                            </p>
-                        </div>
+                    <div className="space-y-3">
+                        {value.rules.map((rule, index) => {
+                            const accountSavings = getSweepableSavings(linkedSavings, rule.accountId);
+                            const account = accounts.find((item) => item.id === rule.accountId);
+
+                            return (
+                                <div
+                                    key={rule.accountId}
+                                    className="grid gap-3 rounded-xl border p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_auto] md:items-end"
+                                >
+                                    <div className="flex flex-col gap-2">
+                                        <FormLabel>Cuenta</FormLabel>
+                                        <FormSelect
+                                            value={rule.accountId}
+                                            onValueChange={(accountId) => updateRule(index, ruleFor(accountId))}
+                                            options={eligibleAccounts
+                                                .filter((item) => item.id === rule.accountId || !usedAccountIds.has(item.id))
+                                                .map((item) => ({ value: item.id, label: `${item.name} · ${item.currency}` }))}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <FormLabel>Cajita</FormLabel>
+                                        <FormSelect
+                                            value={rule.positionId}
+                                            onValueChange={(positionId) => updateRule(index, { ...rule, positionId })}
+                                            options={accountSavings.map((saving) => ({
+                                                value: saving.positionId,
+                                                label: `${saving.name} · ${formatMoney(saving.balance, saving.currency)} · ${(saving.annualRate * 100).toFixed(2)}%`,
+                                            }))}
+                                        />
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <FormLabel htmlFor={`simulation-minimum-${rule.accountId}`}>Saldo mínimo</FormLabel>
+                                        <FormInput
+                                            id={`simulation-minimum-${rule.accountId}`}
+                                            type="number"
+                                            inputMode="decimal"
+                                            min={0}
+                                            step="0.01"
+                                            placeholder="0"
+                                            title={`Se queda en ${account?.name ?? "la cuenta"}; sólo lo que exceda se va a la cajita.`}
+                                            value={rule.minimumBalance || ""}
+                                            onChange={(event) => updateRule(index, {
+                                                ...rule,
+                                                minimumBalance: event.target.value === "" ? 0 : Number(event.target.value),
+                                            })}
+                                        />
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-lg"
+                                        disabled={value.rules.length === 1}
+                                        onClick={() => removeRule(index)}
+                                        className="cursor-pointer"
+                                        aria-label={`Quitar ${account?.name ?? "cuenta"}`}
+                                    >
+                                        <X />
+                                    </Button>
+                                </div>
+                            );
+                        })}
+                        {nextAccount && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => onChange({ ...value, rules: [...value.rules, ruleFor(nextAccount.id)] })}
+                                className="cursor-pointer"
+                            >
+                                <Plus />
+                                Agregar cuenta
+                            </Button>
+                        )}
                     </div>
 
                     <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-end">
