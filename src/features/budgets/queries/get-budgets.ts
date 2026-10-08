@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
     budgetAllocations, budgetPeriods, budgets,
@@ -38,15 +38,40 @@ async function getPeriodSpent(
     }
 
     const ledger = await db
-        .select({ amount: transactions.amount, budgetAmount: transactions.budgetAmount })
+        .select({
+            id: transactions.id,
+            date: transactions.date,
+            merchant: transactions.merchant,
+            description: transactions.description,
+            amount: transactions.amount,
+            budgetAmount: transactions.budgetAmount,
+            categoryName: categories.name,
+            accountName: financialAccounts.name,
+        })
         .from(transactions)
-        .where(and(...conditions));
+        .leftJoin(categories, eq(transactions.categoryId, categories.id))
+        .innerJoin(financialAccounts, eq(transactions.accountId, financialAccounts.id))
+        .where(and(...conditions))
+        .orderBy(desc(transactions.date));
 
-    return ledger.reduce(
-        (sum, transaction) => sum + toNumber(transaction.budgetAmount ?? transaction.amount),
-        0,
-    );
+    const expenses = ledger.map((transaction) => ({
+        id: transaction.id,
+        date: transaction.date,
+        merchant: transaction.merchant,
+        description: transaction.description,
+        categoryName: transaction.categoryName,
+        accountName: transaction.accountName,
+        amount: toNumber(transaction.amount),
+        budgetAmount: toNumber(transaction.budgetAmount ?? transaction.amount),
+    }));
+
+    return {
+        spent: expenses.reduce((sum, expense) => sum + expense.budgetAmount, 0),
+        expenses,
+    };
 }
+
+type PeriodExpense = Awaited<ReturnType<typeof getPeriodSpent>>["expenses"][number];
 
 async function syncBudgetPeriods(
     userId: string,
@@ -61,10 +86,16 @@ async function syncBudgetPeriods(
         isReusable: budget.isReusable,
     }, now);
     let previousRemaining = 0;
-    let current: { start: Date; end: Date; spent: number; rolloverAmount: number } | null = null;
+    let current: {
+        start: Date;
+        end: Date;
+        spent: number;
+        rolloverAmount: number;
+        expenses: PeriodExpense[];
+    } | null = null;
 
     for (const range of ranges) {
-        const spent = await getPeriodSpent(userId, budget, allocations, range.start, range.end);
+        const { spent, expenses } = await getPeriodSpent(userId, budget, allocations, range.start, range.end);
         const rolloverAmount = getRolloverAmount(budget.rollover, previousRemaining);
         const availableAmount = toNumber(budget.amount) + rolloverAmount;
 
@@ -92,7 +123,7 @@ async function syncBudgetPeriods(
         previousRemaining = availableAmount - spent;
 
         if (range.start <= now && now < range.end) {
-            current = { ...range, spent, rolloverAmount };
+            current = { ...range, spent, rolloverAmount, expenses };
         }
     }
 
@@ -158,6 +189,7 @@ export async function getBudgets(userId: string, now = new Date()) {
             periodStart: currentPeriod?.start ?? null,
             periodEnd: currentPeriod?.end ?? null,
             spent: currentPeriod?.spent ?? 0,
+            expenses: currentPeriod?.expenses ?? [],
             ...progress,
             allocations: allocations.map((allocation) => ({
                 categoryId: allocation.categoryId,

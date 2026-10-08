@@ -1,4 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import {
+    afterEach, describe, expect,
+    it
+} from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
@@ -89,6 +92,14 @@ describe("getBudgets integration", () => {
             spent: 1200,
             remaining: 3800,
         });
+        expect(result.budgets[0].expenses).toEqual([
+            expect.objectContaining({
+                amount: 1200,
+                budgetAmount: 1200,
+                categoryName: "Comida test",
+                accountName: "Cuenta test",
+            }),
+        ]);
         expect(await db.select().from(budgetPeriods).where(eq(budgetPeriods.budgetId, budget.id))).toHaveLength(1);
     });
 });

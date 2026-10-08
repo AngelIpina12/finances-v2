@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
     Archive, PieChart, Plus,
-    X
+    Receipt, X
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { CardTitle } from "@/src/shared/components/ui/card";
 import { archiveBudget } from "../actions/budget-actions";
 import type { BudgetsData } from "../queries/get-budgets";
 import { createBudgetDraft, toBudgetDraft } from "../utils/budget-draft";
+import { BudgetExpensesDialog } from "./budget-expenses-dialog";
 import { BudgetForm } from "./budget-form";
 
 const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX", {
@@ -32,6 +33,7 @@ const money = (amount: number, currency: string) => new Intl.NumberFormat("es-MX
 export function BudgetsClient({ budgets, categories, accounts }: BudgetsData) {
     const router = useRouter();
     const [selected, setSelected] = useState<BudgetsData["budgets"][number] | "new" | null>(null);
+    const [budgetExpenses, setBudgetExpenses] = useState<BudgetsData["budgets"][number] | null>(null);
     const [budgetToArchive, setBudgetToArchive] = useState<BudgetsData["budgets"][number] | null>(null);
     const [isArchiving, startArchive] = useTransition();
 
@@ -199,7 +201,15 @@ export function BudgetsClient({ budgets, categories, accounts }: BudgetsData) {
                                         }
                                     </p>
                                 )}
-                                <div className="mt-5 flex justify-end">
+                                <div className="mt-5 flex justify-end gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="cursor-pointer"
+                                        onClick={() => setBudgetExpenses(budget)}
+                                    >
+                                        <Receipt /> Ver gastos ({budget.expenses.length})
+                                    </Button>
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -261,6 +271,11 @@ export function BudgetsClient({ budgets, categories, accounts }: BudgetsData) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            <BudgetExpensesDialog
+                budget={budgetExpenses}
+                onClose={() => setBudgetExpenses(null)}
+            />
 
             <AlertDialog
                 open={budgetToArchive !== null}
