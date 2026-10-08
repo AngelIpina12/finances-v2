@@ -1,7 +1,8 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    creditCardPaymentSettings, financialAccounts, scheduledOccurrences, transactions,
+    creditCardPaymentSettings, financialAccounts, scheduledOccurrences,
+    transactions,
 } from "@/src/db/schema";
 import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";
 import { calculateCardStatement } from "@/src/features/forecast/domain/card-statement-calculator";

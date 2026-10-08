@@ -1,4 +1,6 @@
-import { ArrowDownRight, ArrowUpRight, WalletCards } from "lucide-react";
+import {
+    ArrowDownRight, ArrowUpRight, WalletCards
+} from "lucide-react";
 import type { TransactionListItem } from "../queries/get-transaction-data";
 import {
     summarizeTransactionsByAccount, summarizeTransactionsByCurrency,

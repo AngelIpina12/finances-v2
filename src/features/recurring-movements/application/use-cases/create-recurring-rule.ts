@@ -50,9 +50,6 @@ export async function generateForRule(scope: RecurringRuleScope, rule: Recurring
             null,
         )
         : null;
-    // Un calendario personalizado expresa fechas explícitas; todas las que el
-    // usuario ya conoce deben aparecer, incluso si están después del horizonte
-    // habitual de generación de recurrencias.
     const horizon = lastCustomEntry && lastCustomEntry >= defaultHorizon
         ? new Date(lastCustomEntry.getTime() + 1)
         : defaultHorizon;

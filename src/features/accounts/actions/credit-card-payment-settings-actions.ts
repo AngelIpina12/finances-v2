@@ -5,9 +5,7 @@ import { requireAuth } from "@/src/lib/auth-server";
 import { AccountError } from "../application/account-error";
 import { SaveCreditCardPaymentSettingsUseCase } from "../application/use-cases/save-credit-card-payment-settings";
 import { DrizzleCreditCardPaymentSettingsRepository } from "../infrastructure/drizzle-credit-card-payment-settings-repository";
-import {
-    creditCardPaymentSettingsSchema, type CreditCardPaymentSettingsFormData,
-} from "../schemas/credit-card-payment-settings.schema";
+import { creditCardPaymentSettingsSchema, type CreditCardPaymentSettingsFormData } from "../schemas/credit-card-payment-settings.schema";
 
 const saveSettings = new SaveCreditCardPaymentSettingsUseCase(
     new DrizzleCreditCardPaymentSettingsRepository(),

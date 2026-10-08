@@ -1,17 +1,12 @@
 "use client";
 
 import {
-    createContext,
-    useContext,
-    useEffect,
+    createContext, useContext, useEffect,
     useSyncExternalStore,
 } from "react";
 import {
-    DEFAULT_PALETTE_ID,
-    PALETTE_STORAGE_KEY,
-    PALETTES,
-    getPalette,
-    isPaletteId,
+    DEFAULT_PALETTE_ID, PALETTE_STORAGE_KEY, PALETTES,
+    getPalette, isPaletteId,
 } from "@/src/shared/constants/palettes";
 import { useTheme } from "./theme-provider";
 
@@ -74,7 +69,7 @@ export function PaletteProvider({ children }: { children: React.ReactNode }) {
         try {
             localStorage.setItem(PALETTE_STORAGE_KEY, nextPalette);
         } catch {
-            // The in-memory UI can still react when storage is unavailable.
+
         }
 
         window.dispatchEvent(new Event(PALETTE_CHANGE_EVENT));

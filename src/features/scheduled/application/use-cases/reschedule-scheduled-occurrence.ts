@@ -20,8 +20,6 @@ export class RescheduleScheduledOccurrenceUseCase {
                 throw new ScheduledOccurrenceError("Las cuotas de financiamiento siguen el calendario de su plan.");
             }
 
-            // La fecha original nunca cambia: queda como registro de cuándo se
-            // tenía contemplado el movimiento, aunque se recorra varias veces.
             if (occurrence.recurringRuleId) {
                 const recorded = await scope.recordRuleDateOverride({
                     userId,

@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/src/lib/auth-server";
 import { FixedIncomeError } from "../application/fixed-income-error";
 import { DrizzleFixedIncomeRepository } from "../infrastructure/drizzle-fixed-income-repository";
-import { addCapitalSchema, fixedIncomePositionSchema, recordInterestSchema, settlePositionSchema, withdrawCapitalSchema, type AddCapitalData, type FixedIncomePositionData, type RecordInterestData, type SettlePositionData, type WithdrawCapitalData } from "../schemas/fixed-income.schema";
+import {
+    addCapitalSchema, fixedIncomePositionSchema, recordInterestSchema,
+    settlePositionSchema, withdrawCapitalSchema, type AddCapitalData,
+    type FixedIncomePositionData, type RecordInterestData, type SettlePositionData,
+    type WithdrawCapitalData
+} from "../schemas/fixed-income.schema";
 
 const repository = new DrizzleFixedIncomeRepository();
 type ActionResult = { success: boolean; message: string };

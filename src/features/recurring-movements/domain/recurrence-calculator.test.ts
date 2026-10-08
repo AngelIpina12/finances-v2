@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest";
+import {
+    describe, expect, it
+} from "vitest";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
-import {
-    getOccurrencesInHorizon, type RecurrenceSchedule,
-} from "./recurrence-calculator";
+import { getOccurrencesInHorizon, type RecurrenceSchedule } from "./recurrence-calculator";
 
 const zonedDate = (value: string) => fromZonedTime(value, APP_TIME_ZONE);
 const localDateTime = (value: Date) => formatInTimeZone(

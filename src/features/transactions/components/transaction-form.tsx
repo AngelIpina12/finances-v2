@@ -9,10 +9,9 @@ import toast from "react-hot-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import {
-    DateTimePickerField,
-    Form, FormError, FormInput,
-    FormLabel, FormSelect, FormSubmit,
-    SegmentedControl,
+    DateTimePickerField, Form, FormError,
+    FormInput, FormLabel, FormSelect,
+    FormSubmit, SegmentedControl,
 } from "@/src/shared/components/forms";
 import { saveTransaction } from "../actions/transaction-actions";
 import { TransactionFormData, transactionFormSchema } from "../schemas/transaction.schema";
@@ -49,9 +48,7 @@ interface Props {
 }
 
 export function TransactionForm({
-    accounts,
-    categories,
-    initialValues,
+    accounts, categories, initialValues,
     onClose,
 }: Props) {
     const [isPending, startTransition] = useTransition();
@@ -97,8 +94,6 @@ export function TransactionForm({
             const result = await saveTransaction(data);
 
             if (result.insufficientFunds) {
-                // El saldo cambió desde que se cargó el formulario: pide la
-                // misma confirmación que habríamos mostrado de antemano.
                 setPendingSubmission({ data, kind: result.insufficientFunds });
                 return;
             }

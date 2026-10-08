@@ -1,4 +1,6 @@
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import {
+    ArrowDownRight, ArrowUpRight, Minus
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DashboardMetric } from "../types/dashboard.types";
 

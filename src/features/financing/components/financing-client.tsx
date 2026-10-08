@@ -126,23 +126,6 @@ export function FinancingClient({ purchases, paymentAccounts, creditAccounts, pl
                     actionLabel={plans.length ? "Crear financiamiento" : "Ir a movimientos"}
                     onAction={plans.length ? () => setPlanToCreate("new") : () => router.push("/transactions")}
                 />
-                // <motion.section
-                //     initial={{ opacity: 0, y: 12 }}
-                //     animate={{ opacity: 1, y: 0 }}
-                //     transition={{ duration: 0.3, delay: 0.08 }}
-                //     className="grid min-h-80 place-items-center rounded-2xl border border-dashed bg-muted/25 p-8 text-center"
-                // >
-                //     <div className="max-w-md">
-                //         <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground"><CreditCard /></span>
-                //         <h2 className="mt-5 text-xl font-semibold">Planea tus compras a meses</h2>
-                //         <p className="mt-2 text-sm text-muted-foreground">
-                //             {purchases.length ? "Selecciona una compra vigente de tarjeta y genera su calendario de cuotas." : "Primero registra una compra de gasto en una tarjeta de crédito."}
-                //         </p>
-                //         {purchases.length > 0 && (
-                //             <Button className="mt-5 cursor-pointer" onClick={() => setPlanToCreate("new")}><Plus /> Crear financiamiento</Button>
-                //         )}
-                //     </div>
-                // </motion.section>
             ) : (
                 <motion.section layout className="grid gap-5 xl:grid-cols-2">
                     <AnimatePresence mode="popLayout">
@@ -315,7 +298,7 @@ export function FinancingClient({ purchases, paymentAccounts, creditAccounts, pl
                             <Ban />
                         </AlertDialogMedia>
                         <AlertDialogTitle>¿Cancelar este financiamiento?</AlertDialogTitle>
-                        <AlertDialogDescription className="min-w-0 break-words">
+                        <AlertDialogDescription className="min-w-0 wrap-break-word">
                             {planToCancel
                                 ? `Las cuotas pendientes de “${planToCancel.name}” dejarán de programarse. Los pagos ya registrados se conservarán.`
                                 : ""}

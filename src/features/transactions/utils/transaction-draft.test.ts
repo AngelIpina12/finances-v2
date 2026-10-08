@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import {
+    describe, expect, it
+} from "vitest";
 import { createTransactionDraft } from "./transaction-draft";
 
 const accounts = [{ id: "first" }, { id: "filtered" }];

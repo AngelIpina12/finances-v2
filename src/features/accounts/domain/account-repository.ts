@@ -44,8 +44,6 @@ export type AccountRecord = {
     dueDate: number | null;
 };
 
-// Los saldos se modifican desde el ledger. La edición de los datos de una
-// cuenta no debe reconstruirlos a partir del saldo con el que se creó.
 export type AccountUpdateRecord = Omit<
     AccountRecord,
     "openingBalance" | "owedAmount" | "availableCredit"

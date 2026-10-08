@@ -1,8 +1,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/src/db";
 import {
-    categories, financialAccounts, recurringRules, scheduledOccurrences,
-    transactions,
+    categories, financialAccounts, recurringRules,
+    scheduledOccurrences, transactions,
 } from "@/src/db/schema";
 import type { TransactionAccount } from "@/src/features/transactions/domain/transaction-repository";
 import { applyAccountBalanceDelta, type DatabaseTransaction } from "@/src/features/transactions/infrastructure/apply-account-balance-delta";
@@ -186,7 +186,6 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
             .for("update");
 
         if (!rule) return false;
-        // La recurrencia descarta las fechas fuera de su vigencia al regenerarse.
         if (input.scheduledAt < rule.startsAt || (rule.endsAt && input.scheduledAt > rule.endsAt)) {
             return false;
         }
@@ -198,7 +197,6 @@ class DrizzleScheduledOccurrenceScope implements ScheduledOccurrenceScope {
         ));
         const others = overrides.filter((entry) => entry !== existing);
         const returnsToOriginalDate = input.scheduledAt.getTime() === input.originalScheduledAt.getTime();
-        // Si vuelve a su fecha original sólo se conserva el ajuste de monto.
         const next = returnsToOriginalDate && existing?.amount === undefined
             ? others
             : [...others, {

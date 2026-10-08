@@ -55,8 +55,6 @@ export class CreateFinancingPlanUseCase {
                 regularInstallmentAdjustmentCents: roundingDifferenceCents,
             }).map((installment) => ({
                 ...installment,
-                // Los pagos previos al alta del plan ya ocurrieron fuera de la app;
-                // se conservan como historial sin crear transferencias duplicadas.
                 paidAt: installment.scheduledAt < now ? installment.scheduledAt : null,
             }));
 

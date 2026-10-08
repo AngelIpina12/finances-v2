@@ -3,9 +3,9 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
-    ArrowDownLeft, ArrowUpRight, CalendarClock, Check,
-    Clock3, Ellipsis, Forward,
-    XCircle,
+    ArrowDownLeft, ArrowUpRight, CalendarClock,
+    Check, Clock3, Ellipsis,
+    Forward, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

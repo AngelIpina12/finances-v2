@@ -1,8 +1,6 @@
 import { sql } from "drizzle-orm";
 import { recurringRules, scheduledOccurrences } from "@/src/db/schema";
 
-// Las ocurrencias ya generadas de una recurrencia pausada o archivada siguen
-// en la tabla; las lecturas de compromisos futuros deben ignorarlas.
 export const occurrenceHasLiveRule = sql`(
     ${scheduledOccurrences.recurringRuleId} is null
     or exists (

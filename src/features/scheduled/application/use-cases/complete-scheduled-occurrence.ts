@@ -1,6 +1,4 @@
-import {
-    assertFundsApproved, getBalanceDelta,
-} from "@/src/features/transactions/domain/transaction-rules";
+import { assertFundsApproved, getBalanceDelta } from "@/src/features/transactions/domain/transaction-rules";
 import type { ScheduledOccurrenceRepository } from "../../domain/scheduled-occurrence-repository";
 import { ScheduledOccurrenceError } from "../scheduled-occurrence-error";
 

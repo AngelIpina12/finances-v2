@@ -20,12 +20,9 @@ const copy = {
 } satisfies Record<FundsImpact["kind"], { title: string; description: string }>;
 
 export function InsufficientFundsDialog({
-    kind,
-    isPending,
-    onCancel,
+    kind, isPending, onCancel,
     onConfirm,
 }: {
-    /** `null` mantiene el diálogo cerrado. */
     kind: FundsImpact["kind"] | null;
     isPending: boolean;
     onCancel: () => void;

@@ -1,6 +1,4 @@
-import type {
-    Currency, TransactionAccount,
-} from "@/src/features/transactions/domain/transaction-repository";
+import type { Currency, TransactionAccount } from "@/src/features/transactions/domain/transaction-repository";
 
 export type FinancingStatus = "active" | "completed" | "cancelled";
 

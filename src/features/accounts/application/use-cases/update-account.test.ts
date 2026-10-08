@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import {
+    describe, expect, it,
+    vi
+} from "vitest";
 import type { AccountRepository } from "../../domain/account-repository";
 import { UpdateAccountUseCase } from "./update-account";
 

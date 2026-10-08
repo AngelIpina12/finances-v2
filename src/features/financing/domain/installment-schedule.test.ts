@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import {
+    describe, expect, it
+} from "vitest";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { APP_TIME_ZONE } from "@/src/shared/constants/date-time";
 import { buildInstallmentSchedule } from "./installment-schedule";

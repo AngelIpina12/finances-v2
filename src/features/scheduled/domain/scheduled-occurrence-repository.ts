@@ -78,11 +78,6 @@ export interface ScheduledOccurrenceScope {
         occurrenceId: string,
         scheduledAt: Date,
     ): Promise<boolean>;
-    /**
-     * Guarda el cambio de fecha en la regla para que sobreviva cuando sus
-     * ocurrencias pendientes se regeneren. Devuelve false si la regla ya no
-     * admite esa fecha (por ejemplo, porque termina antes).
-     */
     recordRuleDateOverride(input: {
         userId: string;
         ruleId: string;

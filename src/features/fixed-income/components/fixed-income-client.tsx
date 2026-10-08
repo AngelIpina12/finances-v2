@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+    useEffect, useMemo, useState,
+    useTransition
+} from "react";
 import { z } from "zod";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-    CalendarCheck, CalendarClock, Landmark, Pencil, Plus, ReceiptText, Trash2, Wallet, X,
+    CalendarCheck, CalendarClock, Landmark,
+    Pencil, Plus, ReceiptText,
+    Trash2, Wallet, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +29,9 @@ import {
     DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { CardTitle } from "@/src/shared/components/ui/card";
-import { formatAppDate, millisecondsUntilNextAppDay, toAppDateInputValue } from "@/src/shared/utils/local-date-time";
+import {
+    formatAppDate, millisecondsUntilNextAppDay, toAppDateInputValue
+} from "@/src/shared/utils/local-date-time";
 import {
     addFixedIncomeCapital, cancelFixedIncomePosition, recordDailyFixedIncomeInterest,
     settleFixedIncomePosition, withdrawFixedIncomeCapital,
@@ -118,7 +125,6 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
         if (!confirmablePositions.length) return;
         startTransition(async () => {
             let confirmed = 0;
-            // Secuencial para no competir por los mismos saldos de cuenta en paralelo.
             for (const position of confirmablePositions) {
                 const result = await recordDailyFixedIncomeInterest({
                     positionId: position.id,
@@ -337,173 +343,173 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                         <motion.section layout className="grid gap-5 xl:grid-cols-2">
                             <AnimatePresence mode="popLayout">
                                 {visiblePositions.map((position, index) => (
-                            <motion.article
-                                layout
-                                key={position.id}
-                                initial={{ opacity: 0, y: 18 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{ duration: 0.3, delay: index * 0.05 }}
-                                className="rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-lg"
-                            >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <h2 className="font-semibold">{position.name}</h2>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {position.institution || "Sin institución"} · {position.accountName}
+                                    <motion.article
+                                        layout
+                                        key={position.id}
+                                        initial={{ opacity: 0, y: 18 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.96 }}
+                                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                                        className="rounded-2xl border bg-card p-5 shadow-sm transition-shadow hover:shadow-lg"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h2 className="font-semibold">{position.name}</h2>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    {position.institution || "Sin institución"} · {position.accountName}
+                                                </p>
+                                                <p className="mt-2 text-xs font-medium text-primary">
+                                                    {position.isAvailableOnDemand
+                                                        ? "Cajita disponible al instante"
+                                                        : "Inversión a plazo"}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {position.status === "active" && (
+                                                    <Button
+                                                        size="icon-sm"
+                                                        variant="ghost"
+                                                        onClick={() => setPositionToEdit(position)}
+                                                        aria-label={`Editar ${position.name}`}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        <Pencil />
+                                                    </Button>
+                                                )}
+                                                {position.status === "active" && (
+                                                    <Button
+                                                        size="icon-sm"
+                                                        variant="ghost"
+                                                        disabled={isPending}
+                                                        onClick={() => setPositionToCancel(position)}
+                                                        aria-label={`Cancelar ${position.name}`}
+                                                        className="cursor-pointer text-destructive hover:text-destructive"
+                                                    >
+                                                        <Trash2 />
+                                                    </Button>
+                                                )}
+                                                <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                                                    {position.status === "settled"
+                                                        ? "Liquidada"
+                                                        : position.status === "active"
+                                                            ? "Activa"
+                                                            : position.status}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 grid grid-cols-2 gap-4">
+                                            <Metric label="Capital" value={money(position.outstandingPrincipal, position.currency)} />
+                                            <Metric label="Valor estimado" value={money(position.estimatedValue, position.currency)} />
+                                            <Metric
+                                                label="Tasa anual"
+                                                value={`${(position.annualRate * 100).toFixed(2)}% · ${position.dayCountConvention === "actual_360" ? "Actual/360" : "Actual/365"}`}
+                                            />
+                                            <Metric
+                                                label="Vencimiento"
+                                                value={position.maturesAt
+                                                    ? formatAppDate(position.maturesAt, {
+                                                        day: "numeric",
+                                                        month: "short",
+                                                        year: "numeric",
+                                                    })
+                                                    : "Sin vencimiento"}
+                                            />
+                                        </div>
+
+                                        <p className="mt-4 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+                                            Rendimiento estimado sin confirmar: bruto {money(position.estimatedGross, position.currency)}
+                                            {" · "}retención {money(position.estimatedTax, position.currency)}
+                                            {" · "}neto {money(position.estimatedNet, position.currency)}.
                                         </p>
-                                        <p className="mt-2 text-xs font-medium text-primary">
-                                            {position.isAvailableOnDemand
-                                                ? "Cajita disponible al instante"
-                                                : "Inversión a plazo"}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {position.status === "active" && (
-                                            <Button
-                                                size="icon-sm"
-                                                variant="ghost"
-                                                onClick={() => setPositionToEdit(position)}
-                                                aria-label={`Editar ${position.name}`}
-                                                className="cursor-pointer"
-                                            >
-                                                <Pencil />
-                                            </Button>
+
+                                        {position.interestFrequency === "daily" && !position.hasConfirmedInterestToday && (
+                                            <p className="mt-3 text-xs text-muted-foreground">
+                                                Hoy se estima un abono neto de {money(position.estimatedDailyNet, position.currency)}.
+                                                Confírmalo sólo cuando Nu o tu banco realmente lo deposite.
+                                            </p>
                                         )}
+
                                         {position.status === "active" && (
-                                            <Button
-                                                size="icon-sm"
-                                                variant="ghost"
-                                                disabled={isPending}
-                                                onClick={() => setPositionToCancel(position)}
-                                                aria-label={`Cancelar ${position.name}`}
-                                                className="cursor-pointer text-destructive hover:text-destructive"
-                                            >
-                                                <Trash2 />
-                                            </Button>
-                                        )}
-                                        <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                                            {position.status === "settled"
-                                                ? "Liquidada"
-                                                : position.status === "active"
-                                                    ? "Activa"
-                                                    : position.status}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className="mt-5 grid grid-cols-2 gap-4">
-                                    <Metric label="Capital" value={money(position.outstandingPrincipal, position.currency)} />
-                                    <Metric label="Valor estimado" value={money(position.estimatedValue, position.currency)} />
-                                    <Metric
-                                        label="Tasa anual"
-                                        value={`${(position.annualRate * 100).toFixed(2)}% · ${position.dayCountConvention === "actual_360" ? "Actual/360" : "Actual/365"}`}
-                                    />
-                                    <Metric
-                                        label="Vencimiento"
-                                        value={position.maturesAt
-                                            ? formatAppDate(position.maturesAt, {
-                                                day: "numeric",
-                                                month: "short",
-                                                year: "numeric",
-                                            })
-                                            : "Sin vencimiento"}
-                                    />
-                                </div>
-
-                                <p className="mt-4 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
-                                    Rendimiento estimado sin confirmar: bruto {money(position.estimatedGross, position.currency)}
-                                    {" · "}retención {money(position.estimatedTax, position.currency)}
-                                    {" · "}neto {money(position.estimatedNet, position.currency)}.
-                                </p>
-
-                                {position.interestFrequency === "daily" && !position.hasConfirmedInterestToday && (
-                                    <p className="mt-3 text-xs text-muted-foreground">
-                                        Hoy se estima un abono neto de {money(position.estimatedDailyNet, position.currency)}.
-                                        Confírmalo sólo cuando Nu o tu banco realmente lo deposite.
-                                    </p>
-                                )}
-
-                                {position.status === "active" && (
-                                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending || !canConfirmTodayInterest(position)}
-                                            onClick={() => registerDaily(position.id)}
-                                            className="cursor-pointer"
-                                        >
-                                            <ReceiptText />
-                                            {position.hasConfirmedInterestToday
-                                                ? "Abono de hoy confirmado"
-                                                : "Confirmar abono de hoy"}
-                                        </Button>
-                                        {position.interestFrequency === "daily" && (
-                                            <Popover
-                                                open={backdatePositionId === position.id}
-                                                onOpenChange={(open) => setBackdatePositionId(open ? position.id : null)}
-                                            >
-                                                <PopoverTrigger
-                                                    render={
-                                                        <Button
-                                                            size="icon-sm"
-                                                            variant="outline"
-                                                            disabled={isPending}
-                                                            aria-label={`Confirmar abono de un día anterior para ${position.name}`}
-                                                            className="cursor-pointer"
-                                                        />
-                                                    }
+                                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={isPending || !canConfirmTodayInterest(position)}
+                                                    onClick={() => registerDaily(position.id)}
+                                                    className="cursor-pointer"
                                                 >
-                                                    <CalendarClock />
-                                                </PopoverTrigger>
-                                                <PopoverContent align="start" className="w-72 p-0">
-                                                    <div className="border-b p-3">
-                                                        <p className="text-sm font-medium">Confirmar abono de otro día</p>
-                                                        <p className="mt-1 text-xs text-muted-foreground">
-                                                            Elige el día pendiente en que Nu o tu banco realmente depositó el rendimiento.
-                                                        </p>
-                                                    </div>
-                                                    <Calendar
-                                                        mode="single"
-                                                        selected={undefined}
-                                                        onSelect={(date) => date && registerDaily(position.id, date)}
-                                                        disabled={(date) => date < startOfDay(position.startsAt)
-                                                            || date > startOfDay(today)
-                                                            || position.confirmedInterestDates.includes(toAppDateInputValue(date))}
-                                                        defaultMonth={today}
-                                                        autoFocus
-                                                    />
-                                                </PopoverContent>
-                                            </Popover>
+                                                    <ReceiptText />
+                                                    {position.hasConfirmedInterestToday
+                                                        ? "Abono de hoy confirmado"
+                                                        : "Confirmar abono de hoy"}
+                                                </Button>
+                                                {position.interestFrequency === "daily" && (
+                                                    <Popover
+                                                        open={backdatePositionId === position.id}
+                                                        onOpenChange={(open) => setBackdatePositionId(open ? position.id : null)}
+                                                    >
+                                                        <PopoverTrigger
+                                                            render={
+                                                                <Button
+                                                                    size="icon-sm"
+                                                                    variant="outline"
+                                                                    disabled={isPending}
+                                                                    aria-label={`Confirmar abono de un día anterior para ${position.name}`}
+                                                                    className="cursor-pointer"
+                                                                />
+                                                            }
+                                                        >
+                                                            <CalendarClock />
+                                                        </PopoverTrigger>
+                                                        <PopoverContent align="start" className="w-72 p-0">
+                                                            <div className="border-b p-3">
+                                                                <p className="text-sm font-medium">Confirmar abono de otro día</p>
+                                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                                    Elige el día pendiente en que Nu o tu banco realmente depositó el rendimiento.
+                                                                </p>
+                                                            </div>
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={undefined}
+                                                                onSelect={(date) => date && registerDaily(position.id, date)}
+                                                                disabled={(date) => date < startOfDay(position.startsAt)
+                                                                    || date > startOfDay(today)
+                                                                    || position.confirmedInterestDates.includes(toAppDateInputValue(date))}
+                                                                defaultMonth={today}
+                                                                autoFocus
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                )}
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={isPending}
+                                                    onClick={() => (setPositionToAddCapital(position), setAddCapitalAmount(""))}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <Wallet />
+                                                    Aportar capital
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    disabled={isPending}
+                                                    onClick={() => position.isAvailableOnDemand
+                                                        ? (setPositionToWithdraw(position), setWithdrawAmount(position.outstandingPrincipal.toFixed(2)))
+                                                        : settle(position.id)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {position.isAvailableOnDemand ? "Retirar capital" : "Liquidar"}
+                                                </Button>
+                                                {position.interestFrequency !== "daily" && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        Los pagos diarios se habilitan al elegir frecuencia diaria.
+                                                    </span>
+                                                )}
+                                            </div>
                                         )}
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending}
-                                            onClick={() => (setPositionToAddCapital(position), setAddCapitalAmount(""))}
-                                            className="cursor-pointer"
-                                        >
-                                            <Wallet />
-                                            Aportar capital
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            disabled={isPending}
-                                            onClick={() => position.isAvailableOnDemand
-                                                ? (setPositionToWithdraw(position), setWithdrawAmount(position.outstandingPrincipal.toFixed(2)))
-                                                : settle(position.id)}
-                                            className="cursor-pointer"
-                                        >
-                                            {position.isAvailableOnDemand ? "Retirar capital" : "Liquidar"}
-                                        </Button>
-                                        {position.interestFrequency !== "daily" && (
-                                            <span className="text-xs text-muted-foreground">
-                                                Los pagos diarios se habilitan al elegir frecuencia diaria.
-                                            </span>
-                                        )}
-                                    </div>
-                                )}
-                            </motion.article>
+                                    </motion.article>
                                 ))}
                             </AnimatePresence>
                         </motion.section>
@@ -707,7 +713,7 @@ export function FixedIncomeClient({ liquidAccounts, positions }: FixedIncomeData
                             <Trash2 />
                         </AlertDialogMedia>
                         <AlertDialogTitle>¿Cancelar esta cajita?</AlertDialogTitle>
-                        <AlertDialogDescription className="min-w-0 break-words">
+                        <AlertDialogDescription className="min-w-0 wrap-break-word">
                             {positionToCancel
                                 ? `El capital de “${positionToCancel.name}” regresará a tu cuenta receptora. Los abonos que ya confirmaste se conservarán.`
                                 : ""}

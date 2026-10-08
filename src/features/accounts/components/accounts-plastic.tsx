@@ -81,7 +81,6 @@ export function AccountPlastic({ account, hideBalance = false, preview = false }
                     {account.type === "credit" ? "Deuda actual" : "Saldo disponible"}
                 </p>
                 <p className="mt-1 text-2xl font-semibold tracking-tight">
-                    {/* La deuda se muestra en positivo; un saldo de activo conserva su signo. */}
                     {formatMoney(
                         account.type === "credit" ? Math.abs(balance) : balance,
                         account.currency,

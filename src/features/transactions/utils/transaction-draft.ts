@@ -11,12 +11,10 @@ export function createTransactionDraft(
 ): Partial<TransactionFormData> {
     return {
         type: "expense",
-        // `null` representa una selección múltiple: exige elegir la cuenta.
         accountId: preferredAccountId === null
             ? ""
             : preferredAccountId ?? accounts[0]?.id ?? "",
         categoryId: "",
-        // datetime-local expects YYYY-MM-DDTHH:mm without a timezone suffix.
         date: toAppDateTimeInputValue() as unknown as Date,
         merchant: "",
         notes: "",

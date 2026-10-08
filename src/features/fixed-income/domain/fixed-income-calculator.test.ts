@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { calculateAccruedInterest, calculateDailyInterest, calculateNetInterest, calculateProjectedDailyNetInterest } from "./fixed-income-calculator";
+import {
+    describe, expect, it
+} from "vitest";
+import {
+    calculateAccruedInterest, calculateDailyInterest, calculateNetInterest,
+    calculateProjectedDailyNetInterest
+} from "./fixed-income-calculator";
 
 describe("fixed income calculator", () => {
     it("uses the selected annual day-count convention", () => {

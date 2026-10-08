@@ -6,7 +6,9 @@ import {
     ReceiptText, X, XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import {
+    useEffect, useState, useTransition
+} from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,7 +51,10 @@ interface EmptyStateProps {
     onAction?: () => void;
 }
 
-export function TransactionsClient({ accounts, categories, transactions, initialHasMore }: TransactionsClientProps) {
+export function TransactionsClient({
+    accounts, categories, transactions,
+    initialHasMore
+}: TransactionsClientProps) {
     const router = useRouter();
     const [transactionToEdit, setTransactionToEdit] = useState<TransactionListItem | "new" | null>(null);
     const [transferOpen, setTransferOpen] = useState(false);

@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import {
+    describe, expect, it
+} from "vitest";
 import type {
     ScheduledOccurrence, ScheduledOccurrenceRepository, ScheduledOccurrenceScope,
 } from "../../domain/scheduled-occurrence-repository";

@@ -15,8 +15,6 @@ export class DrizzleAccountRepository implements AccountRepository {
             .update(financialAccounts)
             .set({
                 ...account,
-                // El límite puede cambiar, pero la deuda procede de las
-                // transacciones. Recalculamos sólo el crédito disponible.
                 availableCredit: account.type === "credit"
                     ? sql`greatest(0, ${account.creditLimit ?? "0"}::numeric - coalesce(${financialAccounts.owedAmount}, 0))`
                     : null,

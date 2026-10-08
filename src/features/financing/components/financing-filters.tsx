@@ -2,8 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup,
-    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent,
+    DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/src/shared/components/ui/dropdown-menu";
 
 export type FinancingFilter = "all" | "active" | "completed" | "cancelled";

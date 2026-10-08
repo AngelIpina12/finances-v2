@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import {
+    describe, expect, it,
+    vi
+} from "vitest";
 import { InsufficientFundsError } from "@/src/features/transactions/domain/transaction-rules";
 import type { FinancingRepository, FinancingScope } from "../../domain/financing-repository";
 import { CompleteFinancingInstallmentUseCase } from "./complete-financing-installment";

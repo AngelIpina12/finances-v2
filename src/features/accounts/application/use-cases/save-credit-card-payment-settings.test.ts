@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import {
+    describe, expect, it,
+    vi
+} from "vitest";
 import type {
-    CreditCardPaymentSettingsRepository, CreditCardPaymentSettingsScope,
-    PaymentSettingsAccount,
+    CreditCardPaymentSettingsRepository, CreditCardPaymentSettingsScope, PaymentSettingsAccount,
 } from "../../domain/credit-card-payment-settings-repository";
 import { SaveCreditCardPaymentSettingsUseCase } from "./save-credit-card-payment-settings";
 

@@ -11,14 +11,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
-    DatePickerField,
-    Form, FormError, FormInput,
-    FormLabel, FormSelect, FormSubmit,
+    DatePickerField, Form, FormError,
+    FormInput, FormLabel, FormSelect, FormSubmit,
 } from "@/src/shared/components/forms";
-import {
-    createFixedIncomePosition,
-    updateFixedIncomePosition,
-} from "../actions/fixed-income-actions";
+import { createFixedIncomePosition, updateFixedIncomePosition } from "../actions/fixed-income-actions";
 import {
     calculateAccruedInterest, calculateNetInterest,
 } from "../domain/fixed-income-calculator";
@@ -355,12 +351,7 @@ export function FixedIncomeForm({ accounts, initialValues, onClose, positionId }
     );
 }
 
-function Field({
-    children,
-    error,
-    htmlFor,
-    label,
-}: {
+function Field({ children, error, htmlFor, label }: {
     children: React.ReactNode;
     error?: string;
     htmlFor?: string;

@@ -1,6 +1,6 @@
 import type {
-    AccountType, LedgerTransactionType, TransactionAccount, TransactionType,
-    TransferDirection,
+    AccountType, LedgerTransactionType, TransactionAccount,
+    TransactionType, TransferDirection,
 } from "./transaction-repository";
 
 export function getBalanceDelta(
@@ -55,7 +55,6 @@ export function getCreditLimitImpact(
     };
 }
 
-// Cuentas de activo que no deberían quedar en negativo sin que el usuario lo confirme.
 const BALANCE_GUARDED_ACCOUNT_TYPES: ReadonlySet<AccountType> = new Set([
     "cash", "debit", "wallet", "investment", "fixed_income",
 ]);
@@ -101,14 +100,7 @@ export type FundsAccount = Pick<
     "type" | "creditLimit" | "owedAmount" | "currentBalance"
 >;
 
-/**
- * Normaliza el faltante de fondos que produciría un movimiento: exceso del
- * límite en tarjetas de crédito o saldo negativo en cuentas de activo.
- */
-export function getFundsImpact(
-    account: FundsAccount,
-    balanceDelta: number,
-): FundsImpact | null {
+export function getFundsImpact(account: FundsAccount, balanceDelta: number): FundsImpact | null {
     if (account.type === "credit") {
         const impact = getCreditLimitImpact(account, balanceDelta);
 
@@ -146,7 +138,6 @@ export class InsufficientFundsError extends Error {
     }
 }
 
-/** Lanza `InsufficientFundsError` si el movimiento requiere confirmación y no se otorgó. */
 export function assertFundsApproved(
     account: FundsAccount,
     balanceDelta: number,

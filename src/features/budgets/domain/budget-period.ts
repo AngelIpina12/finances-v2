@@ -1,6 +1,6 @@
 import {
-    addMonths, addQuarters,
-    addWeeks, addYears,
+    addMonths, addQuarters, addWeeks,
+    addYears,
 } from "date-fns";
 
 export type BudgetPeriodType = "weekly" | "monthly" | "quarterly" | "yearly" | "custom";

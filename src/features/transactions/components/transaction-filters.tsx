@@ -2,8 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import {
-    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup,
-    DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+    DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent,
+    DropdownMenuGroup, DropdownMenuLabel, DropdownMenuSeparator,
+    DropdownMenuTrigger,
 } from "@/src/shared/components/ui/dropdown-menu";
 
 export type TransactionFilter =
@@ -30,7 +31,8 @@ interface Props {
 }
 
 export function TransactionFilters({
-    value, onChange, accounts, selectedAccountIds, onSelectedAccountIdsChange,
+    value, onChange, accounts,
+    selectedAccountIds, onSelectedAccountIdsChange,
 }: Props) {
     const selectedCount = selectedAccountIds.size;
 

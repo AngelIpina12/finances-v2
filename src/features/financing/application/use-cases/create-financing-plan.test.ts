@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import {
+    describe, expect, it,
+    vi
+} from "vitest";
 import type {
     FinancingRepository, FinancingScope, InstallmentDraft,
 } from "../../domain/financing-repository";

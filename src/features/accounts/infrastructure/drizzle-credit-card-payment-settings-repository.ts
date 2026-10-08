@@ -1,11 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/src/db";
-import {
-    creditCardPaymentSettings, financialAccounts,
-} from "@/src/db/schema";
-import type {
-    CreditCardPaymentSettingsRepository, CreditCardPaymentSettingsScope,
-} from "../domain/credit-card-payment-settings-repository";
+import { creditCardPaymentSettings, financialAccounts } from "@/src/db/schema";
+import type { CreditCardPaymentSettingsRepository, CreditCardPaymentSettingsScope } from "../domain/credit-card-payment-settings-repository";
 
 class DrizzleCreditCardPaymentSettingsScope implements CreditCardPaymentSettingsScope {
     constructor(private readonly tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) { }

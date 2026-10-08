@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import {
+    describe, expect, it
+} from "vitest";
 import { budgetFormSchema } from "./budget.schema";
 
 const categoryA = "11111111-1111-4111-8111-111111111111";

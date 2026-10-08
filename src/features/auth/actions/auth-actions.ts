@@ -1,6 +1,10 @@
 "use server"
 
-import { ForgotPasswordFormData, ForgotPasswordSchema, LoginFormData, LoginSchema, ResetPasswordFormData, ResetPasswordSchema, SignUpFormData, SignUpSchema } from "../schemas/authSchema"
+import {
+    ForgotPasswordFormData, ForgotPasswordSchema, LoginFormData,
+    LoginSchema, ResetPasswordFormData, ResetPasswordSchema,
+    SignUpFormData, SignUpSchema
+} from "../schemas/authSchema"
 import { authService } from "../services/AuthService"
 
 export async function signUpAction(input: SignUpFormData) {
@@ -40,7 +44,7 @@ export async function forgotPasswordAction(input: ForgotPasswordFormData) {
     }
 
     return await authService.requestPasswordReset(data.data)
-    
+
 }
 
 export async function resetPasswordAction(input: ResetPasswordFormData, token: string | null) {

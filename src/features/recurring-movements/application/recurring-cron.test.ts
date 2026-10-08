@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import {
+    describe, expect, it,
+    vi
+} from "vitest";
 import { hasValidCronSecret, runRecurringCron } from "./recurring-cron";
 
 function logger() {

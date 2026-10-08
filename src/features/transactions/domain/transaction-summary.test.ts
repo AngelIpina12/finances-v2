@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
 import {
-    summarizeTransactionsByAccount, summarizeTransactionsByCurrency,
-} from "./transaction-summary";
+    describe, expect, it
+} from "vitest";
+import { summarizeTransactionsByAccount, summarizeTransactionsByCurrency } from "./transaction-summary";
 
 const transactions: Parameters<typeof summarizeTransactionsByAccount>[0] = [
     { accountId: "debit", accountName: "Débito", amount: "100", currency: "MXN", status: "completed", type: "income", transferDirection: null, financingPlanId: null },

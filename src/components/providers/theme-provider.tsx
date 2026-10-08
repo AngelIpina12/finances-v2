@@ -1,9 +1,7 @@
 "use client";
 
 import {
-    createContext,
-    useContext,
-    useEffect,
+    createContext, useContext, useEffect,
     useSyncExternalStore,
 } from "react";
 import { THEME_STORAGE_KEY } from "@/src/shared/constants/theme";
@@ -91,7 +89,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         try {
             localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
         } catch {
-            // The in-memory UI can still react when storage is unavailable.
+            
         }
 
         window.dispatchEvent(new Event(THEME_CHANGE_EVENT));

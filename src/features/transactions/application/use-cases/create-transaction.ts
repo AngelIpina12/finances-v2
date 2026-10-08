@@ -1,6 +1,4 @@
-import {
-    assertFundsApproved, getBalanceDelta,
-} from "../../domain/transaction-rules";
+import { assertFundsApproved, getBalanceDelta } from "../../domain/transaction-rules";
 import type { CreateTransactionCommand, TransactionRepository } from "../../domain/transaction-repository";
 import { TransactionError } from "../transaction-error";
 

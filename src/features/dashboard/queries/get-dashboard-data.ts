@@ -1,8 +1,4 @@
-import {
-    and, asc, desc,
-    eq, gte, isNull,
-    lt, lte, ne,
-} from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt, lte, ne } from "drizzle-orm";
 import { db } from "@/src/db";
 import { getBudgets } from "@/src/features/budgets/queries/get-budgets";
 import { occurrenceHasLiveRule } from "@/src/features/scheduled/infrastructure/live-rule-occurrence";

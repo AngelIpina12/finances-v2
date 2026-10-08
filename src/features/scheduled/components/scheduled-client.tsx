@@ -59,7 +59,6 @@ const filters: Array<{ value: ScheduledFilter; label: string }> = [
 
 type ConfirmableAction = Exclude<ScheduledAction, "reschedule">;
 
-// Propone la misma hora del movimiento en el primer día que aún no ha pasado.
 function suggestRescheduleDate(scheduledAt: Date, now: Date) {
     let next = scheduledAt;
     while (next <= now) next = addAppCalendarDays(next, 1);
@@ -100,7 +99,6 @@ export function ScheduledClient({ accounts, categories, occurrences, rules, now 
         occurrence: ScheduledOccurrenceListItem;
         scheduledAt: Date | undefined;
     } | null>(null);
-    // Mensaje del servidor cuando el saldo cambió y ahora requiere confirmación.
     const [fundsApprovalMessage, setFundsApprovalMessage] = useState<string | null>(null);
     const [isMutating, startMutation] = useTransition();
     const canCreate = accounts.length > 0 && categories.length > 0;

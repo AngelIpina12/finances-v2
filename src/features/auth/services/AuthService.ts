@@ -1,5 +1,8 @@
 import { auth } from "@/src/lib/auth";
-import { ForgotPasswordFormData, LoginFormData, ResetPasswordFormData, SignUpFormData } from "../schemas/authSchema";
+import {
+    ForgotPasswordFormData, LoginFormData, ResetPasswordFormData,
+    SignUpFormData
+} from "../schemas/authSchema";
 import { authRepository, IAuthRepository } from './AuthRepository';
 import { headers } from "next/headers";
 import { APIError } from "better-auth";

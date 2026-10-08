@@ -1,6 +1,4 @@
-import type {
-    CompleteFinancingInstallmentData, FinancingPlanFormData,
-} from "../schemas/financing.schema";
+import type { CompleteFinancingInstallmentData, FinancingPlanFormData } from "../schemas/financing.schema";
 import type { FinancingData } from "../queries/get-financing-data";
 import { toAppDateTimeInputValue } from "@/src/shared/utils/local-date-time";
 

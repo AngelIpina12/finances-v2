@@ -14,8 +14,6 @@ export type AccountTransactionTotal = {
 
 export function getTransactionImpact(transaction: SummaryTransaction) {
     if (transaction.status === "cancelled") return 0;
-    // La compra ya se distribuye en cuotas; sólo éstas representan el flujo
-    // que se debe pagar, no el cargo completo al crear el financiamiento.
     if (transaction.type === "expense" && transaction.financingPlanId) return 0;
 
     const amount = Number(transaction.amount);
