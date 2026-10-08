@@ -56,8 +56,11 @@ export function CreditCardPaymentSettingsForm({ card, accounts, setting, now, on
         && account.type !== "credit"
         && account.includeInLiquidity
     ));
-    const dueAt = Number.isInteger(billingDate) && Number.isInteger(paymentTermDays)
-        ? getNextPaymentDueAt(now, billingDate, paymentTermDays)
+    const billingDay = Number(billingDate);
+    const termDays = Number(paymentTermDays);
+    const dueAt = Number.isInteger(billingDay) && Number.isInteger(termDays)
+        && billingDay >= 1 && billingDay <= 31 && termDays >= 1 && termDays <= 90
+        ? getNextPaymentDueAt(now, billingDay, termDays)
         : null;
 
     function onSubmit(data: CreditCardPaymentSettingsFormData) {
