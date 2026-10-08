@@ -24,6 +24,16 @@ export class UpdateTransactionUseCase {
                 throw new TransactionError("No puedes usar esa cuenta.");
             }
 
+            if (original.financingPlanId) {
+                if (command.type !== "expense" || nextAccount.type !== "credit") {
+                    throw new TransactionError("Una compra financiada debe seguir siendo un gasto con tarjeta de crédito.");
+                }
+
+                if (nextAccount.currency !== originalAccount.currency) {
+                    throw new TransactionError("Una compra financiada no puede cambiar de moneda.");
+                }
+            }
+
             const categoryMatchesType = await scope.categoryBelongsToType(
                 userId,
                 command.categoryId,
@@ -78,6 +88,10 @@ export class UpdateTransactionUseCase {
 
             if (!updated) {
                 throw new TransactionError("El movimiento cambió mientras lo editabas.");
+            }
+
+            if (original.financingPlanId) {
+                await scope.moveFinancingPlanToAccount(userId, original.financingPlanId, nextAccount.id);
             }
         });
     }

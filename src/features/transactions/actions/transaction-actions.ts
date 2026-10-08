@@ -33,6 +33,8 @@ function revalidateFinancialViews() {
     revalidatePath("/accounts");
     revalidatePath("/dashboard");
     revalidatePath("/forecast");
+    revalidatePath("/financing");
+    revalidatePath("/scheduled");
 }
 
 function mutationError(error: unknown, fallback: string): ActionResult {

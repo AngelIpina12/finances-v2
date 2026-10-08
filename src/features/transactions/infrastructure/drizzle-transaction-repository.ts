@@ -293,6 +293,30 @@ class DrizzleTransactionScope implements TransactionScope {
         return reopened.length;
     }
 
+    async moveFinancingPlanToAccount(userId: string, planId: string, creditAccountId: string) {
+        await this.tx
+            .update(financingPlans)
+            .set({ creditAccountId })
+            .where(and(
+                eq(financingPlans.id, planId),
+                eq(financingPlans.userId, userId),
+            ));
+
+        const planInstallmentIds = this.tx
+            .select({ id: financingInstallments.id })
+            .from(financingInstallments)
+            .where(eq(financingInstallments.financingPlanId, planId));
+
+        await this.tx
+            .update(scheduledOccurrences)
+            .set({ accountId: creditAccountId })
+            .where(and(
+                eq(scheduledOccurrences.userId, userId),
+                eq(scheduledOccurrences.status, "scheduled"),
+                inArray(scheduledOccurrences.financingInstallmentId, planInstallmentIds),
+            ));
+    }
+
     async applyBalanceDelta(account: TransactionAccount, userId: string, delta: number) {
         return applyAccountBalanceDelta(this.tx, account, userId, delta);
     }

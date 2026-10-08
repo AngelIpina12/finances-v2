@@ -120,6 +120,7 @@ export interface TransactionScope {
     cancelScheduledOccurrences(userId: string, occurrenceIds: string[]): Promise<number>;
     reopenScheduledOccurrences(userId: string, occurrenceIds: string[]): Promise<number>;
     reopenFinancingInstallments(userId: string, installmentIds: string[]): Promise<number>;
+    moveFinancingPlanToAccount(userId: string, planId: string, creditAccountId: string): Promise<void>;
     applyBalanceDelta(
         account: TransactionAccount,
         userId: string,
