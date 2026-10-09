@@ -16,6 +16,7 @@ import {
     fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
     fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
     fixedIncomePositions, fixedIncomeCashFlows, forecastSavingsSimulations, forecastViews,
+    loanSimulations,
 } from "./financial";
 
 export {
@@ -32,4 +33,5 @@ export {
     fixedIncomeCalculationMethodEnum, fixedIncomeDayCountConventionEnum,
     fixedIncomeInterestFrequencyEnum, fixedIncomeStatusEnum, fixedIncomeCashFlowTypeEnum,
     fixedIncomePositions, fixedIncomeCashFlows, forecastSavingsSimulations, forecastViews,
+    loanSimulations,
 }

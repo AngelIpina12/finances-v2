@@ -218,6 +218,13 @@
       "when": 1791406764142,
       "tag": "0030_drop_forecast_savings_simulation_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791499554166,
+      "tag": "0031_loan_simulations",
+      "breakpoints": true
     }
   ]
 }

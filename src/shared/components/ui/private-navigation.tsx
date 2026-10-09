@@ -8,9 +8,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMotionValue, useReducedMotion } from "framer-motion";
 import {
-    ArrowLeftRight, CalendarClock, ChartLine,
-    HandCoins, Landmark, LayoutDashboard,
-    PiggyBank, Tags, Wallet,
+    ArrowLeftRight, Calculator, CalendarClock,
+    ChartLine, HandCoins, Landmark,
+    LayoutDashboard, PiggyBank, Tags,
+    Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -32,6 +33,7 @@ const items = [
     { href: "/transactions", label: "Movimientos", icon: ArrowLeftRight },
     { href: "/scheduled", label: "Programados", icon: CalendarClock },
     { href: "/financing", label: "Financiamientos", icon: HandCoins },
+    { href: "/loan-simulator", label: "Simulador de créditos", icon: Calculator },
     { href: "/budgets", label: "Presupuestos", icon: PiggyBank },
     { href: "/forecast", label: "Previsión", icon: ChartLine },
     { href: "/fixed-income", label: "Renta fija", icon: Landmark },

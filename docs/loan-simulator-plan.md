@@ -55,6 +55,17 @@ Comprobaciones clave:
   (17,523.96 / 203,823.96 ≈ 8.6%): mes 1 → 14,883.95 / 1,400.03.
 - Fecha de pago se recorre al siguiente día hábil (29-08-2026 sáb → 31-08-2026).
 
+Convenciones bancarias descubiertas al reproducir la tabla (implementadas en
+`amortization-calculator.ts`):
+
+- La tasa con IVA se redondea a 2 decimales (7.90% × 1.16 = 9.164% → **9.16%**).
+- Vehículo y seguro financiado son **dos sub-créditos** con su propia anualidad
+  redondeada; los intereses se redondean por separado y se suman.
+- En el último pago, el capital liquida el saldo y el residuo de redondeo se absorbe
+  en intereses para mantener la mensualidad fija (135.23 en lugar de 135.15).
+- Si el mes no tiene el día del vencimiento (29 de febrero), vence el día 1 del mes
+  siguiente.
+
 ---
 
 ## Fase 1 — Calculadora, formulario y guardado

@@ -5,6 +5,7 @@ import {
     uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { LoanTerms } from "@/src/features/loan-simulations/domain/amortization-calculator";
 import { users } from "./auth";
 
 export const accountTypeEnum = pgEnum("account_type", ["cash", "debit", "credit", "wallet", "investment", "fixed_income", "loan"]);
@@ -487,5 +488,23 @@ export const forecastViews = pgTable(
         uniqueIndex("forecast_views_default_idx")
             .on(table.userId)
             .where(sql`${table.isDefault}`),
+    ],
+);
+
+/** Cotización de crédito simulada; la tabla de amortización se calcula al vuelo desde `terms`. */
+export const loanSimulations = pgTable(
+    "loan_simulations",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+        name: text("name").notNull(),
+        currency: currencyCodeEnum("currency").notNull().default("MXN"),
+        terms: jsonb("terms").$type<LoanTerms>().notNull(),
+        notes: text("notes"),
+        createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+        updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    },
+    (table) => [
+        index("loan_simulations_user_idx").on(table.userId),
     ],
 );
